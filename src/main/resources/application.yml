@@ -1,0 +1,69 @@
+spring:
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+  redis:
+    database: 2
+    host: 127.0.0.1
+    port: 6379
+    enable: true
+    timeout: 10000
+  datasource:
+    dynamic:
+      druid:
+        initial-size: 3
+        max-active: 10
+        min-idle: 1
+        max-wait: 60000
+        validation-query: SELECT 'x'
+        test-while-idle: true
+        test-on-borrow: true
+      primary: master
+      strict: false
+      datasource:
+        master:
+          url: jdbc:mysql://172.16.3.32:3306/open_api?useUnicode=true&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+          username: secure
+          password: 8STRYXLCtn8
+          driver-class-name: com.mysql.cj.jdbc.Driver
+mybatis-plus:
+  mapperLocations: classpath*:/mapper/*.xml
+  configuration:
+    mapUnderscoreToCamelCase: true
+common:
+  data:
+    type: mysql
+    dir: db/${common.data.type}
+    enable: true
+    init:
+      enable: false
+open-api:
+  svmp:
+    engine-service-name: vul-pass
+    engine-path-prefix: ""
+    dispatch:
+      # 须为 vul-pass 指令库中已存在的 orderId（格式 1-31-19位数字）
+      order-id: ""
+      tsk-phase: 1
+      proc-method: 1022
+      eng-hashes:
+        - NA
+  token:
+    expires-in-seconds: 86400   # JWT 过期与 Redis TTL（对齐 clover JWTUtils.create，单位秒）
+  admin:
+    api-key: dev-internal-admin-key-change-in-prod
+
+info:
+  release:
+    version: v1.0.0
+
+# Knife4j 文档（对齐 clover / spore-starter-core · Swagger2Config）
+knife4j:
+  enable: true
+  production: false
+  setting:
+    language: zh-CN
+
+logging:
+  level:
+    com.vtc.openapi: debug

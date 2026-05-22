@@ -1,0 +1,38 @@
+server:
+  port: 35780
+spring:
+  application:
+    product: ESMP
+    name: open-api-service
+    env: DEV
+    nacos: 172.16.3.33:8848
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude: com.botany.spore.core.config.Swagger2Config
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${spring.application.nacos}
+        namespace: ${spring.application.product}
+        group: ${spring.application.env}
+        metadata:
+          info.release.version: v1.0.0
+      config:
+        server-addr: ${spring.application.nacos}
+        namespace: ${spring.application.product}
+        group: ${spring.application.env}
+        file-extension: yaml
+    sentinel:
+      enabled: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+feign:
+  sentinel:
+    enabled: false
