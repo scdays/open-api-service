@@ -1,9 +1,9 @@
 package com.vtc.openapi.infra.dao;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
+import com.botany.spore.mybatis.IBaseMapper;
+import com.vtc.openapi.infra.dao.po.PartnerPO;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface PartnerMapper extends BaseMapper<PartnerDO> {
+public interface PartnerMapper extends IBaseMapper<PartnerPO> {
 }

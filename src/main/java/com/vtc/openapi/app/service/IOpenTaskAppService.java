@@ -1,10 +1,10 @@
 package com.vtc.openapi.app.service;
 
-import com.vtc.openapi.web.dto.ApiResponse;
-import com.vtc.openapi.web.dto.task.CreateTaskRequest;
-import com.vtc.openapi.web.dto.task.CreateTaskResponse;
-import com.vtc.openapi.web.dto.task.TaskListPageDto;
-import com.vtc.openapi.web.dto.task.TaskProgressDto;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.vtc.openapi.ui.dto.open.task.CreateTaskRequest;
+import com.vtc.openapi.ui.dto.open.task.CreateTaskResponse;
+import com.vtc.openapi.ui.dto.open.task.TaskListPageDto;
+import com.vtc.openapi.ui.dto.open.task.TaskProgressDto;
 
 /**
  * 开放平台任务应用服务（P0）。

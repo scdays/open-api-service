@@ -1,17 +1,16 @@
 package com.vtc.openapi.ui.open;
 
 import com.vtc.openapi.app.service.IOpenTaskAppService;
-import com.vtc.openapi.common.OpenApiConstants;
-import com.vtc.openapi.web.dto.ApiResponse;
-import com.vtc.openapi.web.dto.task.CreateTaskRequest;
-import com.vtc.openapi.web.dto.task.CreateTaskResponse;
-import com.vtc.openapi.web.dto.task.TaskListPageDto;
-import com.vtc.openapi.web.dto.task.TaskProgressDto;
+import com.vtc.openapi.domain.open.OpenApiConstants;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.vtc.openapi.ui.dto.open.task.CreateTaskRequest;
+import com.vtc.openapi.ui.dto.open.task.CreateTaskResponse;
+import com.vtc.openapi.ui.dto.open.task.TaskListPageDto;
+import com.vtc.openapi.ui.dto.open.task.TaskProgressDto;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,16 +19,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.Valid;
-
 /**
  * 开放平台任务 REST（/api/open/v1/tasks · P0）。
- * <p>
- * Partner 上下文由 partner-gateway 注入 {@link OpenApiConstants#HEADER_PARTNER_ID}。
  */
 @RestController
 @RequestMapping(OpenApiConstants.API_PREFIX)
-@Validated
 @Api(tags = "开放平台 · 任务")
 public class OpenTaskUI {
 
@@ -42,10 +36,11 @@ public class OpenTaskUI {
     @ApiOperation(value = "创建扫描任务", notes = "需 partner-gateway 注入 X-Partner-Id；extTaskId 幂等")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "X-Partner-Id", value = "Partner ID", required = true,
-                    paramType = "header", dataType = "string")
+                    paramType = "header", dataType = "string"),
+            @ApiImplicitParam(name = "X-Request-Id", value = "请求追踪 ID", paramType = "header", dataType = "string")
     })
     @PostMapping("/tasks")
-    public ApiResponse<CreateTaskResponse> createTask(@Valid @RequestBody CreateTaskRequest request) {
+    public ApiResponse<CreateTaskResponse> createTask(@RequestBody CreateTaskRequest request) {
         return openTaskAppService.createTask(request);
     }
 

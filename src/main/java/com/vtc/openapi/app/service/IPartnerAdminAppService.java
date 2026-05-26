@@ -1,26 +1,30 @@
 package com.vtc.openapi.app.service;
 
-import com.vtc.openapi.ui.dto.admin.CreateCredentialResponse;
-import com.vtc.openapi.ui.dto.admin.CreatePartnerRequest;
-import com.vtc.openapi.ui.dto.admin.PartnerDetailDto;
-import com.vtc.openapi.ui.dto.admin.PartnerSummaryDto;
-import com.vtc.openapi.ui.dto.admin.UpdatePartnerRequest;
-import com.vtc.openapi.web.dto.ApiResponse;
+import com.botany.spore.core.page.PageInfo;
+import com.botany.spore.ddd.app.service.IAppService;
+import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
+import com.vtc.openapi.ui.dto.admin.PartnerDTO;
+import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.vtc.openapi.ui.params.admin.CreatePartnerParams;
+import com.vtc.openapi.ui.params.admin.UpdatePartnerParams;
 
 import java.util.List;
 
 /**
- * Partner 内部管理应用服务（运营后台 · P0 骨架）。
+ * Partner 内部管理应用服务（运营后台 · P0）。
  */
-public interface IPartnerAdminAppService {
+public interface IPartnerAdminAppService extends IAppService<PartnerDTO> {
 
-    ApiResponse<PartnerDetailDto> createPartner(CreatePartnerRequest request);
+    ApiResponse<PartnerDTO> createPartner(CreatePartnerParams params);
 
-    ApiResponse<List<PartnerSummaryDto>> listPartners(int page, int size);
+    ApiResponse<PartnerPageDto> listPartners(PageInfo<PartnerDTO> pageInfo);
 
-    ApiResponse<PartnerDetailDto> getPartner(String partnerId);
+    ApiResponse<PartnerDTO> getPartner(String partnerId);
 
-    ApiResponse<PartnerDetailDto> updatePartner(String partnerId, UpdatePartnerRequest request);
+    ApiResponse<PartnerDTO> updatePartner(String partnerId, UpdatePartnerParams params);
 
-    ApiResponse<CreateCredentialResponse> createCredential(String partnerId);
+    ApiResponse<PartnerCredentialDTO> createCredential(String partnerId);
+
+    ApiResponse<List<PartnerCredentialDTO>> listCredentials(String partnerId);
 }

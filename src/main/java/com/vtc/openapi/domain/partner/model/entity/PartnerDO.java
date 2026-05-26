@@ -1,20 +1,22 @@
 package com.vtc.openapi.domain.partner.model.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.botany.spore.ddd.domain.model.entity.BaseDO;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
 /**
- * Partner 主数据。
+ * Partner 主数据（领域对象）。
  */
 @Data
-@TableName("partner")
-public class PartnerDO {
+@EqualsAndHashCode(callSuper = true)
+@Component
+@Scope("prototype")
+public class PartnerDO extends BaseDO {
 
-    @TableId(type = IdType.AUTO)
     private Long id;
 
     private String partnerId;

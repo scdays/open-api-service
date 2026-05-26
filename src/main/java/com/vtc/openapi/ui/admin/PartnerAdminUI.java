@@ -1,12 +1,16 @@
 package com.vtc.openapi.ui.admin;
 
+import com.botany.spore.core.page.PageInfo;
+import com.botany.spore.ddd.ui.BaseUI;
+import com.vtc.openapi.app.service.IInvocationAdminAppService;
 import com.vtc.openapi.app.service.IPartnerAdminAppService;
-import com.vtc.openapi.ui.dto.admin.CreateCredentialResponse;
-import com.vtc.openapi.ui.dto.admin.CreatePartnerRequest;
-import com.vtc.openapi.ui.dto.admin.PartnerDetailDto;
-import com.vtc.openapi.ui.dto.admin.PartnerSummaryDto;
-import com.vtc.openapi.ui.dto.admin.UpdatePartnerRequest;
-import com.vtc.openapi.web.dto.ApiResponse;
+import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
+import com.vtc.openapi.ui.dto.admin.PartnerDTO;
+import com.vtc.openapi.ui.dto.admin.PartnerInvocationStatsDto;
+import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.vtc.openapi.ui.params.admin.CreatePartnerParams;
+import com.vtc.openapi.ui.params.admin.UpdatePartnerParams;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.validation.annotation.Validated;
@@ -24,50 +28,65 @@ import java.util.List;
 
 /**
  * Partner 内部管理 API（/internal/admin/partners · 运营后台）。
- * 鉴权：请求头 {@code X-Internal-Admin-Key}，见 {@code open-api.admin.api-key}。
  */
 @RestController
 @RequestMapping("/internal/admin/partners")
 @Validated
 @Api(tags = "Partner 内部管理")
-public class PartnerAdminUI {
+public class PartnerAdminUI extends BaseUI {
 
     private final IPartnerAdminAppService partnerAdminAppService;
+    private final IInvocationAdminAppService invocationAdminAppService;
 
-    public PartnerAdminUI(IPartnerAdminAppService partnerAdminAppService) {
+    public PartnerAdminUI(IPartnerAdminAppService partnerAdminAppService,
+                          IInvocationAdminAppService invocationAdminAppService) {
         this.partnerAdminAppService = partnerAdminAppService;
+        this.invocationAdminAppService = invocationAdminAppService;
     }
 
     @ApiOperation("创建 Partner")
     @PostMapping
-    public ApiResponse<PartnerDetailDto> createPartner(@Valid @RequestBody CreatePartnerRequest request) {
-        return partnerAdminAppService.createPartner(request);
+    public ApiResponse<PartnerDTO> createPartner(@Valid @RequestBody CreatePartnerParams params) {
+        return partnerAdminAppService.createPartner(params);
     }
 
     @ApiOperation("分页查询 Partner")
     @GetMapping
-    public ApiResponse<List<PartnerSummaryDto>> listPartners(
+    public ApiResponse<PartnerPageDto> listPartners(
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return partnerAdminAppService.listPartners(page, size);
+        PageInfo<PartnerDTO> pageInfo = getPageInfo(page, size);
+        return partnerAdminAppService.listPartners(pageInfo);
     }
 
     @ApiOperation("查询 Partner 详情")
     @GetMapping("/{partnerId}")
-    public ApiResponse<PartnerDetailDto> getPartner(@PathVariable("partnerId") String partnerId) {
+    public ApiResponse<PartnerDTO> getPartner(@PathVariable("partnerId") String partnerId) {
         return partnerAdminAppService.getPartner(partnerId);
     }
 
     @ApiOperation("更新 Partner（含 capabilities、callback、rateLimitQps、status）")
     @PutMapping("/{partnerId}")
-    public ApiResponse<PartnerDetailDto> updatePartner(@PathVariable("partnerId") String partnerId,
-                                                       @Valid @RequestBody UpdatePartnerRequest request) {
-        return partnerAdminAppService.updatePartner(partnerId, request);
+    public ApiResponse<PartnerDTO> updatePartner(@PathVariable("partnerId") String partnerId,
+                                                 @Valid @RequestBody UpdatePartnerParams params) {
+        return partnerAdminAppService.updatePartner(partnerId, params);
     }
 
     @ApiOperation(value = "创建 Partner 凭证", notes = "clientSecret 明文仅本次返回")
     @PostMapping("/{partnerId}/credentials")
-    public ApiResponse<CreateCredentialResponse> createCredential(@PathVariable("partnerId") String partnerId) {
+    public ApiResponse<PartnerCredentialDTO> createCredential(@PathVariable("partnerId") String partnerId) {
         return partnerAdminAppService.createCredential(partnerId);
+    }
+
+    @ApiOperation(value = "查询 Partner 凭证列表", notes = "不含 clientSecret")
+    @GetMapping("/{partnerId}/credentials")
+    public ApiResponse<List<PartnerCredentialDTO>> listCredentials(@PathVariable("partnerId") String partnerId) {
+        return partnerAdminAppService.listCredentials(partnerId);
+    }
+
+    @ApiOperation("查询 Partner 调用统计")
+    @GetMapping("/{partnerId}/stats")
+    public ApiResponse<PartnerInvocationStatsDto> getPartnerStats(@PathVariable("partnerId") String partnerId) {
+        return invocationAdminAppService.getPartnerStats(partnerId);
     }
 }

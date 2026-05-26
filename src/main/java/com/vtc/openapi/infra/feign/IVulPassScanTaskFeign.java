@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * vul-pass 扫描任务真实 REST（Read 自 {@code VulScanTaskUi}）。
  * <p>开放平台逻辑契约 {@code POST /task/create}、{@code GET /task/progress} 由
- * {@link com.vtc.openapi.adapter.SvmpEngineAdapterImpl} 翻译为本接口。</p>
+ * {@link com.vtc.openapi.infra.adapter.SvmpEngineAdapterImpl} 翻译为本接口。</p>
  */
 @FeignClient(name = "${open-api.svmp.engine-service-name:vul-pass}",
         path = "${open-api.svmp.engine-path-prefix:}")

@@ -1,9 +1,7 @@
 package com.vtc.openapi.infra.dao;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.vtc.openapi.domain.partner.model.entity.PartnerWebhookConfigDO;
-import org.apache.ibatis.annotations.Mapper;
+import com.botany.spore.mybatis.IBaseMapper;
+import com.vtc.openapi.infra.dao.po.PartnerWebhookConfigPO;
 
-@Mapper
-public interface PartnerWebhookConfigMapper extends BaseMapper<PartnerWebhookConfigDO> {
+public interface PartnerWebhookConfigMapper extends IBaseMapper<PartnerWebhookConfigPO> {
 }

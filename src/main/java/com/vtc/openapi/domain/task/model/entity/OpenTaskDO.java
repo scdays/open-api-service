@@ -1,20 +1,19 @@
 package com.vtc.openapi.domain.task.model.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.botany.spore.ddd.domain.model.entity.BaseDO;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
-/**
- * 开放平台任务（与 infra.dao.po.OpenTaskPO 对应，领域层引用）。
- */
 @Data
-@TableName("open_task")
-public class OpenTaskDO {
+@EqualsAndHashCode(callSuper = true)
+@Component
+@Scope("prototype")
+public class OpenTaskDO extends BaseDO {
 
-    @TableId(type = IdType.AUTO)
     private Long id;
 
     private String taskId;
@@ -27,7 +26,29 @@ public class OpenTaskDO {
 
     private String taskName;
 
+    private String targetType;
+
+    private Integer vulnType;
+
+    private String targetsJson;
+
     private String status;
 
+    private Integer progress;
+
+    private Integer scanTemplateId;
+
+    private String callbackUrl;
+
+    private String optionsJson;
+
+    private String errorMessage;
+
+    private Date startedAt;
+
+    private Date finishedAt;
+
     private Date createdAt;
+
+    private Date updatedAt;
 }

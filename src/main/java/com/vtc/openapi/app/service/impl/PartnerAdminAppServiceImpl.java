@@ -1,168 +1,137 @@
 package com.vtc.openapi.app.service.impl;
 
+import com.botany.spore.core.page.PageInfo;
+import com.botany.spore.ddd.app.service.AppServiceImpl;
+import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
 import com.vtc.openapi.app.service.IPartnerAdminAppService;
-import com.vtc.openapi.common.OpenApiConstants;
-import com.vtc.openapi.common.OpenApiException;
+import com.vtc.openapi.domain.open.OpenApiConstants;
+import com.vtc.openapi.domain.open.OpenApiException;
+import com.vtc.openapi.domain.partner.model.PartnerConstants;
 import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
+import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import com.vtc.openapi.infra.redis.PartnerTokenRedisStore;
-import com.vtc.openapi.infra.repository.PartnerRepository;
-import com.vtc.openapi.ui.dto.admin.CreateCredentialResponse;
-import com.vtc.openapi.ui.dto.admin.CreatePartnerRequest;
-import com.vtc.openapi.ui.dto.admin.PartnerDetailDto;
-import com.vtc.openapi.ui.dto.admin.PartnerSummaryDto;
-import com.vtc.openapi.ui.dto.admin.UpdatePartnerRequest;
-import com.vtc.openapi.web.dto.ApiResponse;
-import org.springframework.dao.DuplicateKeyException;
+import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
+import com.vtc.openapi.ui.dto.admin.PartnerDTO;
+import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.vtc.openapi.ui.params.admin.CreatePartnerParams;
+import com.vtc.openapi.ui.params.admin.UpdatePartnerParams;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Partner 内部管理应用服务（继承 AppServiceImpl · ConvertHelper 转换）。
+ */
 @Service
-public class PartnerAdminAppServiceImpl implements IPartnerAdminAppService {
+public class PartnerAdminAppServiceImpl
+        extends AppServiceImpl<IPartnerDomainService, PartnerDO, PartnerDTO>
+        implements IPartnerAdminAppService {
 
-    private final PartnerRepository partnerRepository;
     private final PartnerTokenRedisStore tokenRedisStore;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public PartnerAdminAppServiceImpl(PartnerRepository partnerRepository,
+    public PartnerAdminAppServiceImpl(IPartnerDomainService partnerDomainService,
                                       PartnerTokenRedisStore tokenRedisStore) {
-        this.partnerRepository = partnerRepository;
+        this.domainService = partnerDomainService;
         this.tokenRedisStore = tokenRedisStore;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<PartnerDetailDto> createPartner(CreatePartnerRequest request) {
-        if (partnerRepository.findByPartnerId(request.getPartnerId()) != null) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId 已存在");
-        }
-        Date now = new Date();
-        PartnerDO partner = new PartnerDO();
-        partner.setPartnerId(request.getPartnerId());
-        partner.setPartnerName(request.getPartnerName());
-        partner.setPartnerType(request.getPartnerType());
-        partner.setStatus(PartnerRepository.STATUS_ACTIVE);
-        partner.setRateLimitQps(request.getRateLimitQps() != null ? request.getRateLimitQps() : 100);
-        partner.setCreatedAt(now);
-        partner.setUpdatedAt(now);
-        try {
-            partnerRepository.insertPartner(partner);
-        } catch (DuplicateKeyException ex) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId 已存在");
-        }
-        if (!CollectionUtils.isEmpty(request.getCapabilities())) {
-            partnerRepository.replaceCapabilities(request.getPartnerId(), request.getCapabilities());
-        }
-        partnerRepository.upsertCallbackUrl(request.getPartnerId(), request.getDefaultCallbackUrl());
-        return ApiResponse.ok(toDetailDto(partner));
+    public ApiResponse<PartnerDTO> createPartner(CreatePartnerParams params) {
+        PartnerDO toCreate = ConvertHelper.convert(fromCreateParams(params), PartnerDO.class);
+        PartnerDO saved = domainService.createPartner(
+                toCreate, params.getCapabilities(), params.getDefaultCallbackUrl());
+        return ApiResponse.ok(enrichDetail(saved));
     }
 
     @Override
-    public ApiResponse<List<PartnerSummaryDto>> listPartners(int page, int size) {
-        if (page < 1 || size < 1) {
+    public ApiResponse<PartnerPageDto> listPartners(PageInfo<PartnerDTO> pageInfo) {
+        if (pageInfo.getCurrent() < 1 || pageInfo.getSize() < 1) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "page/size 无效");
         }
-        int offset = (page - 1) * size;
-        List<PartnerDO> partners = partnerRepository.listPartners(offset, size);
-        List<PartnerSummaryDto> items = partners.stream().map(this::toSummaryDto).collect(Collectors.toList());
-        return ApiResponse.ok(items);
+        PageInfo<PartnerDO> doPage = ConvertHelper.convertPageInfo(pageInfo, PartnerDO.class);
+        PageInfo<PartnerDO> page = domainService.pagePartners(doPage);
+        List<PartnerDTO> items = page.getRecords().stream()
+                .map(this::enrichSummary)
+                .collect(Collectors.toList());
+        PartnerPageDto pageDto = new PartnerPageDto();
+        pageDto.setItems(items);
+        pageDto.setTotal(page.getTotal());
+        pageDto.setPage((int) page.getCurrent());
+        pageDto.setSize((int) page.getSize());
+        return ApiResponse.ok(pageDto);
     }
 
     @Override
-    public ApiResponse<PartnerDetailDto> getPartner(String partnerId) {
-        PartnerDO partner = requirePartner(partnerId);
-        return ApiResponse.ok(toDetailDto(partner));
+    public ApiResponse<PartnerDTO> getPartner(String partnerId) {
+        return ApiResponse.ok(enrichDetail(domainService.requireByPartnerId(partnerId)));
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<PartnerDetailDto> updatePartner(String partnerId, UpdatePartnerRequest request) {
-        PartnerDO partner = requirePartner(partnerId);
-        if (StringUtils.hasText(request.getPartnerName())) {
-            partner.setPartnerName(request.getPartnerName());
-        }
-        if (StringUtils.hasText(request.getStatus())) {
-            partner.setStatus(request.getStatus());
-        }
-        if (request.getRateLimitQps() != null) {
-            partner.setRateLimitQps(request.getRateLimitQps());
-        }
-        partnerRepository.updatePartner(partner);
-        if (request.getCapabilities() != null) {
-            partnerRepository.replaceCapabilities(partnerId, request.getCapabilities());
-        }
-        if (request.getDefaultCallbackUrl() != null) {
-            partnerRepository.upsertCallbackUrl(partnerId, request.getDefaultCallbackUrl());
-        }
-        return ApiResponse.ok(toDetailDto(partner));
+    public ApiResponse<PartnerDTO> updatePartner(String partnerId, UpdatePartnerParams params) {
+        PartnerDO patch = ConvertHelper.convert(fromUpdateParams(params), PartnerDO.class);
+        PartnerDO updated = domainService.updatePartner(
+                partnerId, patch, params.getCapabilities(), params.getDefaultCallbackUrl());
+        return ApiResponse.ok(enrichDetail(updated));
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<CreateCredentialResponse> createCredential(String partnerId) {
-        PartnerDO partner = requirePartner(partnerId);
-        if (!PartnerRepository.STATUS_ACTIVE.equals(partner.getStatus())) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "Partner 非 ACTIVE，禁止签发凭证");
-        }
+    public ApiResponse<PartnerCredentialDTO> createCredential(String partnerId) {
         String clientId = "cli_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String clientSecret = generateClientSecret();
-        Date now = new Date();
+        PartnerCredentialDO saved = domainService.createCredential(
+                partnerId, clientId, passwordEncoder.encode(clientSecret));
+        tokenRedisStore.saveCredentialMeta(clientId, partnerId, PartnerConstants.STATUS_ACTIVE);
 
-        PartnerCredentialDO credential = new PartnerCredentialDO();
-        credential.setPartnerId(partnerId);
-        credential.setClientId(clientId);
-        credential.setClientSecretHash(passwordEncoder.encode(clientSecret));
-        credential.setStatus(PartnerRepository.STATUS_ACTIVE);
-        credential.setCreatedAt(now);
-        credential.setUpdatedAt(now);
-        partnerRepository.insertCredential(credential);
-        tokenRedisStore.saveCredentialMeta(clientId, partnerId, PartnerRepository.STATUS_ACTIVE);
-
-        CreateCredentialResponse data = new CreateCredentialResponse();
+        PartnerCredentialDTO data = ConvertHelper.convert(saved, PartnerCredentialDTO.class);
         data.setPartnerId(partnerId);
-        data.setClientId(clientId);
         data.setClientSecret(clientSecret);
-        data.setStatus(PartnerRepository.STATUS_ACTIVE);
         return ApiResponse.ok(data);
     }
 
-    private PartnerDO requirePartner(String partnerId) {
-        PartnerDO partner = partnerRepository.findByPartnerId(partnerId);
-        if (partner == null) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "Partner 不存在");
-        }
-        return partner;
+    @Override
+    public ApiResponse<List<PartnerCredentialDTO>> listCredentials(String partnerId) {
+        List<PartnerCredentialDTO> items = ConvertHelper.convertList(
+                domainService.listCredentials(partnerId), PartnerCredentialDTO.class);
+        return ApiResponse.ok(items);
     }
 
-    private PartnerDetailDto toDetailDto(PartnerDO partner) {
-        PartnerDetailDto dto = new PartnerDetailDto();
-        dto.setPartnerId(partner.getPartnerId());
-        dto.setPartnerName(partner.getPartnerName());
-        dto.setPartnerType(partner.getPartnerType());
-        dto.setStatus(partner.getStatus());
-        dto.setRateLimitQps(partner.getRateLimitQps());
-        dto.setCapabilities(new ArrayList<>(partnerRepository.listCapabilities(partner.getPartnerId())));
-        dto.setDefaultCallbackUrl(partnerRepository.findCallbackUrl(partner.getPartnerId()));
+    private PartnerDTO fromCreateParams(CreatePartnerParams params) {
+        PartnerDTO dto = new PartnerDTO();
+        dto.setPartnerId(params.getPartnerId());
+        dto.setPartnerName(params.getPartnerName());
+        dto.setPartnerType(params.getPartnerType());
+        dto.setRateLimitQps(params.getRateLimitQps());
         return dto;
     }
 
-    private PartnerSummaryDto toSummaryDto(PartnerDO partner) {
-        PartnerSummaryDto dto = new PartnerSummaryDto();
-        dto.setPartnerId(partner.getPartnerId());
-        dto.setPartnerName(partner.getPartnerName());
-        dto.setStatus(partner.getStatus());
+    private PartnerDTO fromUpdateParams(UpdatePartnerParams params) {
+        PartnerDTO dto = new PartnerDTO();
+        dto.setPartnerName(params.getPartnerName());
+        dto.setStatus(params.getStatus());
+        dto.setRateLimitQps(params.getRateLimitQps());
+        return dto;
+    }
+
+    private PartnerDTO enrichDetail(PartnerDO partner) {
+        PartnerDTO dto = ConvertHelper.convert(partner, PartnerDTO.class);
+        dto.setCapabilities(new ArrayList<>(domainService.listCapabilities(partner.getPartnerId())));
+        dto.setDefaultCallbackUrl(domainService.findCallbackUrl(partner.getPartnerId()));
+        return dto;
+    }
+
+    private PartnerDTO enrichSummary(PartnerDO partner) {
+        PartnerDTO dto = ConvertHelper.convert(partner, PartnerDTO.class);
+        dto.setCapabilities(new ArrayList<>(domainService.listCapabilities(partner.getPartnerId())));
         return dto;
     }
 

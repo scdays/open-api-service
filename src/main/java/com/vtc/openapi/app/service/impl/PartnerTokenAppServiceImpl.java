@@ -3,18 +3,19 @@ package com.vtc.openapi.app.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.botany.spore.core.utils.JWTUtils;
 import com.vtc.openapi.app.service.IPartnerTokenAppService;
-import com.vtc.openapi.common.OpenApiConstants;
-import com.vtc.openapi.common.OpenApiException;
+import com.vtc.openapi.domain.open.OpenApiConstants;
+import com.vtc.openapi.domain.open.OpenApiException;
+import com.vtc.openapi.domain.partner.model.PartnerConstants;
 import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
+import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import com.vtc.openapi.infra.config.OpenApiProperties;
 import com.vtc.openapi.infra.redis.PartnerTokenRedisStore;
-import com.vtc.openapi.infra.repository.PartnerRepository;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIntrospectRequest;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIntrospectResponse;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIssueRequest;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIssueResponse;
-import com.vtc.openapi.web.dto.ApiResponse;
+import com.vtc.openapi.ui.dto.ApiResponse;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Partner Token 签发（对齐 clover {@code PartnerAppServiceImpl#issueToken}：JWT + Redis 上下文）。
+ * Partner Token 签发（对齐 clover PartnerAppServiceImpl：JWT + Redis 上下文）。
  */
 @Service
 public class PartnerTokenAppServiceImpl implements IPartnerTokenAppService {
@@ -32,15 +33,15 @@ public class PartnerTokenAppServiceImpl implements IPartnerTokenAppService {
     private static final String GRANT_CLIENT_CREDENTIALS = "client_credentials";
     private static final String JWT_TYP_PARTNER = "partner";
 
-    private final PartnerRepository partnerRepository;
+    private final IPartnerDomainService partnerDomainService;
     private final PartnerTokenRedisStore tokenRedisStore;
     private final OpenApiProperties properties;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public PartnerTokenAppServiceImpl(PartnerRepository partnerRepository,
+    public PartnerTokenAppServiceImpl(IPartnerDomainService partnerDomainService,
                                       PartnerTokenRedisStore tokenRedisStore,
                                       OpenApiProperties properties) {
-        this.partnerRepository = partnerRepository;
+        this.partnerDomainService = partnerDomainService;
         this.tokenRedisStore = tokenRedisStore;
         this.properties = properties;
     }
@@ -50,20 +51,20 @@ public class PartnerTokenAppServiceImpl implements IPartnerTokenAppService {
         if (!GRANT_CLIENT_CREDENTIALS.equalsIgnoreCase(request.getGrantType())) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "grantType 必须为 client_credentials");
         }
-        PartnerCredentialDO credential = partnerRepository.findCredentialByClientId(request.getClientId());
-        if (credential == null || !PartnerRepository.STATUS_ACTIVE.equals(credential.getStatus())) {
+        PartnerCredentialDO credential = partnerDomainService.findCredentialByClientId(request.getClientId());
+        if (credential == null || !PartnerConstants.STATUS_ACTIVE.equals(credential.getStatus())) {
             return ApiResponse.of(OpenApiConstants.CODE_AUTH_FAILED, "Invalid client credentials", null);
         }
         if (!passwordEncoder.matches(request.getClientSecret(), credential.getClientSecretHash())) {
             return ApiResponse.of(OpenApiConstants.CODE_AUTH_FAILED, "Invalid client credentials", null);
         }
 
-        PartnerDO partner = partnerRepository.findByPartnerId(credential.getPartnerId());
-        if (partner == null || !PartnerRepository.STATUS_ACTIVE.equals(partner.getStatus())) {
+        PartnerDO partner = partnerDomainService.requireByPartnerId(credential.getPartnerId());
+        if (!PartnerConstants.STATUS_ACTIVE.equals(partner.getStatus())) {
             return ApiResponse.of(OpenApiConstants.CODE_AUTH_FAILED, "Partner 未激活或不存在", null);
         }
 
-        List<String> capabilities = partnerRepository.listCapabilities(partner.getPartnerId());
+        List<String> capabilities = partnerDomainService.listCapabilities(partner.getPartnerId());
         long expiresIn = properties.getToken().getExpiresInSeconds();
         long nowEpoch = System.currentTimeMillis() / 1000;
         long expiresAt = nowEpoch + expiresIn;
@@ -107,9 +108,6 @@ public class PartnerTokenAppServiceImpl implements IPartnerTokenAppService {
         return ApiResponse.ok(cached);
     }
 
-    /**
-     * 对齐 clover {@code PartnerAppServiceImpl#createAccessToken}：JWT subject 为 claims JSON。
-     */
     private String createAccessToken(String partnerId, String clientId, List<String> capabilities, long expiresInSeconds) {
         Map<String, Object> claims = new HashMap<>(4);
         claims.put("sub", partnerId);

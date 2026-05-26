@@ -40,14 +40,28 @@ echo "${TOKEN_RESP}"
 ACCESS_TOKEN=$(echo "${TOKEN_RESP}" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 
 echo ""
-echo "=== 4. introspect（partner-gateway 降级用）==="
+echo "=== 4. 更新 Partner capabilities ==="
+curl -s -X PUT "${BASE}/internal/admin/partners/${PARTNER_ID}" \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Admin-Key: ${ADMIN_KEY}" \
+  -d '{"capabilities":["TASK_READ","TASK_WRITE","INSTANCE_READ"]}'
+echo ""
+
+echo ""
+echo "=== 5. 凭证列表（不含 secret）==="
+curl -s "${BASE}/internal/admin/partners/${PARTNER_ID}/credentials" \
+  -H "X-Internal-Admin-Key: ${ADMIN_KEY}"
+echo ""
+
+echo ""
+echo "=== 6. introspect（partner-gateway 降级用）==="
 curl -s -X POST "${BASE}/internal/token/introspect" \
   -H "Content-Type: application/json" \
   -d "{\"token\": \"${ACCESS_TOKEN}\"}"
 echo ""
 
 echo ""
-echo "=== 5. 校验 Redis 键（需本机 redis-cli）==="
+echo "=== 7. 校验 Redis 键（需本机 redis-cli）==="
 if command -v redis-cli >/dev/null 2>&1 && [ -n "${ACCESS_TOKEN}" ]; then
   HASH=$(printf '%s' "${ACCESS_TOKEN}" | sha256sum | awk '{print $1}')
   echo "KEY=partner:token:${HASH}"

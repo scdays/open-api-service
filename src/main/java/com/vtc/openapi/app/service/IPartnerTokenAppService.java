@@ -4,7 +4,7 @@ import com.vtc.openapi.ui.dto.auth.PartnerTokenIntrospectRequest;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIntrospectResponse;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIssueRequest;
 import com.vtc.openapi.ui.dto.auth.PartnerTokenIssueResponse;
-import com.vtc.openapi.web.dto.ApiResponse;
+import com.vtc.openapi.ui.dto.ApiResponse;
 
 /**
  * Partner Token 签发与 introspect（P0）。
