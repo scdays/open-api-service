@@ -10,8 +10,6 @@ import java.util.Date;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Component
-@Scope("prototype")
 public class ApiInvocationDO extends BaseDO {
 
     private String invocationId;

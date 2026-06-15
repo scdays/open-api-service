@@ -10,7 +10,6 @@ import com.vtc.openapi.infra.dao.WebhookDeliveryLogMapper;
 import com.vtc.openapi.infra.dao.po.WebhookDeliveryLogPO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -18,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.Map;
 
 /**
  * Webhook 出站投递实现。
@@ -47,7 +47,6 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
     }
 
     @Override
-    @Async
     public void deliver(WebhookEvent event) {
         if (event == null || event.getPartnerId() == null) {
             return;
@@ -65,11 +64,18 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
         if (event.getEventId() == null) {
             event.setEventId("evt-" + java.util.UUID.randomUUID().toString().replace("-", ""));
         }
-        if (event.getTimestamp() == null) {
-            event.setTimestamp(ISO_FMT.format(Instant.now()));
+        if (event.getOccurredAt() == null) {
+            event.setOccurredAt(ISO_FMT.format(Instant.now()));
         }
 
-        String payloadJson = JSON.toJSONString(event);
+        Map<String, Object> envelope = new java.util.LinkedHashMap<>();
+        envelope.put("eventId", event.getEventId());
+        envelope.put("eventType", event.getEventType());
+        envelope.put("occurredAt", event.getOccurredAt());
+        envelope.put("partnerId", event.getPartnerId());
+        envelope.put("payload", event.getPayload());
+
+        String payloadJson = JSON.toJSONString(envelope);
 
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             WebhookDeliveryLogPO logEntry = createLogEntry(event, callbackUrl, payloadJson, attempt);

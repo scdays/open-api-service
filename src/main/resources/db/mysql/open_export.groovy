@@ -22,4 +22,25 @@ databaseChangeLog(logicalFilePath: 'open_export.groovy') {
         }
         addUniqueConstraint(tableName: 'open_export', columnNames: 'export_id', constraintName: 'uk_open_export_export_id')
     }
+
+    changeSet(id: '2026-06-13-extend-open_export-metadata', author: 'open-api') {
+        addColumn(tableName: 'open_export') {
+            column(name: 'ext_task_id', type: 'VARCHAR(128)')
+            column(name: 'report_template_id', type: 'INT')
+            column(name: 'export_stage', type: 'VARCHAR(32)')
+            column(name: 'data_type', type: 'VARCHAR(32)')
+            column(name: 'generated_at', type: 'DATETIME')
+            column(name: 'download_url', type: 'VARCHAR(1024)', remarks: 'file-sharing 完整下载 URL')
+            column(name: 'error_message', type: 'VARCHAR(1024)')
+            column(name: 'verify_fix_job_id', type: 'VARCHAR(64)')
+            column(name: 'updated_at', type: 'DATETIME')
+        }
+        addUniqueConstraint(tableName: 'open_export',
+                columnNames: 'partner_id, task_id, export_stage, format',
+                constraintName: 'uk_open_export_task_stage_format')
+        createIndex(tableName: 'open_export', indexName: 'idx_open_export_partner_task', unique: false) {
+            column(name: 'partner_id')
+            column(name: 'task_id')
+        }
+    }
 }

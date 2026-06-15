@@ -10,8 +10,6 @@ import java.util.Date;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Component
-@Scope("prototype")
 public class OpenTaskDO extends BaseDO {
 
     private Long id;
@@ -37,6 +35,8 @@ public class OpenTaskDO extends BaseDO {
     private Integer progress;
 
     private Integer scanTemplateId;
+
+    private Integer reportTemplateId;
 
     private String callbackUrl;
 

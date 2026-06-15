@@ -7,6 +7,7 @@ open-api:
       default-bundle: default
       task-finish-delay-seconds: 5
       auto-ingest-instances-on-finish: true
+      verify-scan-delay-seconds: 3
 
 logging:
   level:

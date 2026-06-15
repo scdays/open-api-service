@@ -48,6 +48,12 @@ databaseChangeLog(logicalFilePath: 'open_task.groovy') {
         }
     }
 
+    changeSet(id: '2026-06-13-add-open_task-report-template-id', author: 'open-api') {
+        addColumn(tableName: 'open_task') {
+            column(name: 'report_template_id', type: 'INT', remarks: '报告/外发模板 ID')
+        }
+    }
+
     changeSet(id: '2026-06-13-extend-open_task-ingest', author: 'open-api') {
         addColumn(tableName: 'open_task') {
             column(name: 'instances_ingested', type: 'BOOLEAN', defaultValueBoolean: false, remarks: 'Mock 实例是否已 ingest')

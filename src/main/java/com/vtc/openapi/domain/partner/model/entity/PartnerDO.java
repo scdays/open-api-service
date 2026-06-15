@@ -13,8 +13,6 @@ import java.util.Date;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Component
-@Scope("prototype")
 public class PartnerDO extends BaseDO {
 
     private Long id;

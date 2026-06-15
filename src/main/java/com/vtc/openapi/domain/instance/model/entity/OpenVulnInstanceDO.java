@@ -10,8 +10,6 @@ import java.util.Date;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Component
-@Scope("prototype")
 public class OpenVulnInstanceDO extends BaseDO {
 
     private Long id;

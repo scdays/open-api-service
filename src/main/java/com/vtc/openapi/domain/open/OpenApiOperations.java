@@ -29,6 +29,13 @@ public final class OpenApiOperations {
     public static final String REMEDIATE_INSTANCE_BATCH = "remediateInstanceBatch";
     public static final String VERIFY_FIX_INSTANCE_BATCH = "verifyFixInstanceBatch";
 
+    // --- OP-OPENAPI-P2 外发 ---
+    public static final String GET_EXPORT = "getExport";
+    public static final String DOWNLOAD_EXPORT = "downloadExport";
+    public static final String LIST_TASK_EXPORTS = "listTaskExports";
+
+    public static final String RESOURCE_TYPE_EXPORT = "EXPORT";
+
     private OpenApiOperations() {
     }
 }

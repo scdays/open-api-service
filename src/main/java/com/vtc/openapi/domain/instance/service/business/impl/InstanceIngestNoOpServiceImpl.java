@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
- * vul-pass Ä£Ê½ÏÂ²»Ö´ĞĞ Mock ingest¡£
+ * vul-pass æ¨¡å¼ä¸‹ä¸æ‰§è¡Œ Mock ingestã€‚
  */
 @Service
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "vul-pass", matchIfMissing = true)

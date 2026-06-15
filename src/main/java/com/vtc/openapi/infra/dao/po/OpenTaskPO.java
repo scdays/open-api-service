@@ -39,6 +39,8 @@ public class OpenTaskPO extends BasePO {
 
     private Integer scanTemplateId;
 
+    private Integer reportTemplateId;
+
     private String callbackUrl;
 
     private String optionsJson;

@@ -10,6 +10,10 @@ public class OpenApiProperties {
     private final Idempotency idempotency = new Idempotency();
     private final Admin admin = new Admin();
     private final Engine engine = new Engine();
+    private final Export export = new Export();
+    private final FileSharing fileSharing = new FileSharing();
+    private final PartnerGateway partnerGateway = new PartnerGateway();
+    private final Webhook webhook = new Webhook();
 
     public Svmp getSvmp() {
         return svmp;
@@ -29,6 +33,22 @@ public class OpenApiProperties {
 
     public Engine getEngine() {
         return engine;
+    }
+
+    public Export getExport() {
+        return export;
+    }
+
+    public FileSharing getFileSharing() {
+        return fileSharing;
+    }
+
+    public PartnerGateway getPartnerGateway() {
+        return partnerGateway;
+    }
+
+    public Webhook getWebhook() {
+        return webhook;
     }
 
     /**
@@ -59,6 +79,16 @@ public class OpenApiProperties {
             private int taskFinishDelaySeconds = 5;
             /** P1：任务 FINISHED 后从 fixture 入库实例 */
             private boolean autoIngestInstancesOnFinish = true;
+            /** Mock 验证/核验复扫完成后触发外发的延迟秒数 */
+            private int verifyScanDelaySeconds = 3;
+
+            public int getVerifyScanDelaySeconds() {
+                return verifyScanDelaySeconds;
+            }
+
+            public void setVerifyScanDelaySeconds(int verifyScanDelaySeconds) {
+                this.verifyScanDelaySeconds = verifyScanDelaySeconds;
+            }
 
             public String getDataDir() {
                 return dataDir;
@@ -204,6 +234,106 @@ public class OpenApiProperties {
 
         public void setApiKey(String apiKey) {
             this.apiKey = apiKey;
+        }
+    }
+
+    public static class Export {
+        private boolean enabled = true;
+        private int ttlDays = 7;
+        /**
+         * open-api: Partner 网关 /api/open/v1/exports/{exportId}/download；
+         * file-sharing: 平台 Nginx 直链 file-sharing-center。
+         */
+        private String downloadUrlMode = "open-api";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getTtlDays() {
+            return ttlDays;
+        }
+
+        public void setTtlDays(int ttlDays) {
+            this.ttlDays = ttlDays;
+        }
+
+        public String getDownloadUrlMode() {
+            return downloadUrlMode;
+        }
+
+        public void setDownloadUrlMode(String downloadUrlMode) {
+            this.downloadUrlMode = downloadUrlMode;
+        }
+    }
+
+    public static class PartnerGateway {
+        /** Partner 对外网关根地址，如 http://172.16.2.4:35770 */
+        private String publicBaseUrl = "http://127.0.0.1:35770";
+
+        public String getPublicBaseUrl() {
+            return publicBaseUrl;
+        }
+
+        public void setPublicBaseUrl(String publicBaseUrl) {
+            this.publicBaseUrl = publicBaseUrl;
+        }
+    }
+
+    public static class FileSharing {
+        private String publicBaseUrl = "http://127.0.0.1";
+        private String downloadUsername = "admin";
+
+        public String getPublicBaseUrl() {
+            return publicBaseUrl;
+        }
+
+        public void setPublicBaseUrl(String publicBaseUrl) {
+            this.publicBaseUrl = publicBaseUrl;
+        }
+
+        public String getDownloadUsername() {
+            return downloadUsername;
+        }
+
+        public void setDownloadUsername(String downloadUsername) {
+            this.downloadUsername = downloadUsername;
+        }
+    }
+
+    public static class Webhook {
+        private boolean enabled = true;
+        /** 是否启用内置 Webhook 测试接收端（生产建议关闭） */
+        private boolean testReceiverEnabled = true;
+        /** 测试接收端路径，Partner defaultCallbackUrl 可填完整 URL */
+        private String testReceiverPath = "/internal/dev/webhook/receive";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isTestReceiverEnabled() {
+            return testReceiverEnabled;
+        }
+
+        public void setTestReceiverEnabled(boolean testReceiverEnabled) {
+            this.testReceiverEnabled = testReceiverEnabled;
+        }
+
+        public String getTestReceiverPath() {
+            return testReceiverPath;
+        }
+
+        public void setTestReceiverPath(String testReceiverPath) {
+            this.testReceiverPath = testReceiverPath;
         }
     }
 }

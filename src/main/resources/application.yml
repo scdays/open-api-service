@@ -71,6 +71,19 @@ open-api:
     ttl-seconds: 86400          # 实例写操作 Idempotency-Key 缓存有效期（24h，文档 §4.2）
   admin:
     api-key: dev-internal-admin-key-change-in-prod
+  export:
+    enabled: true
+    ttl-days: 7
+    download-url-mode: open-api
+  partner-gateway:
+    public-base-url: http://172.16.2.4:35770
+  file-sharing:
+    public-base-url: http://172.16.4.192
+    download-username: admin
+  webhook:
+    enabled: true
+    test-receiver-enabled: true
+    test-receiver-path: /internal/dev/webhook/receive
 
 info:
   release:

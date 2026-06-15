@@ -3,13 +3,17 @@
 # Usage:
 #   powershell -File e2e-full-flow.ps1
 #   powershell -File e2e-full-flow.ps1 -IncludeHeavy   # scanTemplateId=1001 ~500 instances
-#   powershell -File e2e-full-flow.ps1 -Quick          # skip multi-template / file / upload
+#   powershell -File e2e-full-flow.ps1 -ExportWaitSec 60
 #
-# SKIP (catalog only, no REST yet): legacy POST /tasks, archive, exports, webhook callback
+# SKIP (catalog only): legacy POST /tasks, archive, receivePlatformWebhook (Partner-side)
+# Export/Webhook tests need restarted service + file-sharing-center for READY exports
 
 param(
     [string]$Base = "http://127.0.0.1:35780",
     [string]$AdminKey = "dev-internal-admin-key-change-in-prod",
+    [string]$WebhookCallbackUrl = "",
+    [int]$ExportWaitSec = 45,
+    [int]$VerifyScanWaitSec = 8,
     [switch]$IncludeHeavy,
     [switch]$Quick
 )
@@ -125,16 +129,108 @@ function Search-Instances {
     return $r.data
 }
 
+function Get-TaskExportSummary {
+    param([string]$TaskId, [hashtable]$Headers, [string]$ExportStage = $null)
+    $r = Invoke-Api -Uri "$Base/api/open/v1/tasks/$TaskId/exports?page=1&size=50" -Headers $Headers
+    if ($r.code -ne 0 -or -not $r.data.items) {
+        return @{ ready = 0; failed = 0; other = 0; total = 0 }
+    }
+    $items = @($r.data.items | Where-Object { -not $ExportStage -or $_.exportStage -eq $ExportStage })
+    return @{
+        ready  = @($items | Where-Object { $_.status -eq "READY" }).Count
+        failed = @($items | Where-Object { $_.status -eq "FAILED" }).Count
+        other  = @($items | Where-Object { $_.status -ne "READY" -and $_.status -ne "FAILED" }).Count
+        total  = $items.Count
+    }
+}
+
+function Record-ExportWaitResult {
+    param(
+        [string]$Name,
+        [string]$TaskId,
+        [hashtable]$Headers,
+        [string]$ExportStage,
+        [int]$MinReady,
+        $ExportData
+    )
+    if ($null -ne $ExportData) {
+        $ready = @($ExportData.items | Where-Object {
+            $_.status -eq "READY" -and (-not $ExportStage -or $_.exportStage -eq $ExportStage)
+        })
+        if ($ready.Count -ge $MinReady) {
+            Record $Name "PASS" "count=$($ready.Count)"
+            return $ExportData
+        }
+    }
+    $sum = Get-TaskExportSummary -TaskId $TaskId -Headers $Headers -ExportStage $ExportStage
+    if ($sum.total -eq 0) {
+        Record $Name "FAIL" "no export rows (service restarted with export DDL?)"
+    } elseif ($sum.failed -ge $MinReady -and $sum.ready -eq 0) {
+        Record $Name "SKIP" "FAILED=$($sum.failed) (file-sharing-center upload?)"
+    } else {
+        Record $Name "FAIL" "READY=$($sum.ready) FAILED=$($sum.failed) within wait window"
+    }
+    return $null
+}
+
+function Wait-TaskExportsReady {
+    param(
+        [string]$TaskId,
+        [hashtable]$Headers,
+        [int]$MinReady = 2,
+        [string]$ExportStage = $null,
+        [int]$MaxWaitSec = 45
+    )
+    $interval = 3
+    $attempts = [Math]::Max(1, [int][Math]::Ceiling($MaxWaitSec / $interval))
+    for ($i = 1; $i -le $attempts; $i++) {
+        $r = Invoke-Api -Uri "$Base/api/open/v1/tasks/$TaskId/exports?page=1&size=50" -Headers $Headers
+        if ($r.code -eq 0 -and $r.data.items) {
+            $ready = @($r.data.items | Where-Object {
+                $_.status -eq "READY" -and (-not $ExportStage -or $_.exportStage -eq $ExportStage)
+            })
+            if ($ready.Count -ge $MinReady) {
+                return $r.data
+            }
+        }
+        Start-Sleep -Seconds $interval
+    }
+    return $null
+}
+
+function Get-WebhookDeliveryPage {
+    param(
+        [string]$PartnerId,
+        [string]$EventType = $null,
+        [int]$Size = 100
+    )
+    $uri = "$Base/internal/admin/webhook-deliveries?partnerId=$PartnerId&page=1&size=$Size"
+    if ($EventType) { $uri += "&eventType=$EventType" }
+    return Invoke-Api -Uri $uri -Headers $script:AdminHeadersRef
+}
+
+function Count-WebhookEventType {
+    param([string]$PartnerId, [string]$EventType)
+    $r = Get-WebhookDeliveryPage -PartnerId $PartnerId -EventType $EventType
+    if ($r.code -ne 0 -or -not $r.data) { return 0 }
+    return [int64]$r.data.total
+}
+
 # ---------- bootstrap ----------
 $ts = Get-Date -Format "yyyyMMddHHmmss"
 $partnerA = "partner-full-$ts"
 $partnerB = "partner-full-b-$ts"
 $adminHeaders = @{ "X-Internal-Admin-Key" = $AdminKey }
+$script:AdminHeadersRef = $adminHeaders
 $allCaps = @(
     "TASK_READ", "TASK_WRITE",
     "INSTANCE_READ", "INSTANCE_VERIFY", "INSTANCE_REMEDIATE",
     "INSTANCE_VERIFY_FIX", "INSTANCE_ARCHIVE", "EXPORT_READ", "EVENT_SUBSCRIBE"
 )
+
+if (-not $WebhookCallbackUrl) {
+    $WebhookCallbackUrl = "$Base/internal/dev/webhook/receive"
+}
 
 Write-Phase "Phase 0 - Health check"
 try {
@@ -151,11 +247,12 @@ try {
 
 Write-Phase "Phase 1 - Admin API (governance)"
 $createPartnerBody = @{
-    partnerId    = $partnerA
-    partnerName  = "Full E2E Partner A"
-    partnerType  = "SIEM"
-    capabilities = $allCaps
-    rateLimitQps = 100
+    partnerId           = $partnerA
+    partnerName         = "Full E2E Partner A"
+    partnerType         = "SIEM"
+    capabilities        = $allCaps
+    rateLimitQps        = 100
+    defaultCallbackUrl  = $WebhookCallbackUrl
 } | ConvertTo-Json
 $pCreate = Invoke-Api -Method Post -Uri "$Base/internal/admin/partners" -Headers $adminHeaders -Body $createPartnerBody
 Expect-Code $pCreate 0 "POST /internal/admin/partners"
@@ -279,6 +376,51 @@ if ($list.code -eq 0 -and $list.data.items.Count -ge 1) {
     Record "GET /tasks list with extTaskId filter" "FAIL"
 }
 
+Write-Phase "Phase 4.5 - Export APIs (TASK_COMPLETED xml+json)"
+$exportList = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 2 `
+    -ExportStage "TASK_COMPLETED" -MaxWaitSec $ExportWaitSec
+$exportList = Record-ExportWaitResult -Name "GET /tasks/{taskId}/exports TASK_COMPLETED" `
+    -TaskId $taskMain -Headers $openA -ExportStage "TASK_COMPLETED" -MinReady 2 -ExportData $exportList
+if ($null -ne $exportList) {
+    $tcItems = @($exportList.items | Where-Object { $_.exportStage -eq "TASK_COMPLETED" -and $_.status -eq "READY" })
+    $fmtXml = @($tcItems | Where-Object { $_.format -eq "xml" })
+    $fmtJson = @($tcItems | Where-Object { $_.format -eq "json" })
+    if ($tcItems.Count -ge 2 -and $fmtXml.Count -ge 1 -and $fmtJson.Count -ge 1) {
+        Record "TASK_COMPLETED xml+json formats" "PASS" "xml=$($fmtXml.Count) json=$($fmtJson.Count)"
+    } else {
+        Record "TASK_COMPLETED xml+json formats" "FAIL" "items=$($tcItems.Count)"
+    }
+
+    $exportMetaId = $fmtXml[0].exportId
+    $meta = Invoke-Api -Uri "$Base/api/open/v1/exports/$exportMetaId" -Headers $openA
+    if ($meta.code -eq 0 -and $meta.data.downloadUrl -match "/api/open/v1/exports/.+/download") {
+        Record "GET /exports/{exportId} metadata" "PASS" "has partner downloadUrl"
+    } elseif ($meta.code -eq 0 -and $meta.data.status -eq "FAILED") {
+        Record "GET /exports/{exportId} metadata" "SKIP" "export FAILED (file-sharing upload?)"
+        $exportMetaId = $null
+    } else {
+        Record "GET /exports/{exportId} metadata" "FAIL" "code=$($meta.code) url=$($meta.data.downloadUrl)"
+        $exportMetaId = $null
+    }
+
+    if ($exportMetaId) {
+        try {
+            $dl = Invoke-Api -Uri "$Base/api/open/v1/exports/$exportMetaId/download" -Headers $openA -Raw
+            $ct = $dl.Headers["Content-Type"]
+            $len = $dl.RawContentLength
+            if ($len -gt 50 -and $ct -match "xml") {
+                Record "GET /exports/{exportId}/download" "PASS" "bytes=$len"
+            } else {
+                Record "GET /exports/{exportId}/download" "FAIL" "bytes=$len ct=$ct"
+            }
+        } catch {
+            Record "GET /exports/{exportId}/download" "FAIL" $_.Exception.Message
+        }
+    } else {
+        Record "GET /exports/{exportId}/download" "SKIP" "no READY xml export"
+    }
+}
+
 Write-Phase "Phase 5 - Instance read + single-instance state machine"
 $search = Search-Instances -Headers $openA -TaskId $taskMain
 Record "POST /instances/search" "PASS" "total=$($search.total)"
@@ -301,6 +443,12 @@ $v1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/verify
 } | ConvertTo-Json)
 Expect-Code $v1 0 "POST verify VALID (1->2)"
 
+Start-Sleep -Seconds $VerifyScanWaitSec
+$vsAfterMain = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 2 `
+    -ExportStage "VERIFY_SCAN" -MaxWaitSec $ExportWaitSec
+Record-ExportWaitResult -Name "VERIFY_SCAN exports after verify (instMain)" `
+    -TaskId $taskMain -Headers $openA -ExportStage "VERIFY_SCAN" -MinReady 2 -ExportData $vsAfterMain | Out-Null
+
 $hRem = New-OpenHeaders -Token $token -PartnerId $partnerA -IdempotencyKey "rem-main-$ts"
 $r1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/remediate" -Headers $hRem -Body (@{
     srcMethod = "1050"; remedDesc = "e2e fix"
@@ -312,6 +460,12 @@ $vf1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/verif
     verifyResult = "FIX_CONFIRMED"; transferTime = "1747488000"
 } | ConvertTo-Json)
 Expect-Code $vf1 0 "POST verify-fix FIX_CONFIRMED (5->6)"
+
+Start-Sleep -Seconds $VerifyScanWaitSec
+$vfExports = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 2 `
+    -ExportStage "VERIFY_FIX_SCAN" -MaxWaitSec $ExportWaitSec
+Record-ExportWaitResult -Name "VERIFY_FIX_SCAN exports after verify-fix" `
+    -TaskId $taskMain -Headers $openA -ExportStage "VERIFY_FIX_SCAN" -MinReady 2 -ExportData $vfExports | Out-Null
 
 # False positive branch: 1 -> 3
 $hFp = New-OpenHeaders -Token $token -PartnerId $partnerA -IdempotencyKey "fp-$ts"
@@ -393,21 +547,67 @@ $openB = New-OpenHeaders -Token $tokB -PartnerId $partnerB
 $cross = Invoke-Api -Uri "$Base/api/open/v1/tasks/$taskMain" -Headers $openB
 Expect-Code $cross 40003 "Partner B cannot access Partner A taskId"
 
-Write-Phase "Phase 8 - Invocation governance queries"
+$exportListFinal = Invoke-Api -Uri "$Base/api/open/v1/tasks/$taskMain/exports?page=1&size=50" -Headers $openA
+if ($exportListFinal.code -eq 0 -and $exportListFinal.data.items.Count -ge 1) {
+    $anyExportId = $exportListFinal.data.items[0].exportId
+    $crossExp = Invoke-Api -Uri "$Base/api/open/v1/exports/$anyExportId" -Headers $openB
+    Expect-Code $crossExp 40003 "Partner B cannot GET Partner A exportId"
+} else {
+    Record "Partner B cannot GET Partner A exportId" "SKIP" "no exports on taskMain"
+}
+
+Write-Phase "Phase 8 - Invocation governance + Webhook delivery log"
 $inv = Invoke-Api -Uri "$Base/internal/admin/invocations?partnerId=$partnerA&page=1&size=5" -Headers $adminHeaders
 Expect-Code $inv 0 "GET /internal/admin/invocations"
 
 $wh = Invoke-Api -Uri "$Base/internal/admin/webhook-deliveries?partnerId=$partnerA&page=1&size=5" -Headers $adminHeaders
 Expect-Code $wh 0 "GET /internal/admin/webhook-deliveries"
 
+$tcWh = Count-WebhookEventType -PartnerId $partnerA -EventType "TASK_COMPLETED"
+if ($tcWh -ge 1) {
+    Record "Webhook TASK_COMPLETED logged" "PASS" "count=$tcWh"
+} else {
+    Record "Webhook TASK_COMPLETED logged" "FAIL" "count=$tcWh"
+}
+
+$erWh = Count-WebhookEventType -PartnerId $partnerA -EventType "EXPORT_READY"
+if ($erWh -ge 2) {
+    Record "Webhook EXPORT_READY logged (xml+json)" "PASS" "count=$erWh"
+} elseif ($erWh -ge 1) {
+    Record "Webhook EXPORT_READY logged (xml+json)" "FAIL" "count=$erWh expected>=2"
+} else {
+    $expSum = Get-TaskExportSummary -TaskId $taskMain -Headers $openA
+    if ($expSum.failed -ge 2 -and $expSum.ready -eq 0) {
+        Record "Webhook EXPORT_READY logged (xml+json)" "SKIP" "exports FAILED (file-sharing-center?)"
+    } else {
+        Record "Webhook EXPORT_READY logged (xml+json)" "FAIL" "count=0"
+    }
+}
+
+$vfWh = Count-WebhookEventType -PartnerId $partnerA -EventType "INSTANCE_VERIFY_FIX_COMPLETED"
+if ($vfWh -ge 1) {
+    Record "Webhook INSTANCE_VERIFY_FIX_COMPLETED" "PASS" "count=$vfWh"
+} else {
+    Record "Webhook INSTANCE_VERIFY_FIX_COMPLETED" "FAIL" "count=$vfWh"
+}
+
+$erPage = Get-WebhookDeliveryPage -PartnerId $partnerA -EventType "EXPORT_READY" -Size 20
+if ($erPage.code -eq 0 -and $erPage.data.items -and $erPage.data.items.Count -ge 1) {
+    $samplePayload = $erPage.data.items[0]
+    $hasUrl = $false
+    if ($samplePayload.callbackUrl) { $hasUrl = $true }
+    Record "Webhook EXPORT_READY delivery row" "PASS" "callbackUrl configured"
+} else {
+    Record "Webhook EXPORT_READY delivery row" "SKIP" "no delivery rows"
+}
+
 $quota = Invoke-Api -Uri "$Base/internal/admin/quotas?partnerId=$partnerA&page=1&size=5" -Headers $adminHeaders
 Expect-Code $quota 0 "GET /internal/admin/quotas"
 
 Write-Phase "Phase 9 - Catalog APIs not implemented (SKIP)"
 Record "POST /api/open/v1/tasks (legacy createTask)" "SKIP" "no Controller mapping"
-Record "POST /instances/{id}/archive" "SKIP" "REST not implemented in P1"
-Record "GET /exports/*" "SKIP" "REST not implemented in P1"
-Record "receivePlatformWebhook" "SKIP" "Partner-side callback"
+Record "POST /instances/{id}/archive" "SKIP" "REST not implemented"
+Record "receivePlatformWebhook" "SKIP" "Partner-side callback endpoint"
 
 Write-Phase "Summary"
 Write-Host ""

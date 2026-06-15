@@ -9,21 +9,16 @@ import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
 import com.vtc.openapi.domain.instance.model.result.InstanceStateResult;
 import com.vtc.openapi.domain.instance.repository.IInstanceRepository;
 import com.vtc.openapi.domain.instance.service.business.IInstanceDomainService;
+import com.vtc.openapi.domain.instance.service.business.IInstanceScanFollowUpService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
-import com.vtc.openapi.domain.webhook.model.WebhookEvent;
-import com.vtc.openapi.domain.webhook.model.WebhookEventType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -53,12 +48,12 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
     private static final String VERIFY_FIX_RESULT_FAILED = "FIX_FAILED";
 
     private final IInstanceRepository instanceRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final IInstanceScanFollowUpService scanFollowUpService;
 
     public InstanceDomainServiceImpl(IInstanceRepository instanceRepository,
-                                     ApplicationEventPublisher eventPublisher) {
+                                     IInstanceScanFollowUpService scanFollowUpService) {
         this.instanceRepository = instanceRepository;
-        this.eventPublisher = eventPublisher;
+        this.scanFollowUpService = scanFollowUpService;
     }
 
     @Override
@@ -90,7 +85,9 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
         }
 
         int targetStat = resolveVerifyTarget(command.getVerifyResult());
-        return executeStateChange(partnerId, current, targetStat, null, null);
+        InstanceStateResult result = executeStateChange(partnerId, current, targetStat, null, null);
+        scanFollowUpService.scheduleVerifyScan(partnerId, current.getVulInfoId());
+        return result;
     }
 
     @Override
@@ -124,8 +121,12 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
                     "实例当前状态不允许核验修复，当前状态: " + currentStat);
         }
 
+        int previousStat = requireStat(current);
         int targetStat = resolveVerifyFixTarget(command.getVerifyResult());
-        return executeStateChange(partnerId, current, targetStat, null, null);
+        InstanceStateResult result = executeStateChange(partnerId, current, targetStat, null, null);
+        scanFollowUpService.scheduleVerifyFixScan(
+                partnerId, current.getVulInfoId(), previousStat, targetStat, null);
+        return result;
     }
 
     /** 校验实例存在且归属 Partner */
@@ -168,7 +169,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
                 "无效的 verifyResult，期望 FIX_CONFIRMED 或 FIX_FAILED");
     }
 
-    /** 执行状态变更并发布 Webhook 事件 */
+    /** 执行状态变更 */
     private InstanceStateResult executeStateChange(String partnerId, InstanceItemResult current,
                                                     int targetStat, String srcMethod, String remedDesc) {
         int previousStat = current.getVulInfoStat();
@@ -178,24 +179,6 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
         result.setVulInfoId(current.getVulInfoId());
         result.setPreviousStat(previousStat);
         result.setCurrentStat(targetStat);
-
-        publishStatusChangedEvent(partnerId, current.getVulInfoId(), previousStat, targetStat);
         return result;
-    }
-
-    /** 发布实例状态变更事件（供 Webhook 投递） */
-    private void publishStatusChangedEvent(String partnerId, String vulInfoId,
-                                            int previousStat, int currentStat) {
-        try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("vulInfoID", vulInfoId);
-            data.put("previousStatus", previousStat);
-            data.put("currentStatus", currentStat);
-            WebhookEvent event = new WebhookEvent(
-                    WebhookEventType.INSTANCE_STATUS_CHANGED, null, null, partnerId, data);
-            eventPublisher.publishEvent(event);
-        } catch (Exception ex) {
-            log.warn("发布实例状态变更事件失败: partnerId={} vulInfoId={}", partnerId, vulInfoId, ex);
-        }
     }
 }

@@ -3,9 +3,11 @@ package com.vtc.openapi.domain.instance.service.business.impl;
 import com.alibaba.fastjson.JSONObject;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
+import com.vtc.openapi.domain.export.service.business.IExportAssemblyDomainService;
 import com.vtc.openapi.domain.instance.service.business.IInstanceIngestDomainService;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
+import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.adapter.mock.MockEngineBundle;
 import com.vtc.openapi.infra.adapter.mock.MockFixtureResolver;
 import com.vtc.openapi.infra.config.OpenApiProperties;
@@ -36,15 +38,21 @@ public class InstanceIngestDomainServiceImpl implements IInstanceIngestDomainSer
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
     private final IOpenTaskRepository openTaskRepository;
     private final OpenApiProperties properties;
+    private final IWebhookPublishService webhookPublishService;
+    private final IExportAssemblyDomainService exportAssemblyDomainService;
 
     public InstanceIngestDomainServiceImpl(MockFixtureResolver fixtureResolver,
                                            IOpenVulnInstanceRepository vulnInstanceRepository,
                                            IOpenTaskRepository openTaskRepository,
-                                           OpenApiProperties properties) {
+                                           OpenApiProperties properties,
+                                           IWebhookPublishService webhookPublishService,
+                                           IExportAssemblyDomainService exportAssemblyDomainService) {
         this.fixtureResolver = fixtureResolver;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.openTaskRepository = openTaskRepository;
         this.properties = properties;
+        this.webhookPublishService = webhookPublishService;
+        this.exportAssemblyDomainService = exportAssemblyDomainService;
     }
 
     @Override
@@ -72,7 +80,8 @@ public class InstanceIngestDomainServiceImpl implements IInstanceIngestDomainSer
             return;
         }
 
-        Integer reportTemplateId = parseReportTemplateId(task);
+        Integer reportTemplateId = task.getReportTemplateId() != null
+                ? task.getReportTemplateId() : parseReportTemplateId(task);
         Date now = new Date();
         List<OpenVulnInstanceDO> rows = new ArrayList<>();
         int seq = 0;
@@ -104,6 +113,12 @@ public class InstanceIngestDomainServiceImpl implements IInstanceIngestDomainSer
         markIngested(task, INGEST_SUCCESS, null);
         log.info("Mock ingest finished: taskId={} bundle={} count={}",
                 task.getTaskId(), bundle.getBundleId(), rows.size());
+
+        OpenTaskDO fresh = openTaskRepository.findByTaskId(task.getTaskId());
+        if (fresh != null) {
+            webhookPublishService.publishTaskCompleted(fresh, null);
+            exportAssemblyDomainService.assembleForTaskCompleted(fresh);
+        }
     }
 
     private void markIngestSkipped(OpenTaskDO task, String reason) {

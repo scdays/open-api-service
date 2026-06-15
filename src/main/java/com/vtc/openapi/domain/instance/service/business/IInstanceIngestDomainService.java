@@ -3,12 +3,12 @@ package com.vtc.openapi.domain.instance.service.business;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 
 /**
- * Mock Ä£Ê½ÏÂÈÎÎñÍê³Éºó½« fixture ÊµÀıĞ´Èë open_vuln_instance¡£
+ * Mock æ¨¡å¼ä¸‹ä»»åŠ¡å®Œæˆåå°† fixture å®ä¾‹å†™å…¥ open_vuln_instanceã€‚
  */
 public interface IInstanceIngestDomainService {
 
     /**
-     * ÈÎÎñÊ×´Î½øÈë FINISHED Ê±³¢ÊÔ ingest£¨ÃİµÈ£©¡£
+     * ä»»åŠ¡é¦–æ¬¡è¿›å…¥ FINISHED æ—¶å°è¯• ingestï¼ˆå¹‚ç­‰ï¼‰ã€‚
      */
     void tryIngestOnTaskFinished(OpenTaskDO task);
 }

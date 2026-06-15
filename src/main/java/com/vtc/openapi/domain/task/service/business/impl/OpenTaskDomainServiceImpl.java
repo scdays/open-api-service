@@ -25,6 +25,7 @@ import com.vtc.openapi.domain.task.model.vo.ScanEngineProgressResult;
 import com.vtc.openapi.domain.task.model.vo.ScanTaskTargets;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.service.business.IOpenTaskDomainService;
+import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,11 +55,14 @@ public class OpenTaskDomainServiceImpl
 
     private final IScanEngineGateway scanEngineGateway;
     private final IInstanceIngestDomainService instanceIngestDomainService;
+    private final IWebhookPublishService webhookPublishService;
 
     public OpenTaskDomainServiceImpl(IScanEngineGateway scanEngineGateway,
-                                     IInstanceIngestDomainService instanceIngestDomainService) {
+                                     IInstanceIngestDomainService instanceIngestDomainService,
+                                     IWebhookPublishService webhookPublishService) {
         this.scanEngineGateway = scanEngineGateway;
         this.instanceIngestDomainService = instanceIngestDomainService;
+        this.webhookPublishService = webhookPublishService;
     }
 
     @Override
@@ -93,6 +97,7 @@ public class OpenTaskDomainServiceImpl
         task.setStatus(OpenApiConstants.TASK_ACCEPT_ACCEPTED);
         task.setProgress(0);
         task.setScanTemplateId(command.getScanTemplateId());
+        task.setReportTemplateId(command.getReportTemplateId());
         task.setCallbackUrl(command.getCallbackUrl());
         if (command.getOptions() != null) {
             task.setOptionsJson(JSON.toJSONString(command.getOptions()));
@@ -192,6 +197,7 @@ public class OpenTaskDomainServiceImpl
             return;
         }
         boolean wasFinished = "FINISHED".equals(task.getStatus());
+        boolean wasFailed = "FAILED".equals(task.getStatus());
         ScanEngineProgressResult progress = scanEngineGateway.getTaskProgress(task.getEngineTaskId());
         task.setStatus(progress.getStatus());
         task.setProgress(progress.getProgress());
@@ -206,6 +212,9 @@ public class OpenTaskDomainServiceImpl
         databaseRepository.updateById(task);
         if ("FINISHED".equals(progress.getStatus()) && !wasFinished) {
             instanceIngestDomainService.tryIngestOnTaskFinished(task);
+        }
+        if ("FAILED".equals(progress.getStatus()) && !wasFailed) {
+            webhookPublishService.publishTaskFailed(task);
         }
     }
 
