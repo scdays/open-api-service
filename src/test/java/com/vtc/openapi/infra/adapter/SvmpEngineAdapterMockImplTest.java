@@ -46,4 +46,24 @@ public class SvmpEngineAdapterMockImplTest {
         assertEquals("FINISHED", progress.getStatus());
         assertEquals(Integer.valueOf(100), progress.getProgress());
     }
+
+    @Test
+    public void manualIngestModeStaysRunning() {
+        OpenApiProperties manualProps = new OpenApiProperties();
+        manualProps.getEngine().setAdapterMode("mock");
+        manualProps.getEngine().getMock().setIngestMode("manual");
+        MockEngineFixtureLoader loader = mock(MockEngineFixtureLoader.class);
+        when(loader.listBundles()).thenReturn(java.util.Collections.emptyList());
+        MockFixtureResolver resolver = mock(MockFixtureResolver.class);
+        IOpenTaskRepository openTaskRepository = mock(IOpenTaskRepository.class);
+        SvmpEngineAdapterMockImpl manualAdapter = new SvmpEngineAdapterMockImpl(
+                manualProps, loader, resolver, openTaskRepository);
+
+        SvmpTaskCreateRequest req = new SvmpTaskCreateRequest();
+        req.setTaskName("manual-task");
+        String engineId = manualAdapter.createTask(req).getEngineTaskId();
+        SvmpTaskProgressResult progress = manualAdapter.getTaskProgress(engineId);
+        assertEquals("RUNNING", progress.getStatus());
+        assertEquals(Integer.valueOf(50), progress.getProgress());
+    }
 }

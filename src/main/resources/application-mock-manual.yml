@@ -1,0 +1,19 @@
+# Mock manual ingest: tasks stay RUNNING until operator imports scan XML
+spring:
+  profiles:
+    include: mock
+
+open-api:
+  engine:
+    mock:
+      data-dir: file:/data/open-api-mock
+      ingest-mode: manual
+      auto-ingest-instances-on-finish: true
+      xml-import-mode: java
+      xml-import-profile: auto
+      # python fallback only:
+      # import-script-path: svmp/docs/internal/scripts/import-nsfocus-xml-to-mock-bundle.py
+
+logging:
+  level:
+    com.vtc.openapi.infra.adapter.mock: info

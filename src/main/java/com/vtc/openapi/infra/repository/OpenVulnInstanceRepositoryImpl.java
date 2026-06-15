@@ -113,6 +113,16 @@ public class OpenVulnInstanceRepositoryImpl
     }
 
     @Override
+    public int deleteByPartnerAndTaskId(String partnerId, String taskId) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(taskId)) {
+            return 0;
+        }
+        return baseMapper.delete(new LambdaQueryWrapper<OpenVulnInstancePO>()
+                .eq(OpenVulnInstancePO::getPartnerId, partnerId)
+                .eq(OpenVulnInstancePO::getTaskId, taskId));
+    }
+
+    @Override
     public void updateState(Long id, String partnerId, int vulInfoStat, String method, String remedDesc) {
         OpenVulnInstanceDO row = findByIdAndPartner(id, partnerId);
         if (row == null) {

@@ -75,12 +75,76 @@ public class OpenApiProperties {
             /** classpath:mock/engine 或 file:/path/to/mock */
             private String dataDir = "classpath:mock/engine";
             private String defaultBundle = "default";
-            /** 任务创建后多少秒返回 FINISHED */
+            /**
+             * auto：delay 后自动 FINISHED 并 ingest；
+             * manual：保持 RUNNING，运营导入 XML 后 Admin API 触发 FINISHED + ingest。
+             */
+            private String ingestMode = "auto";
+            /** NSFocus XML → instances.json，manual 导入时 subprocess 调用 */
+            private String importScriptPath = "";
+            /** Python 可执行文件，默认 python */
+            private String pythonCommand = "python";
+            /**
+             * java：内嵌 NsfocusMockXmlParser（默认）；
+             * python：subprocess 调用 import-nsfocus-xml-to-mock-bundle.py。
+             */
+            private String xmlImportMode = "java";
+            /** auto | vul | pwd | live | port */
+            private String xmlImportProfile = "auto";
+
+            public String getXmlImportMode() {
+                return xmlImportMode;
+            }
+
+            public void setXmlImportMode(String xmlImportMode) {
+                this.xmlImportMode = xmlImportMode;
+            }
+
+            public boolean isJavaXmlImportMode() {
+                return !"python".equalsIgnoreCase(xmlImportMode);
+            }
+
+            public String getXmlImportProfile() {
+                return xmlImportProfile;
+            }
+
+            public void setXmlImportProfile(String xmlImportProfile) {
+                this.xmlImportProfile = xmlImportProfile;
+            }
+            /** 任务创建后多少秒返回 FINISHED（仅 ingest-mode=auto） */
             private int taskFinishDelaySeconds = 5;
             /** P1：任务 FINISHED 后从 fixture 入库实例 */
             private boolean autoIngestInstancesOnFinish = true;
             /** Mock 验证/核验复扫完成后触发外发的延迟秒数 */
             private int verifyScanDelaySeconds = 3;
+
+            public String getIngestMode() {
+                return ingestMode;
+            }
+
+            public void setIngestMode(String ingestMode) {
+                this.ingestMode = ingestMode;
+            }
+
+            public boolean isManualIngestMode() {
+                return "manual".equalsIgnoreCase(ingestMode);
+            }
+
+            public String getImportScriptPath() {
+                return importScriptPath;
+            }
+
+            public void setImportScriptPath(String importScriptPath) {
+                this.importScriptPath = importScriptPath;
+            }
+
+            public String getPythonCommand() {
+                return pythonCommand;
+            }
+
+            public void setPythonCommand(String pythonCommand) {
+                this.pythonCommand = pythonCommand;
+            }
 
             public int getVerifyScanDelaySeconds() {
                 return verifyScanDelaySeconds;

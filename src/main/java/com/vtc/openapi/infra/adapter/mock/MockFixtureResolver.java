@@ -26,6 +26,12 @@ public class MockFixtureResolver {
     }
 
     public MockEngineBundle resolve(String extTaskId, String taskId, String taskName) {
+        if (StringUtils.hasText(taskId)) {
+            MockEngineBundle taskBundle = fixtureLoader.getTaskBundle(taskId);
+            if (taskBundle != null && taskBundle.getInstances() != null && !taskBundle.getInstances().isEmpty()) {
+                return taskBundle;
+            }
+        }
         OpenTaskDO task = loadTask(extTaskId, taskId);
         if (task != null) {
             return fixtureLoader.resolveBundle(

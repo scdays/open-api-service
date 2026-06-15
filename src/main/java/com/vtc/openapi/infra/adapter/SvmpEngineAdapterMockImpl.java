@@ -112,6 +112,11 @@ public class SvmpEngineAdapterMockImpl implements SvmpEngineAdapter {
 
     private SvmpTaskProgressResult progressFromElapsed(long createdAtMs) {
         SvmpTaskProgressResult progress = new SvmpTaskProgressResult();
+        if (properties.getEngine().getMock().isManualIngestMode()) {
+            progress.setStatus("RUNNING");
+            progress.setProgress(50);
+            return progress;
+        }
         int delaySec = Math.max(0, properties.getEngine().getMock().getTaskFinishDelaySeconds());
         long elapsed = System.currentTimeMillis() - createdAtMs;
         if (elapsed < delaySec * 1000L) {
@@ -160,7 +165,7 @@ public class SvmpEngineAdapterMockImpl implements SvmpEngineAdapter {
         if (!StringUtils.hasText(vulnDisposalId)) {
             return null;
         }
-        for (MockEngineBundle bundle : fixtureLoader.listBundles()) {
+        for (MockEngineBundle bundle : fixtureLoader.listAllBundles()) {
             if (bundle.getInstances() == null) {
                 continue;
             }

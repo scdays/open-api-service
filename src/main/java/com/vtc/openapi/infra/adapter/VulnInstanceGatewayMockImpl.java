@@ -117,7 +117,7 @@ public class VulnInstanceGatewayMockImpl implements IVulnInstanceGateway {
     }
 
     private InstanceItemResult findInFixture(String vulInfoId) {
-        for (MockEngineBundle bundle : fixtureLoader.listBundles()) {
+        for (MockEngineBundle bundle : fixtureLoader.listAllBundles()) {
             if (bundle.getInstances() == null) {
                 continue;
             }

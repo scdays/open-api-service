@@ -24,5 +24,7 @@ public interface IOpenVulnInstanceRepository extends IDatabaseRepository<OpenVul
 
     void batchInsert(List<OpenVulnInstanceDO> instances);
 
+    int deleteByPartnerAndTaskId(String partnerId, String taskId);
+
     void updateState(Long id, String partnerId, int vulInfoStat, String method, String remedDesc);
 }
