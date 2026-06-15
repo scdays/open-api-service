@@ -68,4 +68,10 @@ public interface ApiInvocationMapper extends IBaseMapper<ApiInvocationPO> {
     Long countSuccessByPartnerWithRange(@Param("partnerId") String partnerId,
                                         @Param("from") Date from,
                                         @Param("to") Date to);
+
+    @Select("SELECT response_body_json FROM api_invocation WHERE invocation_id = #{invocationId}")
+    String selectResponseBodyJson(@Param("invocationId") String invocationId);
+
+    @Select("SELECT IFNULL(CHAR_LENGTH(response_body_json), 0) FROM api_invocation WHERE invocation_id = #{invocationId}")
+    Long selectResponseBodyByteSize(@Param("invocationId") String invocationId);
 }

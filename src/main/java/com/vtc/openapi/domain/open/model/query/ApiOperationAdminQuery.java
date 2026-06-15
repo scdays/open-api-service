@@ -10,6 +10,7 @@ public class ApiOperationAdminQuery {
     private String openapiTag;
     private String domain;
     private String operationId;
+    private String keyword;
     private int page;
     private int size;
 
@@ -51,6 +52,14 @@ public class ApiOperationAdminQuery {
 
     public void setOperationId(String operationId) {
         this.operationId = operationId;
+    }
+
+    public String getKeyword() {
+        return keyword;
+    }
+
+    public void setKeyword(String keyword) {
+        this.keyword = keyword;
     }
 
     public int getPage() {

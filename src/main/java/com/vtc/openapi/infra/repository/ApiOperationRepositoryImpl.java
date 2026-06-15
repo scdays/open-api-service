@@ -48,6 +48,12 @@ public class ApiOperationRepositoryImpl implements IApiOperationRepository {
         if (StringUtils.hasText(query.getOperationId())) {
             wrapper.eq(ApiOperationPO::getOperationId, query.getOperationId());
         }
+        if (StringUtils.hasText(query.getKeyword())) {
+            String keyword = query.getKeyword().trim();
+            wrapper.and(w -> w.like(ApiOperationPO::getOperationId, keyword)
+                    .or().like(ApiOperationPO::getPathPattern, keyword)
+                    .or().like(ApiOperationPO::getSummary, keyword));
+        }
 
         Page<ApiOperationPO> pageResult = apiOperationMapper.selectPage(
                 new Page<>(query.getPage(), query.getSize()), wrapper);

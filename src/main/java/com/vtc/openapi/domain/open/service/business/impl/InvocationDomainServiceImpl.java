@@ -14,12 +14,16 @@ import com.vtc.openapi.domain.open.model.result.PartnerQuotaStatResult;
 import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.alibaba.fastjson.JSON;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -60,6 +64,19 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
 
     @Override
     public void finish(InvocationContext ctx, int responseCode, String errorMessage) {
+        finishInternal(ctx, responseCode, errorMessage, null);
+    }
+
+    @Override
+    public void finish(InvocationContext ctx, ApiResponse<?> response) {
+        if (response == null) {
+            finish(ctx, OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误");
+            return;
+        }
+        finishInternal(ctx, response.getCode(), response.getMessage(), serializeResponseBody(response));
+    }
+
+    private void finishInternal(InvocationContext ctx, int responseCode, String errorMessage, String responseBodyJson) {
         if (!StringUtils.hasText(ctx.getInvocationId())) {
             return;
         }
@@ -74,6 +91,7 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
         row.setResourceType(ctx.getResourceType());
         row.setResourceId(ctx.getResourceId());
         row.setFinishedAt(new Date());
+        row.setResponseBodyJson(responseBodyJson);
         if (responseCode != 0 && StringUtils.hasText(errorMessage)) {
             String msg = errorMessage.length() > 512 ? errorMessage.substring(0, 512) : errorMessage;
             row.setErrorMessage(msg);
@@ -81,9 +99,56 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
         apiInvocationRepository.updateFinish(row);
     }
 
+    private String serializeResponseBody(ApiResponse<?> response) {
+        try {
+            return JSON.toJSONString(response);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     @Override
     public PageInfo<ApiInvocationDO> pageInvocations(InvocationAdminQuery query) {
         return apiInvocationRepository.pageInvocations(query);
+    }
+
+    @Override
+    public ApiInvocationDO requireInvocation(String invocationOrRequestId) {
+        if (!StringUtils.hasText(invocationOrRequestId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "invocationId 不能为空");
+        }
+        ApiInvocationDO found = apiInvocationRepository.findByInvocationId(invocationOrRequestId);
+        if (found == null) {
+            found = apiInvocationRepository.findByRequestId(invocationOrRequestId);
+        }
+        if (found == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "调用记录不存在");
+        }
+        return found;
+    }
+
+    @Override
+    public List<WebhookDeliveryLogDO> listRelatedWebhookDeliveries(ApiInvocationDO invocation) {
+        if (invocation == null || !StringUtils.hasText(invocation.getPartnerId())) {
+            return Collections.emptyList();
+        }
+        if (StringUtils.hasText(invocation.getResourceId())) {
+            return apiInvocationRepository.listByResource(
+                    invocation.getPartnerId(),
+                    null,
+                    invocation.getResourceId(),
+                    10);
+        }
+        if (invocation.getStartedAt() == null) {
+            return Collections.emptyList();
+        }
+        Date from = invocation.getStartedAt();
+        Date to = invocation.getFinishedAt() != null ? invocation.getFinishedAt() : invocation.getStartedAt();
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(to);
+        calendar.add(Calendar.MINUTE, 2);
+        to = calendar.getTime();
+        return apiInvocationRepository.listWebhookDeliveriesNear(invocation.getPartnerId(), from, to, 10);
     }
 
     @Override

@@ -9,7 +9,11 @@ public class InvocationAdminQuery {
 
     private String partnerId;
     private String operationId;
+    /** 业务域：TASK / INSTANCE / EXPORT / AUTH */
+    private String domain;
     private Integer responseCode;
+    private String resourceType;
+    private String resourceId;
     private Date startedFrom;
     private Date startedTo;
     private int page;
@@ -31,12 +35,36 @@ public class InvocationAdminQuery {
         this.operationId = operationId;
     }
 
+    public String getDomain() {
+        return domain;
+    }
+
+    public void setDomain(String domain) {
+        this.domain = domain;
+    }
+
     public Integer getResponseCode() {
         return responseCode;
     }
 
     public void setResponseCode(Integer responseCode) {
         this.responseCode = responseCode;
+    }
+
+    public String getResourceType() {
+        return resourceType;
+    }
+
+    public void setResourceType(String resourceType) {
+        this.resourceType = resourceType;
+    }
+
+    public String getResourceId() {
+        return resourceId;
+    }
+
+    public void setResourceId(String resourceId) {
+        this.resourceId = resourceId;
     }
 
     public Date getStartedFrom() {

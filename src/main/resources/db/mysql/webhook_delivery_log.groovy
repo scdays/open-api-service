@@ -23,4 +23,31 @@ databaseChangeLog(logicalFilePath: 'webhook_delivery_log.groovy') {
             column(name: 'status')
         }
     }
+
+    changeSet(id: '2026-05-26-webhook-delivery-log-governance-fields', author: 'open-api') {
+        addColumn(tableName: 'webhook_delivery_log') {
+            column(name: 'event_id', type: 'VARCHAR(64)', remarks: 'Webhook 信封 eventId（幂等键）')
+        }
+        addColumn(tableName: 'webhook_delivery_log') {
+            column(name: 'resource_type', type: 'VARCHAR(32)', remarks: 'TASK / INSTANCE / EXPORT')
+        }
+        addColumn(tableName: 'webhook_delivery_log') {
+            column(name: 'resource_id', type: 'VARCHAR(128)', remarks: '主资源 ID：taskId / vulInfoID / exportId')
+        }
+        addColumn(tableName: 'webhook_delivery_log') {
+            column(name: 'resource_ids_json', type: 'TEXT', remarks: '批量实例 vulInfoID 列表 JSON')
+        }
+        addColumn(tableName: 'webhook_delivery_log') {
+            column(name: 'trigger_source', type: 'VARCHAR(32)', remarks: 'FIRST_ATTEMPT / AUTO_RETRY / MANUAL_RETRY')
+        }
+        createIndex(tableName: 'webhook_delivery_log', indexName: 'idx_webhook_delivery_event', unique: false) {
+            column(name: 'partner_id')
+            column(name: 'event_id')
+        }
+        createIndex(tableName: 'webhook_delivery_log', indexName: 'idx_webhook_delivery_resource', unique: false) {
+            column(name: 'partner_id')
+            column(name: 'resource_type')
+            column(name: 'resource_id')
+        }
+    }
 }

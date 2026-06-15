@@ -22,6 +22,18 @@ public class WebhookDeliveryLogDTO extends BaseDTO {
     @ApiModelProperty("事件类型")
     private String eventType;
 
+    @ApiModelProperty("事件 ID（幂等键）")
+    private String eventId;
+
+    @ApiModelProperty("关联资源类型 TASK/INSTANCE/EXPORT")
+    private String resourceType;
+
+    @ApiModelProperty("关联资源 ID")
+    private String resourceId;
+
+    @ApiModelProperty("关联 taskId（EXPORT 等事件用于跳转调用治理）")
+    private String relatedTaskId;
+
     @ApiModelProperty("回调地址")
     private String callbackUrl;
 

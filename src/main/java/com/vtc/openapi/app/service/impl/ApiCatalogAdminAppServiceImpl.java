@@ -28,7 +28,8 @@ public class ApiCatalogAdminAppServiceImpl implements IApiCatalogAdminAppService
                                                               String status,
                                                               String openapiTag,
                                                               String domain,
-                                                              String operationId) {
+                                                              String operationId,
+                                                              String keyword) {
         if (pageInfo.getCurrent() < 1 || pageInfo.getSize() < 1) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "page/size 无效");
         }
@@ -38,6 +39,7 @@ public class ApiCatalogAdminAppServiceImpl implements IApiCatalogAdminAppService
         query.setOpenapiTag(openapiTag);
         query.setDomain(domain);
         query.setOperationId(operationId);
+        query.setKeyword(keyword);
         query.setPage((int) pageInfo.getCurrent());
         query.setSize((int) pageInfo.getSize());
 

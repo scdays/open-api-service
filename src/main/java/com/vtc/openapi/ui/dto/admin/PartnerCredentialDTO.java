@@ -13,6 +13,9 @@ import java.util.Date;
 @ApiModel("PartnerCredentialDTO")
 public class PartnerCredentialDTO extends BaseDTO {
 
+    @ApiModelProperty("凭证 ID")
+    private Long id;
+
     @ApiModelProperty("Partner ID")
     private String partnerId;
 

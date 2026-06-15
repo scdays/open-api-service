@@ -20,6 +20,23 @@ public interface IApiInvocationRepository {
 
     PageInfo<ApiInvocationDO> pageInvocations(InvocationAdminQuery query);
 
+    ApiInvocationDO findByInvocationId(String invocationId);
+
+    ApiInvocationDO findByRequestId(String requestId);
+
+    List<WebhookDeliveryLogDO> listWebhookDeliveriesNear(String partnerId, Date from, Date to, int limit);
+
+    WebhookDeliveryLogDO findWebhookDeliveryById(Long id);
+
+    List<WebhookDeliveryLogDO> listWebhookDeliveriesByPartnerEventNear(
+            String partnerId, String eventType, Date from, Date to, int limit);
+
+    List<WebhookDeliveryLogDO> listByEventId(String partnerId, String eventId);
+
+    List<WebhookDeliveryLogDO> listByResource(String partnerId, String resourceType, String resourceId, int limit);
+
+    List<ApiInvocationDO> listInvocationsByResource(String partnerId, String resourceType, String resourceId, int limit);
+
     PageInfo<WebhookDeliveryLogDO> pageWebhookDeliveries(WebhookDeliveryLogQuery query);
 
     long countByPartnerAndTimeRange(String partnerId, Date from, Date to);
@@ -31,4 +48,8 @@ public interface IApiInvocationRepository {
     List<InvocationDailyTrendStat> listDailyStats(String partnerId, Date from, Date to);
 
     PartnerQuotaStatResult summarizePartnerQuota(String partnerId, Date from, Date to);
+
+    String findResponseBodyJson(String invocationId);
+
+    long findResponseBodyByteSize(String invocationId);
 }

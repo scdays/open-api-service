@@ -57,10 +57,10 @@ public class InvocationPipeline {
                     operationId, ctx.getRequestId(), ex);
             response = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误", null);
         } finally {
-            invocationDomainService.finish(ctx, response.getCode(), response.getMessage());
+            response.setRequestId(ctx.getRequestId());
+            invocationDomainService.finish(ctx, response);
             cacheIdempotentResponse(ctx, response);
         }
-        response.setRequestId(ctx.getRequestId());
         return response;
     }
 

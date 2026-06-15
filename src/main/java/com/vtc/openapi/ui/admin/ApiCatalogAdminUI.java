@@ -30,14 +30,20 @@ public class ApiCatalogAdminUI extends BaseUI {
     @GetMapping("/api-operations")
     public ApiResponse<ApiOperationPageDto> listApiOperations(
             @RequestParam(value = "requiredCapability", required = false) String requiredCapability,
+            @RequestParam(value = "capabilityCode", required = false) String capabilityCode,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "openapiTag", required = false) String openapiTag,
+            @RequestParam(value = "tag", required = false) String tag,
             @RequestParam(value = "domain", required = false) String domain,
             @RequestParam(value = "operationId", required = false) String operationId,
+            @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
         PageInfo<ApiOperationDTO> pageInfo = getPageInfo(page, size);
+        String resolvedCapability = org.springframework.util.StringUtils.hasText(requiredCapability)
+                ? requiredCapability : capabilityCode;
+        String resolvedTag = org.springframework.util.StringUtils.hasText(openapiTag) ? openapiTag : tag;
         return apiCatalogAdminAppService.listApiOperations(
-                pageInfo, requiredCapability, status, openapiTag, domain, operationId);
+                pageInfo, resolvedCapability, status, resolvedTag, domain, operationId, keyword);
     }
 }

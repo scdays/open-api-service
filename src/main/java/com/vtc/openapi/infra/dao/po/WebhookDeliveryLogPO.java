@@ -21,6 +21,16 @@ public class WebhookDeliveryLogPO extends BasePO {
 
     private String eventType;
 
+    private String eventId;
+
+    private String resourceType;
+
+    private String resourceId;
+
+    private String resourceIdsJson;
+
+    private String triggerSource;
+
     private String payloadJson;
 
     private String callbackUrl;

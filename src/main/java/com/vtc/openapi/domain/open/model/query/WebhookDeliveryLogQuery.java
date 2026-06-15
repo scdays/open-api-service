@@ -11,6 +11,10 @@ public class WebhookDeliveryLogQuery {
 
     private String status;
 
+    private String resourceType;
+
+    private String resourceId;
+
     private int page = 1;
 
     private int size = 20;

@@ -1,5 +1,6 @@
 package com.vtc.openapi.infra.dao.po;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.botany.spore.mybatis.pojo.BasePO;
@@ -39,6 +40,9 @@ public class ApiInvocationPO extends BasePO {
     private String resourceType;
 
     private String resourceId;
+
+    @TableField(select = false)
+    private String responseBodyJson;
 
     private Date startedAt;
 

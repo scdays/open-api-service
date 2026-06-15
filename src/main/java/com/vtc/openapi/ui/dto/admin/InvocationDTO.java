@@ -25,6 +25,12 @@ public class InvocationDTO extends BaseDTO {
     @ApiModelProperty("操作 ID")
     private String operationId;
 
+    @ApiModelProperty("HTTP 方法")
+    private String httpMethod;
+
+    @ApiModelProperty("业务域 TASK/INSTANCE/EXPORT/AUTH")
+    private String domain;
+
     @ApiModelProperty("业务响应码")
     private Integer responseCode;
 

@@ -38,6 +38,8 @@ public class ApiInvocationDO extends BaseDO {
 
     private String resourceId;
 
+    private String responseBodyJson;
+
     private Date startedAt;
 
     private Date finishedAt;

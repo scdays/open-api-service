@@ -42,4 +42,17 @@ databaseChangeLog(logicalFilePath: 'api_invocation.groovy') {
             column(name: 'started_at')
         }
     }
+
+    changeSet(id: '2026-05-26-api-invocation-response-body-json', author: 'open-api') {
+        addColumn(tableName: 'api_invocation') {
+            column(name: 'response_body_json', type: 'MEDIUMTEXT', remarks: 'Partner 实际收到的 ApiResponse JSON')
+        }
+    }
+
+    changeSet(id: '2026-05-26-api-invocation-response-body-mediumtext', author: 'open-api') {
+        preConditions(onFail: 'MARK_RAN') {
+            columnExists(tableName: 'api_invocation', columnName: 'response_body_json')
+        }
+        modifyDataType(tableName: 'api_invocation', columnName: 'response_body_json', newDataType: 'MEDIUMTEXT')
+    }
 }

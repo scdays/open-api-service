@@ -8,8 +8,10 @@ import com.vtc.openapi.domain.open.model.query.InvocationAdminQuery;
 import com.vtc.openapi.domain.open.model.query.WebhookDeliveryLogQuery;
 import com.vtc.openapi.domain.open.model.result.PartnerInvocationStatsResult;
 import com.vtc.openapi.domain.open.model.result.PartnerQuotaStatResult;
+import com.vtc.openapi.ui.dto.ApiResponse;
 
 import java.util.Date;
+import java.util.List;
 
 /**
  * API 调用审计（api_invocation）领域服务。
@@ -20,7 +22,13 @@ public interface IInvocationDomainService {
 
     void finish(InvocationContext ctx, int responseCode, String errorMessage);
 
+    void finish(InvocationContext ctx, ApiResponse<?> response);
+
     PageInfo<ApiInvocationDO> pageInvocations(InvocationAdminQuery query);
+
+    ApiInvocationDO requireInvocation(String invocationOrRequestId);
+
+    List<WebhookDeliveryLogDO> listRelatedWebhookDeliveries(ApiInvocationDO invocation);
 
     PageInfo<WebhookDeliveryLogDO> pageWebhookDeliveries(WebhookDeliveryLogQuery query);
 
