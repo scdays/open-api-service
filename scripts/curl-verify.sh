@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# open-api-service 任务 API 验证脚本
+# open-api-service 任务 API 验证脚本（F0 契约：POST /tasks/vul）
 # 用法：
-#   1) 经网关（需 morningglory + clover Token）：BASE=http://127.0.0.1:7000 TOKEN=<Bearer>
-#   2) 直连本服务（跳过网关鉴权，仅带头测试）：BASE=http://127.0.0.1:35780
+#   1) 经网关：BASE=http://127.0.0.1:35770 TOKEN=<Bearer>
+#   2) 直连本服务（测试头）：BASE=http://127.0.0.1:35780
 #
-# 取 Token（clover 经 morningglory，OAuth snake_case）：
-#   curl -s -X POST http://127.0.0.1:7000/oauth/token \
+# 取 Token（直连 open-api-service，字段为 camelCase）：
+#   curl -s -X POST http://127.0.0.1:35780/oauth/token \
 #     -H "Content-Type: application/json" \
-#     -d '{"grant_type":"client_credentials","client_id":"<clientId>","client_secret":"<secret>"}'
-#   响应字段：access_token / token_type / expires_in / partner_id
+#     -d '{"grantType":"client_credentials","clientId":"<clientId>","clientSecret":"<secret>"}'
 
 set -euo pipefail
 
@@ -21,12 +20,14 @@ if [ -n "${TOKEN:-}" ]; then
   AUTH_HEADER=(-H "Authorization: Bearer ${TOKEN}")
 fi
 
-echo "=== Partner A 创建任务 ==="
+JSON_BODY="{\"extTaskId\":\"${EXT_ID}\",\"taskName\":\"curl-test\",\"type\":1,\"targets\":{\"hosts\":\"10.0.0.1\"}}"
+
+echo "=== Partner A 创建任务 POST /tasks/vul ==="
 CREATE_A=$(curl -s "${AUTH_HEADER[@]}" \
   -H "X-Partner-Id: ${PARTNER_A}" \
   -H "Content-Type: application/json" \
-  -d "{\"extTaskId\":\"${EXT_ID}\",\"taskName\":\"curl-test\",\"targets\":[\"10.0.0.1\"],\"targetType\":\"IPV4\",\"vulnType\":1}" \
-  "${BASE}/api/open/v1/tasks")
+  -d "${JSON_BODY}" \
+  "${BASE}/api/open/v1/tasks/vul")
 echo "${CREATE_A}"
 TASK_ID=$(echo "${CREATE_A}" | sed -n 's/.*"taskId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 
@@ -35,8 +36,8 @@ echo "=== Partner A 幂等重复（期望 code=40901）==="
 curl -s "${AUTH_HEADER[@]}" \
   -H "X-Partner-Id: ${PARTNER_A}" \
   -H "Content-Type: application/json" \
-  -d "{\"extTaskId\":\"${EXT_ID}\",\"taskName\":\"curl-test\",\"targets\":[\"10.0.0.1\"],\"targetType\":\"IPV4\",\"vulnType\":1}" \
-  "${BASE}/api/open/v1/tasks"
+  -d "${JSON_BODY}" \
+  "${BASE}/api/open/v1/tasks/vul"
 echo ""
 
 echo ""

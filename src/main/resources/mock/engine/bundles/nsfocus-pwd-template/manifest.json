@@ -1,0 +1,15 @@
+{
+  "bundleId": "nsfocus-pwd-template",
+  "description": "NSFocus pwd scan (NsfocusXmlParserV4), task=3, source=report_by_pwd.xml, count=1",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": "扫描【10.65.195.202;10.65.196.187】"
+  },
+  "instanceCount": 1,
+  "sourceXml": "report_by_pwd.xml",
+  "taskId": "3",
+  "taskName": "扫描【10.65.195.202;10.65.196.187】",
+  "scanKind": "pwd",
+  "parserRef": "NsfocusXmlParserV4",
+  "importedAt": "2026-06-14"
+}

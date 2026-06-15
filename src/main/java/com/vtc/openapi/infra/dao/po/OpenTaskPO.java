@@ -49,6 +49,10 @@ public class OpenTaskPO extends BasePO {
 
     private Date finishedAt;
 
+    private Boolean instancesIngested;
+
+    private String ingestError;
+
     private Date createdAt;
 
     private Date updatedAt;

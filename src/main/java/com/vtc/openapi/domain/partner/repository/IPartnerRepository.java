@@ -4,6 +4,7 @@ import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.domain.repository.IDatabaseRepository;
 import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
+import com.vtc.openapi.domain.partner.model.entity.PartnerWebhookConfigDO;
 
 import java.util.List;
 
@@ -31,4 +32,12 @@ public interface IPartnerRepository extends IDatabaseRepository<PartnerDO> {
     String findCallbackUrl(String partnerId);
 
     void upsertCallbackUrl(String partnerId, String callbackUrl);
+
+    /**
+     * 查询 Partner Webhook 配置（callbackUrl + webhookSecret）。
+     * 用于 Webhook 投递时 HMAC-SHA256 验签（文档 §6）。
+     *
+     * @return 配置对象；未配置时返回 null
+     */
+    PartnerWebhookConfigDO findWebhookConfig(String partnerId);
 }

@@ -1,0 +1,35 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+  autoconfigure:
+    exclude:
+      - com.botany.spore.core.config.NacosMetaDataConfig
+      - com.botany.spore.core.config.Swagger2Config
+  redis:
+    enable: true
+  main:
+    allow-bean-definition-overriding: true
+
+open-api:
+  engine:
+    adapter-mode: mock
+    mock:
+      task-finish-delay-seconds: 0
+      auto-ingest-instances-on-finish: true
+  svmp:
+    engine-service-name: vul-pass
+
+logging:
+  level:
+    root: warn
+    com.vtc.openapi: info
+
+knife4j:
+  enable: false

@@ -1,0 +1,33 @@
+{
+  "bundleId": "default",
+  "description": "联调占位样本；生产原始结果到位后请新增 bundles/prod-sample-001/",
+  "instances": [
+    {
+      "vulInfoID": "VI-MOCK-0001",
+      "vulID": "VUL-2025-0001",
+      "vulInfoStat": 1,
+      "vulName": "示例 SQL 注入",
+      "vulLevel": 3,
+      "orgVulId": "CVE-2024-0001",
+      "vulNetAddr": "10.0.0.1",
+      "vulPort": 443,
+      "vulSvc": "https",
+      "isAccess": 0,
+      "transferTime": "1716192000",
+      "vulnDisposalId": "DISP-MOCK-0001"
+    },
+    {
+      "vulInfoID": "VI-MOCK-0002",
+      "vulID": "VUL-2025-0002",
+      "vulInfoStat": 1,
+      "vulName": "示例弱口令",
+      "vulLevel": 2,
+      "vulNetAddr": "10.0.0.2",
+      "vulPort": 22,
+      "vulSvc": "ssh",
+      "isAccess": 0,
+      "transferTime": "1716195600",
+      "vulnDisposalId": "DISP-MOCK-0002"
+    }
+  ]
+}

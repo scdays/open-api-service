@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 
 import org.slf4j.LoggerFactory;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import org.springframework.util.CollectionUtils;
@@ -67,7 +68,7 @@ import java.util.stream.Collectors;
  */
 
 @Component
-
+@ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "vul-pass", matchIfMissing = true)
 public class SvmpEngineAdapterImpl implements SvmpEngineAdapter {
 
 

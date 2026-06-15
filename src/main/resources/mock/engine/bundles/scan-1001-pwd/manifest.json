@@ -1,0 +1,24 @@
+{
+  "bundleId": "scan-1001-pwd",
+  "description": "NSFocus pwd scan (NsfocusXmlParserV4), task=1053, source=弱口令扫描结果1053.xml, count=8, profile=pwd",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": null,
+    "scanTemplateId": 1001,
+    "reportTemplateIds": [
+      2001,
+      2002
+    ],
+    "vulnTypes": [
+      3
+    ]
+  },
+  "instanceCount": 8,
+  "sourceXml": "弱口令扫描结果1053.xml",
+  "taskId": "1053",
+  "taskName": "扫描【弱口令】",
+  "scanKind": "pwd",
+  "profile": "pwd",
+  "parserRef": "NsfocusXmlParserV4",
+  "importedAt": "2026-06-14"
+}

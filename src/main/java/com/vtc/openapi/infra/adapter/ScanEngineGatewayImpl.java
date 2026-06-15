@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.adapter;
 
 import com.vtc.openapi.domain.task.gateway.IScanEngineGateway;
+import com.vtc.openapi.domain.task.model.support.TaskTypeSupport;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineCreateCommand;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineCreateResult;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineProgressResult;
@@ -24,7 +25,7 @@ public class ScanEngineGatewayImpl implements IScanEngineGateway {
         request.setTaskName(command.getTaskName());
         request.setTargets(command.getTargets());
         request.setTargetType(command.getTargetType());
-        request.setVulnType(command.getVulnType());
+        request.setVulnType(command.getType());
         request.setScanTemplateId(command.getScanTemplateId());
         request.setPriority(command.getPriority());
         request.setOptions(command.getOptions());
@@ -38,7 +39,7 @@ public class ScanEngineGatewayImpl implements IScanEngineGateway {
     public ScanEngineProgressResult getTaskProgress(String engineTaskId) {
         SvmpTaskProgressResult progress = svmpEngineAdapter.getTaskProgress(engineTaskId);
         ScanEngineProgressResult domain = new ScanEngineProgressResult();
-        domain.setStatus(progress.getStatus());
+        domain.setStatus(TaskTypeSupport.normalizeProgressStatus(progress.getStatus()));
         domain.setProgress(progress.getProgress());
         domain.setErrorMessage(progress.getErrorMessage());
         return domain;

@@ -2,9 +2,15 @@ spring:
   jackson:
     time-zone: GMT+8
     date-format: yyyy-MM-dd HH:mm:ss
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 12MB
   redis:
     database: 2
-    host: 127.0.0.1
+    host: 172.16.3.32
+    password: 8STRYXLCtn8
     port: 6379
     enable: true
     timeout: 10000
@@ -36,8 +42,19 @@ common:
     dir: db/${common.data.type}
     enable: true
     init:
-      enable: false
+      enable: true
+  crypto:
+    type: AES
+    key: eWxtZkRseFhLcm04Skc0OWdGYlUwUT09
 open-api:
+  engine:
+    # mock：接入方联调（spring.profiles.active=mock）；vul-pass：生产
+    adapter-mode: mock
+    mock:
+      data-dir: classpath:mock/engine
+      default-bundle: default
+      task-finish-delay-seconds: 5
+      auto-ingest-instances-on-finish: true
   svmp:
     engine-service-name: vul-pass
     engine-path-prefix: ""
@@ -50,6 +67,8 @@ open-api:
         - NA
   token:
     expires-in-seconds: 86400   # JWT 过期与 Redis TTL（对齐 clover JWTUtils.create，单位秒）
+  idempotency:
+    ttl-seconds: 86400          # 实例写操作 Idempotency-Key 缓存有效期（24h，文档 §4.2）
   admin:
     api-key: dev-internal-admin-key-change-in-prod
 

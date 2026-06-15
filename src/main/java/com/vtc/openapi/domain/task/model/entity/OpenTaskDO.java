@@ -48,6 +48,10 @@ public class OpenTaskDO extends BaseDO {
 
     private Date finishedAt;
 
+    private Boolean instancesIngested;
+
+    private String ingestError;
+
     private Date createdAt;
 
     private Date updatedAt;

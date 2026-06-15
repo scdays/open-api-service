@@ -3,6 +3,7 @@ package com.vtc.openapi.domain.task.service.business.impl;
 import com.alibaba.fastjson.JSON;
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.domain.service.DomainServiceImpl;
+import com.vtc.openapi.domain.instance.service.business.IInstanceIngestDomainService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.OpenApiOperations;
@@ -17,9 +18,11 @@ import com.vtc.openapi.domain.task.model.result.OpenTaskCreatedResult;
 import com.vtc.openapi.domain.task.model.result.OpenTaskListResult;
 import com.vtc.openapi.domain.task.model.result.OpenTaskProgressResult;
 import com.vtc.openapi.domain.task.model.result.OpenTaskSummaryResult;
+import com.vtc.openapi.domain.task.model.support.TaskTypeSupport;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineCreateCommand;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineCreateResult;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineProgressResult;
+import com.vtc.openapi.domain.task.model.vo.ScanTaskTargets;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.service.business.IOpenTaskDomainService;
 import org.springframework.dao.DuplicateKeyException;
@@ -30,6 +33,9 @@ import org.springframework.util.StringUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,7 +45,6 @@ public class OpenTaskDomainServiceImpl
         extends DomainServiceImpl<IOpenTaskRepository, OpenTaskDO>
         implements IOpenTaskDomainService {
 
-    private static final String ACCEPT_STATUS = "ACCEPTED";
     private static final SimpleDateFormat ISO_UTC;
 
     static {
@@ -48,9 +53,12 @@ public class OpenTaskDomainServiceImpl
     }
 
     private final IScanEngineGateway scanEngineGateway;
+    private final IInstanceIngestDomainService instanceIngestDomainService;
 
-    public OpenTaskDomainServiceImpl(IScanEngineGateway scanEngineGateway) {
+    public OpenTaskDomainServiceImpl(IScanEngineGateway scanEngineGateway,
+                                     IInstanceIngestDomainService instanceIngestDomainService) {
         this.scanEngineGateway = scanEngineGateway;
+        this.instanceIngestDomainService = instanceIngestDomainService;
     }
 
     @Override
@@ -79,10 +87,10 @@ public class OpenTaskDomainServiceImpl
         task.setExtTaskId(command.getExtTaskId());
         task.setEngineTaskId(engineResult.getEngineTaskId());
         task.setTaskName(command.getTaskName());
-        task.setTargetType(command.getTargetType());
-        task.setVulnType(command.getVulnType());
+        task.setTargetType(TaskTypeSupport.resolveTargetType(command.getType()));
+        task.setVulnType(command.getType());
         task.setTargetsJson(JSON.toJSONString(command.getTargets()));
-        task.setStatus(ACCEPT_STATUS);
+        task.setStatus(OpenApiConstants.TASK_ACCEPT_ACCEPTED);
         task.setProgress(0);
         task.setScanTemplateId(command.getScanTemplateId());
         task.setCallbackUrl(command.getCallbackUrl());
@@ -160,15 +168,12 @@ public class OpenTaskDomainServiceImpl
         if (!StringUtils.hasText(command.getTaskName())) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskName 不能为空");
         }
-        if (CollectionUtils.isEmpty(command.getTargets())) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "targets 不能为空");
+        TaskTypeSupport.requireValidType(command.getType());
+        ScanTaskTargets targets = command.getTargets();
+        if (targets == null || !StringUtils.hasText(targets.getHosts())) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "targets.hosts 不能为空");
         }
-        if (!StringUtils.hasText(command.getTargetType())) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "targetType 不能为空");
-        }
-        if (command.getVulnType() == null) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "vulnType 不能为空");
-        }
+        TaskTypeSupport.splitHosts(targets.getHosts());
     }
 
     private OpenTaskDO requireOwnedTask(String taskId, String partnerId) {
@@ -176,7 +181,7 @@ public class OpenTaskDomainServiceImpl
         if (task == null) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "任务不存在");
         }
-        if (!partnerId.equals(task.getPartnerId())) {
+        if (!Objects.equals(partnerId, task.getPartnerId())) {
             throw new OpenApiException(OpenApiConstants.CODE_CROSS_PARTNER, "无权访问该任务");
         }
         return task;
@@ -186,6 +191,7 @@ public class OpenTaskDomainServiceImpl
         if (!StringUtils.hasText(task.getEngineTaskId())) {
             return;
         }
+        boolean wasFinished = "FINISHED".equals(task.getStatus());
         ScanEngineProgressResult progress = scanEngineGateway.getTaskProgress(task.getEngineTaskId());
         task.setStatus(progress.getStatus());
         task.setProgress(progress.getProgress());
@@ -198,17 +204,41 @@ public class OpenTaskDomainServiceImpl
         }
         task.setUpdatedAt(new Date());
         databaseRepository.updateById(task);
+        if ("FINISHED".equals(progress.getStatus()) && !wasFinished) {
+            instanceIngestDomainService.tryIngestOnTaskFinished(task);
+        }
     }
 
     private ScanEngineCreateCommand toEngineCommand(CreateOpenTaskCommand command) {
         ScanEngineCreateCommand engineReq = new ScanEngineCreateCommand();
         engineReq.setTaskName(command.getTaskName());
-        engineReq.setTargets(command.getTargets());
-        engineReq.setTargetType(command.getTargetType());
-        engineReq.setVulnType(command.getVulnType());
+        engineReq.setType(command.getType());
+        engineReq.setTargets(TaskTypeSupport.splitHosts(command.getTargets().getHosts()));
+        engineReq.setTargetType(TaskTypeSupport.resolveTargetType(command.getType()));
         engineReq.setScanTemplateId(command.getScanTemplateId());
         engineReq.setPriority(command.getPriority());
-        engineReq.setOptions(command.getOptions());
+        Map<String, Object> options = command.getOptions() != null
+                ? new HashMap<>(command.getOptions()) : new HashMap<>();
+        options.put("extTaskId", command.getExtTaskId());
+        if (command.getReportTemplateId() != null) {
+            options.put("reportTemplateId", command.getReportTemplateId());
+        }
+        if (command.getSrcMethod() != null) {
+            options.put("srcMethod", command.getSrcMethod());
+        }
+        if (!CollectionUtils.isEmpty(command.getVulIDs())) {
+            options.put("vulIDs", command.getVulIDs());
+        }
+        if (!CollectionUtils.isEmpty(command.getSecResourceHashes())) {
+            options.put("secResourceHashes", command.getSecResourceHashes());
+        }
+        if (command.getTargets() != null && !CollectionUtils.isEmpty(command.getTargets().getAuth())) {
+            options.put("auth", command.getTargets().getAuth());
+        }
+        if (StringUtils.hasText(command.getFileXml())) {
+            options.put("fileXml", command.getFileXml());
+        }
+        engineReq.setOptions(options.isEmpty() ? null : options);
         return engineReq;
     }
 
@@ -216,7 +246,7 @@ public class OpenTaskDomainServiceImpl
         OpenTaskCreatedResult resp = new OpenTaskCreatedResult();
         resp.setExtTaskId(extTaskId);
         resp.setTaskId(task.getTaskId());
-        resp.setStatus(task.getStatus() != null ? task.getStatus() : ACCEPT_STATUS);
+        resp.setStatus(task.getStatus() != null ? task.getStatus() : OpenApiConstants.TASK_ACCEPT_ACCEPTED);
         resp.setCreatedAt(formatUtc(task.getCreatedAt()));
         return resp;
     }

@@ -1,0 +1,21 @@
+{
+  "bundleId": "scan-1002-live",
+  "description": "NSFocus live scan (NsfocusXmlParserV4), task=58, source=report_by_vul.xml, count=1, profile=live",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": null,
+    "scanTemplateId": 1002,
+    "reportTemplateIds": [
+      2001,
+      2002
+    ]
+  },
+  "instanceCount": 1,
+  "sourceXml": "report_by_vul.xml",
+  "taskId": "58",
+  "taskName": "[taskname测试]",
+  "scanKind": "live",
+  "profile": "live",
+  "parserRef": "NsfocusXmlParserV4",
+  "importedAt": "2026-06-14"
+}

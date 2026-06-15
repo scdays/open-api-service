@@ -1,0 +1,13 @@
+# 接入方联调 profile：不依赖 vul-pass，使用 classpath fixture
+open-api:
+  engine:
+    adapter-mode: mock
+    mock:
+      data-dir: classpath:mock/engine
+      default-bundle: default
+      task-finish-delay-seconds: 5
+      auto-ingest-instances-on-finish: true
+
+logging:
+  level:
+    com.vtc.openapi.infra.adapter: info

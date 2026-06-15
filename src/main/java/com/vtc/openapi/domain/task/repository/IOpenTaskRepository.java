@@ -15,4 +15,6 @@ public interface IOpenTaskRepository extends IDatabaseRepository<OpenTaskDO> {
     void saveTaskMap(PartnerTaskMapDO map);
 
     PageInfo<OpenTaskDO> pageByPartner(String partnerId, OpenTaskListQuery query);
+
+    OpenTaskDO findByEngineTaskId(String engineTaskId);
 }

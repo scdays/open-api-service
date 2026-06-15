@@ -23,5 +23,8 @@ public class PartnerWebhookConfigDO extends BaseDO {
     /** HMAC 密钥哈希 */
     private String webhookSecretHash;
 
+    /** HMAC-SHA256 验签明文密钥（运营分配） */
+    private String webhookSecret;
+
     private Date updatedAt;
 }

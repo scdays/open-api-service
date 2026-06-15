@@ -1,5 +1,6 @@
 package com.vtc.openapi.app.service.impl;
 
+import com.vtc.openapi.app.convert.OpenTaskAppConvertor;
 import com.vtc.openapi.app.open.InvocationPipeline;
 import com.vtc.openapi.app.service.IOpenTaskAppService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
@@ -11,16 +12,20 @@ import com.vtc.openapi.domain.task.model.result.OpenTaskCreatedResult;
 import com.vtc.openapi.domain.task.model.result.OpenTaskListResult;
 import com.vtc.openapi.domain.task.model.result.OpenTaskProgressResult;
 import com.vtc.openapi.domain.task.model.result.OpenTaskSummaryResult;
+import com.vtc.openapi.domain.task.model.result.ParsedScanTaskFileResult;
+import com.vtc.openapi.domain.task.model.support.TaskTypeSupport;
 import com.vtc.openapi.domain.task.service.business.IOpenTaskDomainService;
+import com.vtc.openapi.infra.adapter.task.ScanTaskXmlParser;
 import com.vtc.openapi.ui.dto.ApiResponse;
-import com.vtc.openapi.ui.dto.open.task.CreateTaskRequest;
+import com.vtc.openapi.ui.dto.open.task.CreateScanTaskByFileRequest;
+import com.vtc.openapi.ui.dto.open.task.CreateScanTaskByJsonRequest;
 import com.vtc.openapi.ui.dto.open.task.CreateTaskResponse;
 import com.vtc.openapi.ui.dto.open.task.TaskListPageDto;
 import com.vtc.openapi.ui.dto.open.task.TaskProgressDto;
 import com.vtc.openapi.ui.dto.open.task.TaskSummaryDto;
 import org.springframework.stereotype.Service;
-
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validator;
@@ -45,31 +50,86 @@ public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
 
     private final InvocationPipeline invocationPipeline;
     private final IOpenTaskDomainService openTaskDomainService;
+    private final OpenTaskAppConvertor openTaskAppConvertor;
+    private final ScanTaskXmlParser scanTaskXmlParser;
     private final Validator validator;
 
     public OpenTaskAppServiceImpl(InvocationPipeline invocationPipeline,
                                   IOpenTaskDomainService openTaskDomainService,
+                                  OpenTaskAppConvertor openTaskAppConvertor,
+                                  ScanTaskXmlParser scanTaskXmlParser,
                                   Validator validator) {
         this.invocationPipeline = invocationPipeline;
         this.openTaskDomainService = openTaskDomainService;
+        this.openTaskAppConvertor = openTaskAppConvertor;
+        this.scanTaskXmlParser = scanTaskXmlParser;
         this.validator = validator;
     }
 
     @Override
-    public ApiResponse<CreateTaskResponse> createTask(CreateTaskRequest request) {
+    public ApiResponse<CreateTaskResponse> createTaskByJson(CreateScanTaskByJsonRequest request) {
         validateRequest(request);
-        CreateOpenTaskCommand command = toCommand(request);
-        return invocationPipeline.invoke(OpenApiOperations.CREATE_TASK, ctx -> {
-            try {
-                return toCreateResponse(openTaskDomainService.create(ctx, command));
-            } catch (OpenApiException ex) {
-                if (ex.getData() instanceof OpenTaskCreatedResult) {
-                    throw new OpenApiException(ex.getCode(), ex.getMessage(),
-                            toCreateResponse((OpenTaskCreatedResult) ex.getData()));
-                }
-                throw ex;
+        TaskTypeSupport.requireValidType(request.getType());
+        CreateOpenTaskCommand command = openTaskAppConvertor.fromJsonRequest(request);
+        return invokeCreate(OpenApiOperations.CREATE_TASK_BY_JSON, command);
+    }
+
+    /**
+     * @deprecated 改用 {@link #createTaskByUpload(MultipartFile, String, Integer)}。
+     */
+    @Deprecated
+    @Override
+    public ApiResponse<CreateTaskResponse> createTaskByFile(CreateScanTaskByFileRequest request) {
+        validateRequest(request);
+        TaskTypeSupport.requireValidType(request.getType());
+        ParsedScanTaskFileResult parsed = scanTaskXmlParser.parse(request.getFile());
+        CreateOpenTaskCommand command = openTaskAppConvertor.fromFileRequest(request, parsed);
+        return invokeCreate(OpenApiOperations.CREATE_TASK_BY_FILE, command);
+    }
+
+    @Override
+    public ApiResponse<CreateTaskResponse> createTaskByUpload(MultipartFile file, String extTaskId, Integer type) {
+        if (file == null || file.isEmpty()) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "file 不能为空");
+        }
+        if (!StringUtils.hasText(extTaskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "extTaskId 不能为空");
+        }
+        if (type == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "type 不能为空");
+        }
+        TaskTypeSupport.requireValidType(type);
+
+        String fileXml = readFileContent(file);
+        ParsedScanTaskFileResult parsed = scanTaskXmlParser.parse(fileXml);
+
+        CreateScanTaskByFileRequest legacyRequest = new CreateScanTaskByFileRequest();
+        legacyRequest.setExtTaskId(extTaskId);
+        legacyRequest.setType(type);
+        legacyRequest.setFile(fileXml);
+
+        CreateOpenTaskCommand command = openTaskAppConvertor.fromFileRequest(legacyRequest, parsed);
+        return invokeCreate(OpenApiOperations.CREATE_TASK_BY_UPLOAD, command);
+    }
+
+    /** 读取上传文件为 UTF-8 字符串 */
+    private String readFileContent(MultipartFile file) {
+        String originalName = file.getOriginalFilename();
+        if (originalName != null && !originalName.toLowerCase().endsWith(".xml")) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "仅支持 .xml 文件");
+        }
+        try {
+            byte[] bytes = file.getBytes();
+            String content = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            if (!StringUtils.hasText(content)) {
+                throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "文件内容为空");
             }
-        });
+            return content;
+        } catch (OpenApiException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "读取上传文件失败: " + ex.getMessage());
+        }
     }
 
     @Override
@@ -93,29 +153,29 @@ public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
                 ctx -> toListPageDto(openTaskDomainService.list(ctx, query)));
     }
 
-    private void validateRequest(CreateTaskRequest request) {
+    private ApiResponse<CreateTaskResponse> invokeCreate(String operationId, CreateOpenTaskCommand command) {
+        return invocationPipeline.invoke(operationId, ctx -> {
+            try {
+                return toCreateResponse(openTaskDomainService.create(ctx, command));
+            } catch (OpenApiException ex) {
+                if (ex.getData() instanceof OpenTaskCreatedResult) {
+                    throw new OpenApiException(ex.getCode(), ex.getMessage(),
+                            toCreateResponse((OpenTaskCreatedResult) ex.getData()));
+                }
+                throw ex;
+            }
+        });
+    }
+
+    private <T> void validateRequest(T request) {
         if (request == null) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "请求体不能为空");
         }
-        java.util.Set<ConstraintViolation<CreateTaskRequest>> violations = validator.validate(request);
+        java.util.Set<ConstraintViolation<T>> violations = validator.validate(request);
         if (!violations.isEmpty()) {
             String msg = violations.iterator().next().getMessage();
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, msg);
         }
-    }
-
-    private CreateOpenTaskCommand toCommand(CreateTaskRequest request) {
-        CreateOpenTaskCommand command = new CreateOpenTaskCommand();
-        command.setExtTaskId(request.getExtTaskId());
-        command.setTaskName(request.getTaskName());
-        command.setTargets(request.getTargets());
-        command.setTargetType(request.getTargetType());
-        command.setVulnType(request.getVulnType());
-        command.setCallbackUrl(request.getCallbackUrl());
-        command.setScanTemplateId(request.getScanTemplateId());
-        command.setPriority(request.getPriority());
-        command.setOptions(request.getOptions());
-        return command;
     }
 
     private CreateTaskResponse toCreateResponse(OpenTaskCreatedResult result) {
@@ -124,6 +184,7 @@ public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
         resp.setTaskId(result.getTaskId());
         resp.setStatus(result.getStatus());
         resp.setCreatedAt(result.getCreatedAt());
+        resp.setMessage(result.getMessage());
         return resp;
     }
 
@@ -131,7 +192,7 @@ public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
         TaskProgressDto dto = new TaskProgressDto();
         dto.setExtTaskId(result.getExtTaskId());
         dto.setTaskId(result.getTaskId());
-        dto.setStatus(result.getStatus());
+        dto.setStatus(TaskTypeSupport.normalizeProgressStatus(result.getStatus()));
         dto.setProgress(result.getProgress());
         dto.setStartedAt(result.getStartedAt());
         dto.setFinishedAt(result.getFinishedAt());
@@ -155,7 +216,7 @@ public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
         dto.setExtTaskId(result.getExtTaskId());
         dto.setTaskId(result.getTaskId());
         dto.setTaskName(result.getTaskName());
-        dto.setStatus(result.getStatus());
+        dto.setStatus(TaskTypeSupport.normalizeProgressStatus(result.getStatus()));
         dto.setProgress(result.getProgress());
         dto.setStartedAt(result.getStartedAt());
         dto.setFinishedAt(result.getFinishedAt());

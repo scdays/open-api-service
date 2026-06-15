@@ -35,6 +35,16 @@ public class OpenTaskRepositoryImpl
     }
 
     @Override
+    public OpenTaskDO findByEngineTaskId(String engineTaskId) {
+        if (!StringUtils.hasText(engineTaskId)) {
+            return null;
+        }
+        OpenTaskPO po = baseMapper.selectOne(new LambdaQueryWrapper<OpenTaskPO>()
+                .eq(OpenTaskPO::getEngineTaskId, engineTaskId));
+        return ConvertHelper.convert(po, OpenTaskDO.class);
+    }
+
+    @Override
     public PartnerTaskMapDO findTaskMap(String partnerId, String extTaskId) {
         PartnerTaskMapPO po = partnerTaskMapMapper.selectOne(new LambdaQueryWrapper<PartnerTaskMapPO>()
                 .eq(PartnerTaskMapPO::getPartnerId, partnerId)

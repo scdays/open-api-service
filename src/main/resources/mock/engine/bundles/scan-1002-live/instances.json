@@ -1,0 +1,33 @@
+{
+  "bundleId": "scan-1002-live",
+  "description": "NSFocus live scan (NsfocusXmlParserV4), task=58, source=report_by_vul.xml, count=1, profile=live",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": null,
+    "scanTemplateId": 1002,
+    "reportTemplateIds": [
+      2001,
+      2002
+    ]
+  },
+  "instances": [
+    {
+      "id": 1,
+      "vulInfoID": "VI-live-58-10-65-195-204-1",
+      "vulInfoId": "VI-live-58-10-65-195-204-1",
+      "vulID": "LIVE-58",
+      "vulId": "LIVE-58",
+      "vulInfoStat": 1,
+      "vulName": "Host alive: 10.65.195.204",
+      "vulLevel": 1,
+      "orgVulId": "LIVE-PROBE",
+      "vulNetAddr": "10.65.195.204",
+      "vulPort": 0,
+      "vulSvc": "ICMP",
+      "isAccess": 0,
+      "transferTime": "1589485760",
+      "vulnDisposalId": "VI-live-58-10-65-195-204-1",
+      "extVulnRef": "liveProbe=true"
+    }
+  ]
+}

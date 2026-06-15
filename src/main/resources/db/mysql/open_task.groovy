@@ -47,4 +47,14 @@ databaseChangeLog(logicalFilePath: 'open_task.groovy') {
             column(name: 'status')
         }
     }
+
+    changeSet(id: '2026-06-13-extend-open_task-ingest', author: 'open-api') {
+        addColumn(tableName: 'open_task') {
+            column(name: 'instances_ingested', type: 'BOOLEAN', defaultValueBoolean: false, remarks: 'Mock 实例是否已 ingest')
+            column(name: 'ingest_error', type: 'VARCHAR(512)', remarks: 'Mock ingest 失败原因')
+        }
+        createIndex(tableName: 'open_task', indexName: 'idx_open_task_engine_task_id', unique: false) {
+            column(name: 'engine_task_id')
+        }
+    }
 }

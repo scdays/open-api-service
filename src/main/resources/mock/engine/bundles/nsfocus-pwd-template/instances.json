@@ -1,0 +1,31 @@
+{
+  "bundleId": "nsfocus-pwd-template",
+  "description": "NSFocus pwd scan (NsfocusXmlParserV4), task=3, source=report_by_pwd.xml, count=1",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": "扫描【10.65.195.202;10.65.196.187】"
+  },
+  "instances": [
+    {
+      "id": 1,
+      "vulInfoID": "VI-pwd-3-2012-22-1",
+      "vulInfoId": "VI-pwd-3-2012-22-1",
+      "vulID": "VUL-2012",
+      "vulId": "VUL-2012",
+      "vulInfoStat": 1,
+      "vulName": "猜测出远程SSH服务存在用户名口令",
+      "vulLevel": 3,
+      "orgVulId": "NSFOCUS-2012",
+      "vulNetAddr": "10.65.196.187",
+      "vulPort": 22,
+      "vulSvc": "ssh",
+      "isAccess": 0,
+      "transferTime": "1593468910",
+      "vulnDisposalId": "VI-pwd-3-2012-22-1",
+      "extVulnRef": "ssh [test:test]",
+      "username": "test",
+      "password": "test",
+      "pwdType": "SSH"
+    }
+  ]
+}

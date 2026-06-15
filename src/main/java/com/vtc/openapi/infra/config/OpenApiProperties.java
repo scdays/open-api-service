@@ -7,7 +7,9 @@ public class OpenApiProperties {
 
     private final Svmp svmp = new Svmp();
     private final Token token = new Token();
+    private final Idempotency idempotency = new Idempotency();
     private final Admin admin = new Admin();
+    private final Engine engine = new Engine();
 
     public Svmp getSvmp() {
         return svmp;
@@ -17,8 +19,79 @@ public class OpenApiProperties {
         return token;
     }
 
+    public Idempotency getIdempotency() {
+        return idempotency;
+    }
+
     public Admin getAdmin() {
         return admin;
+    }
+
+    public Engine getEngine() {
+        return engine;
+    }
+
+    /**
+     * 引擎适配模式：mock（联调/fixture）或 vul-pass（生产）。
+     */
+    public static class Engine {
+        /** mock | vul-pass */
+        private String adapterMode = "vul-pass";
+        private final Mock mock = new Mock();
+
+        public String getAdapterMode() {
+            return adapterMode;
+        }
+
+        public void setAdapterMode(String adapterMode) {
+            this.adapterMode = adapterMode;
+        }
+
+        public Mock getMock() {
+            return mock;
+        }
+
+        public static class Mock {
+            /** classpath:mock/engine 或 file:/path/to/mock */
+            private String dataDir = "classpath:mock/engine";
+            private String defaultBundle = "default";
+            /** 任务创建后多少秒返回 FINISHED */
+            private int taskFinishDelaySeconds = 5;
+            /** P1：任务 FINISHED 后从 fixture 入库实例 */
+            private boolean autoIngestInstancesOnFinish = true;
+
+            public String getDataDir() {
+                return dataDir;
+            }
+
+            public void setDataDir(String dataDir) {
+                this.dataDir = dataDir;
+            }
+
+            public String getDefaultBundle() {
+                return defaultBundle;
+            }
+
+            public void setDefaultBundle(String defaultBundle) {
+                this.defaultBundle = defaultBundle;
+            }
+
+            public int getTaskFinishDelaySeconds() {
+                return taskFinishDelaySeconds;
+            }
+
+            public void setTaskFinishDelaySeconds(int taskFinishDelaySeconds) {
+                this.taskFinishDelaySeconds = taskFinishDelaySeconds;
+            }
+
+            public boolean isAutoIngestInstancesOnFinish() {
+                return autoIngestInstancesOnFinish;
+            }
+
+            public void setAutoIngestInstancesOnFinish(boolean autoIngestInstancesOnFinish) {
+                this.autoIngestInstancesOnFinish = autoIngestInstancesOnFinish;
+            }
+        }
     }
 
     public static class Svmp {
@@ -101,6 +174,20 @@ public class OpenApiProperties {
 
         public void setExpiresInSeconds(long expiresInSeconds) {
             this.expiresInSeconds = expiresInSeconds;
+        }
+    }
+
+    /** 实例写操作 Idempotency-Key 缓存配置（文档 §4.2） */
+    public static class Idempotency {
+        /** 缓存有效期秒数，默认 24h */
+        private long ttlSeconds = 86400L;
+
+        public long getTtlSeconds() {
+            return ttlSeconds;
+        }
+
+        public void setTtlSeconds(long ttlSeconds) {
+            this.ttlSeconds = ttlSeconds;
         }
     }
 

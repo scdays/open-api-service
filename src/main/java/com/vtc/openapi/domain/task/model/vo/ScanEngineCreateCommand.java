@@ -10,11 +10,11 @@ public class ScanEngineCreateCommand {
 
     private String taskName;
 
+    private Integer type;
+
     private List<String> targets;
 
     private String targetType;
-
-    private Integer vulnType;
 
     private Integer scanTemplateId;
 

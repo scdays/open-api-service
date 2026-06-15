@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scanTask>
+  <server>
+    <taskName>e2e-upload-1003</taskName>
+    <priority>NORMAL</priority>
+    <targets>10.0.0.1</targets>
+  </server>
+  <targets/>
+  <scanTemplateId>1003</scanTemplateId>
+  <reportTemplateId>2001</reportTemplateId>
+</scanTask>

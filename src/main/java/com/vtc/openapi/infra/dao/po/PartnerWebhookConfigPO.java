@@ -23,5 +23,8 @@ public class PartnerWebhookConfigPO extends BasePO {
 
     private String webhookSecretHash;
 
+    /** HMAC-SHA256 验签明文密钥（运营分配） */
+    private String webhookSecret;
+
     private Date updatedAt;
 }

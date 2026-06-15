@@ -1,0 +1,5 @@
+{
+  "bundleId": "default",
+  "description": "默认占位 bundle，无 match 规则时始终可用",
+  "instanceCount": 2
+}

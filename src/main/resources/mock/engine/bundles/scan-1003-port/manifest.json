@@ -1,0 +1,21 @@
+{
+  "bundleId": "scan-1003-port",
+  "description": "NSFocus port scan (NsfocusXmlParserV4), task=58, source=report_by_vul.xml, count=5, profile=port",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": null,
+    "scanTemplateId": 1003,
+    "reportTemplateIds": [
+      2001,
+      2002
+    ]
+  },
+  "instanceCount": 5,
+  "sourceXml": "report_by_vul.xml",
+  "taskId": "58",
+  "taskName": "[taskname测试]",
+  "scanKind": "port",
+  "profile": "port",
+  "parserRef": "NsfocusXmlParserV4",
+  "importedAt": "2026-06-14"
+}

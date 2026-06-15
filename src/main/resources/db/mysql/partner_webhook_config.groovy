@@ -16,4 +16,11 @@ databaseChangeLog(logicalFilePath: 'partner_webhook_config.groovy') {
         addUniqueConstraint(tableName: 'partner_webhook_config', columnNames: 'partner_id',
                 constraintName: 'uk_partner_webhook_config_partner')
     }
+
+    changeSet(id: '2026-06-13-add-webhook-secret-plaintext', author: 'open-api') {
+        addColumn(tableName: 'partner_webhook_config') {
+            column(name: 'webhook_secret', type: 'VARCHAR(256)', remarks: 'HMAC-SHA256 验签明文密钥（运营分配）',
+                    afterColumn: 'webhook_secret_hash')
+        }
+    }
 }

@@ -25,4 +25,24 @@ databaseChangeLog(logicalFilePath: 'open_vuln_instance.groovy') {
             column(name: 'partner_id')
         }
     }
+
+    changeSet(id: '2026-06-13-extend-open_vuln_instance-mock-ingest', author: 'open-api') {
+        addColumn(tableName: 'open_vuln_instance') {
+            column(name: 'task_id', type: 'VARCHAR(64)', remarks: '平台 taskId')
+            column(name: 'ext_task_id', type: 'VARCHAR(128)', remarks: 'Partner extTaskId')
+            column(name: 'scan_template_id', type: 'INT', remarks: '扫描模板 ID')
+            column(name: 'report_template_id', type: 'INT', remarks: '报告模板 ID')
+            column(name: 'bundle_id', type: 'VARCHAR(64)', remarks: 'Mock bundle 来源')
+            column(name: 'ingest_status', type: 'VARCHAR(16)', remarks: 'SUCCESS/FAILED/SKIPPED')
+            column(name: 'ingest_at', type: 'DATETIME', remarks: '入库时间')
+        }
+        createIndex(tableName: 'open_vuln_instance', indexName: 'idx_open_vuln_instance_partner_task', unique: false) {
+            column(name: 'partner_id')
+            column(name: 'task_id')
+        }
+        createIndex(tableName: 'open_vuln_instance', indexName: 'idx_open_vuln_instance_partner_ext', unique: false) {
+            column(name: 'partner_id')
+            column(name: 'ext_task_id')
+        }
+    }
 }

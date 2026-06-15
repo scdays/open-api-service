@@ -18,6 +18,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 /**
  * 内网 Partner 管理 API 鉴权：请求头 {@code X-Internal-Admin-Key} 须与配置一致。
@@ -46,7 +47,7 @@ public class InternalAdminAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String configured = properties.getAdmin().getApiKey();
         String provided = request.getHeader(HEADER_ADMIN_KEY);
-        if (!StringUtils.hasText(configured) || !configured.equals(provided)) {
+        if (!StringUtils.hasText(configured) || !Objects.equals(configured, provided)) {
             response.setStatus(HttpServletResponse.SC_OK);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());

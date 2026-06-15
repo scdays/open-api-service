@@ -24,6 +24,13 @@
         <dependency>
             <groupId>com.vtc</groupId>
             <artifactId>esmp-starter-core</artifactId>
+            <exclusions>
+                <!-- fluent-validator-jsr303 带入 HV 5.x，不支持 @NotBlank，与 spring-boot-starter-validation 冲突 -->
+                <exclusion>
+                    <groupId>org.hibernate</groupId>
+                    <artifactId>hibernate-validator</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>

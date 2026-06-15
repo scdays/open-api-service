@@ -1,0 +1,15 @@
+{
+  "bundleId": "nsfocus-vul-template",
+  "description": "NSFocus vul scan (NsfocusXmlParserV4), task=58, source=report_by_vul.xml, count=2",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": "[taskname测试]"
+  },
+  "instanceCount": 2,
+  "sourceXml": "report_by_vul.xml",
+  "taskId": "58",
+  "taskName": "[taskname测试]",
+  "scanKind": "vul",
+  "parserRef": "NsfocusXmlParserV4",
+  "importedAt": "2026-06-14"
+}

@@ -1,0 +1,46 @@
+{
+  "bundleId": "nsfocus-vul-template",
+  "description": "NSFocus vul scan (NsfocusXmlParserV4), task=58, source=report_by_vul.xml, count=2",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": "[taskname测试]"
+  },
+  "instances": [
+    {
+      "id": 1,
+      "vulInfoID": "VI-vul-58-77012-22-1",
+      "vulInfoId": "VI-vul-58-77012-22-1",
+      "vulID": "VUL-77012",
+      "vulId": "VUL-77012",
+      "vulInfoStat": 1,
+      "vulName": "OpenSSH 安全限制绕过漏洞(CVE-2016-10012)",
+      "vulLevel": 4,
+      "orgVulId": "CVE-2016-10012",
+      "vulNetAddr": "10.65.195.204",
+      "vulPort": 22,
+      "vulSvc": "ssh",
+      "isAccess": 0,
+      "transferTime": "1589485760",
+      "vulnDisposalId": "VI-vul-58-77012-22-1",
+      "extVulnRef": "OpenSSH/4.3"
+    },
+    {
+      "id": 2,
+      "vulInfoID": "VI-vul-58-50638-0-2",
+      "vulInfoId": "VI-vul-58-50638-0-2",
+      "vulID": "VUL-50638",
+      "vulId": "VUL-50638",
+      "vulInfoStat": 1,
+      "vulName": "ICMP timestamp请求响应漏洞",
+      "vulLevel": 2,
+      "orgVulId": "CVE-1999-0524",
+      "vulNetAddr": "10.65.195.204",
+      "vulPort": 0,
+      "vulSvc": "ICMP",
+      "isAccess": 0,
+      "transferTime": "1589485760",
+      "vulnDisposalId": "VI-vul-58-50638-0-2",
+      "extVulnRef": "初始时间戳：00000000\\n接收时间戳：001d9094\\n传递时间戳：001d9094\\n"
+    }
+  ]
+}

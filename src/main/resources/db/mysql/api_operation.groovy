@@ -1,7 +1,8 @@
 package db.mysql
 
 databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
-    changeSet(id: '2026-05-22-create-table-api_operation', author: 'open-api') {
+
+    changeSet(id: 'init-api_operation-table', author: 'open-api') {
         createTable(tableName: 'api_operation', remarks: '开放平台 API 目录（治理平面）') {
             column(name: 'operation_id', type: 'VARCHAR(64)', remarks: 'OpenAPI operationId') {
                 constraints(primaryKey: true, primaryKeyName: 'pk_api_operation')
@@ -21,6 +22,12 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'domain', type: 'VARCHAR(32)', remarks: '领域 AUTH/TASK/INSTANCE/EXPORT/WEBHOOK') {
                 constraints(nullable: false)
             }
+            column(name: 'openapi_tag', type: 'VARCHAR(32)', remarks: 'OpenAPI tags：auth/tasks/instances/exports/webhooks') {
+                constraints(nullable: true)
+            }
+            column(name: 'summary', type: 'VARCHAR(128)', remarks: 'OpenAPI summary，管理台展示') {
+                constraints(nullable: true)
+            }
             column(name: 'status', type: 'VARCHAR(16)', remarks: 'PUBLISHED/DEPRECATED/DISABLED') {
                 constraints(nullable: false)
             }
@@ -29,9 +36,12 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
         createIndex(tableName: 'api_operation', indexName: 'idx_api_operation_domain', unique: false) {
             column(name: 'domain')
         }
+        createIndex(tableName: 'api_operation', indexName: 'idx_api_operation_openapi_tag', unique: false) {
+            column(name: 'openapi_tag')
+        }
     }
 
-    changeSet(id: '2026-05-22-seed-api_operation-p0-tasks', author: 'open-api') {
+    changeSet(id: 'init-api_operation-seed', author: 'open-api') {
         insert(tableName: 'api_operation') {
             column(name: 'operation_id', value: 'createTask')
             column(name: 'api_version', value: '1.0.0')
@@ -39,8 +49,46 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'path_pattern', value: '/api/open/v1/tasks')
             column(name: 'required_capability', value: 'TASK_WRITE')
             column(name: 'domain', value: 'TASK')
-            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'openapi_tag', value: 'tasks')
+            column(name: 'summary', value: '创建扫描任务（已废弃，请用 createTaskByJson/createTaskByFile）')
+            column(name: 'status', value: 'DEPRECATED')
             column(name: 'published_at', valueDate: '2026-05-22')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'createTaskByJson')
+            column(name: 'api_version', value: '1.0.4')
+            column(name: 'http_method', value: 'POST')
+            column(name: 'path_pattern', value: '/api/open/v1/tasks/vul')
+            column(name: 'required_capability', value: 'TASK_WRITE')
+            column(name: 'domain', value: 'TASK')
+            column(name: 'openapi_tag', value: 'tasks')
+            column(name: 'summary', value: '创建扫描任务（JSON 参数）')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-05-21')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'createTaskByFile')
+            column(name: 'api_version', value: '1.0.4')
+            column(name: 'http_method', value: 'POST')
+            column(name: 'path_pattern', value: '/api/open/v1/tasks/file')
+            column(name: 'required_capability', value: 'TASK_WRITE')
+            column(name: 'domain', value: 'TASK')
+            column(name: 'openapi_tag', value: 'tasks')
+            column(name: 'summary', value: '创建扫描任务（XML 配置）')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-05-21')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'createTaskByUpload')
+            column(name: 'api_version', value: '1.0.4')
+            column(name: 'http_method', value: 'POST')
+            column(name: 'path_pattern', value: '/api/open/v1/tasks/upload')
+            column(name: 'required_capability', value: 'TASK_WRITE')
+            column(name: 'domain', value: 'TASK')
+            column(name: 'openapi_tag', value: 'tasks')
+            column(name: 'summary', value: '创建扫描任务（上传 XML 文件）')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-13')
         }
         insert(tableName: 'api_operation') {
             column(name: 'operation_id', value: 'listTasks')
@@ -49,6 +97,8 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'path_pattern', value: '/api/open/v1/tasks')
             column(name: 'required_capability', value: 'TASK_READ')
             column(name: 'domain', value: 'TASK')
+            column(name: 'openapi_tag', value: 'tasks')
+            column(name: 'summary', value: '分页查询任务列表')
             column(name: 'status', value: 'PUBLISHED')
             column(name: 'published_at', valueDate: '2026-05-22')
         }
@@ -59,46 +109,11 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'path_pattern', value: '/api/open/v1/tasks/{taskId}')
             column(name: 'required_capability', value: 'TASK_READ')
             column(name: 'domain', value: 'TASK')
+            column(name: 'openapi_tag', value: 'tasks')
+            column(name: 'summary', value: '查询任务进度')
             column(name: 'status', value: 'PUBLISHED')
             column(name: 'published_at', valueDate: '2026-05-22')
         }
-    }
-
-    changeSet(id: '2026-05-23-add-api_operation-catalog-columns', author: 'open-api') {
-        addColumn(tableName: 'api_operation') {
-            column(name: 'openapi_tag', type: 'VARCHAR(32)', remarks: 'OpenAPI tags：auth/tasks/instances/exports/webhooks') {
-                constraints(nullable: true)
-            }
-        }
-        addColumn(tableName: 'api_operation') {
-            column(name: 'summary', type: 'VARCHAR(128)', remarks: 'OpenAPI summary，管理台展示') {
-                constraints(nullable: true)
-            }
-        }
-        createIndex(tableName: 'api_operation', indexName: 'idx_api_operation_openapi_tag', unique: false) {
-            column(name: 'openapi_tag')
-        }
-    }
-
-    changeSet(id: '2026-05-23-update-api_operation-p0-tags', author: 'open-api') {
-        update(tableName: 'api_operation') {
-            column(name: 'openapi_tag', value: 'tasks')
-            column(name: 'summary', value: '创建扫描任务')
-            where: "operation_id = 'createTask'"
-        }
-        update(tableName: 'api_operation') {
-            column(name: 'openapi_tag', value: 'tasks')
-            column(name: 'summary', value: '分页查询任务列表')
-            where: "operation_id = 'listTasks'"
-        }
-        update(tableName: 'api_operation') {
-            column(name: 'openapi_tag', value: 'tasks')
-            column(name: 'summary', value: '查询任务进度')
-            where: "operation_id = 'getTask'"
-        }
-    }
-
-    changeSet(id: '2026-05-23-seed-api_operation-full-catalog', author: 'open-api') {
         insert(tableName: 'api_operation') {
             column(name: 'operation_id', value: 'issuePartnerToken')
             column(name: 'api_version', value: '1.0.0')
@@ -168,6 +183,18 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'domain', value: 'INSTANCE')
             column(name: 'openapi_tag', value: 'instances')
             column(name: 'summary', value: '处置·修复（可修复）')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-05-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'remediateInstanceBatch')
+            column(name: 'api_version', value: '1.0.0')
+            column(name: 'http_method', value: 'POST')
+            column(name: 'path_pattern', value: '/api/open/v1/instances/remediate:batch')
+            column(name: 'required_capability', value: 'INSTANCE_REMEDIATE')
+            column(name: 'domain', value: 'INSTANCE')
+            column(name: 'openapi_tag', value: 'instances')
+            column(name: 'summary', value: '批量处置·修复（可修复）')
             column(name: 'status', value: 'PUBLISHED')
             column(name: 'published_at', valueDate: '2026-05-23')
         }

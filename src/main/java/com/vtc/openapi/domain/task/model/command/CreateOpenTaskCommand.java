@@ -1,5 +1,6 @@
 package com.vtc.openapi.domain.task.model.command;
 
+import com.vtc.openapi.domain.task.model.vo.ScanTaskTargets;
 import lombok.Data;
 
 import java.util.List;
@@ -12,17 +13,27 @@ public class CreateOpenTaskCommand {
 
     private String taskName;
 
-    private List<String> targets;
+    /** 任务类型 1/2/3，见附录 F */
+    private Integer type;
 
-    private String targetType;
-
-    private Integer vulnType;
+    private ScanTaskTargets targets;
 
     private String callbackUrl;
 
     private Integer scanTemplateId;
 
+    private Integer reportTemplateId;
+
     private String priority;
+
+    private Integer srcMethod;
+
+    private List<String> vulIDs;
+
+    private List<String> secResourceHashes;
+
+    /** file 模式原始 XML */
+    private String fileXml;
 
     private Map<String, Object> options;
 }

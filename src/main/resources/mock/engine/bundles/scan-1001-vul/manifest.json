@@ -1,0 +1,25 @@
+{
+  "bundleId": "scan-1001-vul",
+  "description": "NSFocus vul scan (NsfocusXmlParserV4), task=1166, source=漏洞扫描结果1166.xml, count=500, profile=vul",
+  "match": {
+    "extTaskIdPrefix": null,
+    "taskNameContains": null,
+    "scanTemplateId": 1001,
+    "reportTemplateIds": [
+      2001,
+      2002
+    ],
+    "vulnTypes": [
+      1,
+      2
+    ]
+  },
+  "instanceCount": 500,
+  "sourceXml": "漏洞扫描结果1166.xml",
+  "taskId": "1166",
+  "taskName": "扫描【test】",
+  "scanKind": "vul",
+  "profile": "vul",
+  "parserRef": "NsfocusXmlParserV4",
+  "importedAt": "2026-06-14"
+}

@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +28,7 @@ import springfox.documentation.swagger2.annotations.EnableSwagger2;
 @EnableKnife4j
 @Import(BeanValidatorPluginsConfiguration.class)
 @ConditionalOnWebApplication
+@ConditionalOnProperty(name = "knife4j.enable", havingValue = "true", matchIfMissing = true)
 public class OpenApiSwaggerConfig {
 
     @Autowired

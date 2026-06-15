@@ -6,7 +6,10 @@ import com.vtc.openapi.domain.partner.context.PartnerContext;
 import com.vtc.openapi.domain.open.service.business.IApiCatalogDomainService;
 import com.vtc.openapi.domain.open.model.InvocationContext;
 import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
+import com.vtc.openapi.infra.interceptor.IdempotencyInterceptor;
+import com.vtc.openapi.infra.redis.IdempotencyStore;
 import com.vtc.openapi.ui.dto.ApiResponse;
+import com.alibaba.fastjson.JSON;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -26,11 +29,14 @@ public class InvocationPipeline {
 
     private final IApiCatalogDomainService apiCatalogDomainService;
     private final IInvocationDomainService invocationDomainService;
+    private final IdempotencyStore idempotencyStore;
 
     public InvocationPipeline(IApiCatalogDomainService apiCatalogDomainService,
-                              IInvocationDomainService invocationDomainService) {
+                              IInvocationDomainService invocationDomainService,
+                              IdempotencyStore idempotencyStore) {
         this.apiCatalogDomainService = apiCatalogDomainService;
         this.invocationDomainService = invocationDomainService;
+        this.idempotencyStore = idempotencyStore;
     }
 
     public <T> ApiResponse<T> invoke(String operationId, OpenOperationHandler<T> handler) {
@@ -52,9 +58,32 @@ public class InvocationPipeline {
             response = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误", null);
         } finally {
             invocationDomainService.finish(ctx, response.getCode(), response.getMessage());
+            cacheIdempotentResponse(ctx, response);
         }
         response.setRequestId(ctx.getRequestId());
         return response;
+    }
+
+    /**
+     * 若请求携带 Idempotency-Key 且未被拦截器命中（首次请求），
+     * 将本次响应落缓存，供后续重放（文档 §4.2）。
+     */
+    private <T> void cacheIdempotentResponse(InvocationContext ctx, ApiResponse<T> response) {
+        HttpServletRequest request = currentRequest();
+        if (request == null) {
+            return;
+        }
+        String idempotencyKey = (String) request.getAttribute(IdempotencyInterceptor.ATTR_IDEMPOTENT_KEY);
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return;
+        }
+        String bodyHash = (String) request.getAttribute(IdempotencyInterceptor.ATTR_IDEMPOTENT_BODY_HASH);
+        request.removeAttribute(IdempotencyInterceptor.ATTR_IDEMPOTENT_KEY);
+        request.removeAttribute(IdempotencyInterceptor.ATTR_IDEMPOTENT_BODY_HASH);
+
+        String dataJson = response.getData() != null ? JSON.toJSONString(response.getData()) : null;
+        idempotencyStore.save(ctx.getPartnerId(), idempotencyKey, bodyHash,
+                response.getCode(), response.getMessage(), dataJson);
     }
 
     private InvocationContext buildContext(String operationId) {

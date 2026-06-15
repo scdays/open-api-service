@@ -24,6 +24,11 @@ public final class PartnerContext {
         return partnerId.trim();
     }
 
+    public static String getPartnerId() {
+        String partnerId = PARTNER_ID.get();
+        return partnerId != null && !partnerId.trim().isEmpty() ? partnerId.trim() : null;
+    }
+
     public static String getRequestId() {
         String requestId = REQUEST_ID.get();
         return requestId != null ? requestId : "req-" + System.currentTimeMillis();
