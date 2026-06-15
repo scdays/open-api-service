@@ -101,7 +101,7 @@ public final class WebhookDeliverySupport {
     }
 
     /**
-     * Webhook ��ת��������ʱʹ�õ� resourceId��EXPORT �� taskId������������Դ ID����
+     * Webhook ???????????????? resourceId??EXPORT ?? taskId????????????? ID????
      */
     public static String resolveInvocationLinkResourceId(String eventType, String resourceId, String payloadJson) {
         ResourceBinding binding = extractResource(eventType, payloadJson);
@@ -117,6 +117,31 @@ public final class WebhookDeliverySupport {
             return binding.getResourceId();
         }
         return null;
+    }
+
+    public static ExportReadyInfo extractExportReady(String eventType, String payloadJson) {
+        if (!WebhookEventType.EXPORT_READY.equals(eventType) || !StringUtils.hasText(payloadJson)) {
+            return null;
+        }
+        try {
+            JSONObject envelope = JSON.parseObject(payloadJson);
+            if (envelope == null) {
+                return null;
+            }
+            JSONObject payload = envelope.getJSONObject("payload");
+            if (payload == null) {
+                return null;
+            }
+            ExportReadyInfo info = new ExportReadyInfo();
+            info.setExportId(firstNonBlank(payload.getString("exportId")));
+            info.setTaskId(firstNonBlank(payload.getString("taskId")));
+            info.setFormat(payload.getString("format"));
+            info.setExportStage(payload.getString("exportStage"));
+            info.setDownloadUrl(payload.getString("downloadUrl"));
+            return StringUtils.hasText(info.getExportId()) ? info : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static List<String> collectVulInfoIds(JSONObject payload) {
@@ -143,6 +168,54 @@ public final class WebhookDeliverySupport {
             }
         }
         return null;
+    }
+
+    public static class ExportReadyInfo {
+        private String exportId;
+        private String taskId;
+        private String format;
+        private String exportStage;
+        private String downloadUrl;
+
+        public String getExportId() {
+            return exportId;
+        }
+
+        public void setExportId(String exportId) {
+            this.exportId = exportId;
+        }
+
+        public String getTaskId() {
+            return taskId;
+        }
+
+        public void setTaskId(String taskId) {
+            this.taskId = taskId;
+        }
+
+        public String getFormat() {
+            return format;
+        }
+
+        public void setFormat(String format) {
+            this.format = format;
+        }
+
+        public String getExportStage() {
+            return exportStage;
+        }
+
+        public void setExportStage(String exportStage) {
+            this.exportStage = exportStage;
+        }
+
+        public String getDownloadUrl() {
+            return downloadUrl;
+        }
+
+        public void setDownloadUrl(String downloadUrl) {
+            this.downloadUrl = downloadUrl;
+        }
     }
 
     public static class ResourceBinding {

@@ -2,6 +2,7 @@ package com.vtc.openapi.ui.admin;
 
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.ui.BaseUI;
+import com.vtc.openapi.app.service.IExportAdminAppService;
 import com.vtc.openapi.app.service.IInvocationAdminAppService;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.*;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
 
 @RestController
 @RequestMapping("/internal/admin")
@@ -22,9 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class InvocationAdminUI extends BaseUI {
 
     private final IInvocationAdminAppService invocationAdminAppService;
+    private final IExportAdminAppService exportAdminAppService;
 
-    public InvocationAdminUI(IInvocationAdminAppService invocationAdminAppService) {
+    public InvocationAdminUI(IInvocationAdminAppService invocationAdminAppService,
+                             IExportAdminAppService exportAdminAppService) {
         this.invocationAdminAppService = invocationAdminAppService;
+        this.exportAdminAppService = exportAdminAppService;
     }
 
     @ApiOperation("分页查询调用记录")
@@ -57,6 +62,14 @@ public class InvocationAdminUI extends BaseUI {
     public ApiResponse<InvocationResponseBodyDTO> getInvocationResponseBody(
             @PathVariable("invocationId") String invocationId) {
         return invocationAdminAppService.getInvocationResponseBody(invocationId);
+    }
+
+    @ApiOperation(value = "平台侧下载外发文件", notes = "GET /internal/admin/exports/{exportId}/download · 走 open-api 文件存储")
+    @GetMapping("/exports/{exportId}/download")
+    public ResponseEntity<byte[]> downloadExport(
+            @PathVariable("exportId") String exportId,
+            @RequestParam("partnerId") String partnerId) {
+        return exportAdminAppService.downloadExport(partnerId, exportId);
     }
 
     @ApiOperation("分页查询 Webhook 投递日志")

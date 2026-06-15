@@ -4,7 +4,9 @@ import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
 import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
 import com.vtc.openapi.domain.open.model.support.InvocationDomainSupport;
 import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport;
+import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport.ExportReadyInfo;
 import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport.ResourceBinding;
+import com.vtc.openapi.domain.webhook.model.WebhookEventType;
 import com.vtc.openapi.ui.dto.admin.InvocationDTO;
 import com.vtc.openapi.ui.dto.admin.InvocationDetailDTO;
 import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
@@ -101,6 +103,7 @@ public class AdminGovernanceAppConvertor {
         dto.setResourceType(row.getResourceType());
         dto.setResourceId(row.getResourceId());
         enrichWebhookLinkFields(row, dto);
+        enrichExportReadyFields(row, dto);
         dto.setCallbackUrl(row.getCallbackUrl());
         dto.setHttpStatus(row.getHttpStatus());
         dto.setRetryCount(row.getRetryCount());
@@ -128,5 +131,25 @@ public class AdminGovernanceAppConvertor {
         if (org.springframework.util.StringUtils.hasText(binding.getSecondaryResourceId())) {
             dto.setRelatedTaskId(binding.getSecondaryResourceId());
         }
+    }
+
+    private void enrichExportReadyFields(WebhookDeliveryLogDO row, WebhookDeliveryLogDTO dto) {
+        if (row == null || dto == null || !WebhookEventType.EXPORT_READY.equals(row.getEventType())) {
+            return;
+        }
+        ExportReadyInfo exportReady = WebhookDeliverySupport.extractExportReady(row.getEventType(), row.getPayloadJson());
+        if (exportReady == null) {
+            dto.setExportDownloadable(false);
+            return;
+        }
+        dto.setExportId(exportReady.getExportId());
+        dto.setExportFormat(exportReady.getFormat());
+        dto.setExportStage(exportReady.getExportStage());
+        dto.setPartnerDownloadUrl(exportReady.getDownloadUrl());
+        if (!org.springframework.util.StringUtils.hasText(dto.getRelatedTaskId())) {
+            dto.setRelatedTaskId(exportReady.getTaskId());
+        }
+        dto.setExportDownloadable("SUCCESS".equalsIgnoreCase(row.getStatus())
+                && org.springframework.util.StringUtils.hasText(exportReady.getExportId()));
     }
 }

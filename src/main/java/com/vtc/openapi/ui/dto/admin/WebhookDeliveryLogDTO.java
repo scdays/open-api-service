@@ -34,6 +34,21 @@ public class WebhookDeliveryLogDTO extends BaseDTO {
     @ApiModelProperty("关联 taskId（EXPORT 等事件用于跳转调用治理）")
     private String relatedTaskId;
 
+    @ApiModelProperty("外发 exportId（EXPORT_READY）")
+    private String exportId;
+
+    @ApiModelProperty("外发格式 xml/json（EXPORT_READY）")
+    private String exportFormat;
+
+    @ApiModelProperty("外发阶段（EXPORT_READY）")
+    private String exportStage;
+
+    @ApiModelProperty("Partner 侧 downloadUrl（Webhook payload）")
+    private String partnerDownloadUrl;
+
+    @ApiModelProperty("是否可通过平台管理 API 下载外发文件")
+    private Boolean exportDownloadable;
+
     @ApiModelProperty("回调地址")
     private String callbackUrl;
 
