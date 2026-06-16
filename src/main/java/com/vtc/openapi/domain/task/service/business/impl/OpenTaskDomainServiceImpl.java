@@ -24,8 +24,10 @@ import com.vtc.openapi.domain.task.model.vo.ScanEngineCreateResult;
 import com.vtc.openapi.domain.task.model.vo.ScanEngineProgressResult;
 import com.vtc.openapi.domain.task.model.vo.ScanTaskTargets;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
+import com.vtc.openapi.domain.task.service.MockTaskCompletionCoordinator;
 import com.vtc.openapi.domain.task.service.business.IOpenTaskDomainService;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,13 +58,16 @@ public class OpenTaskDomainServiceImpl
     private final IScanEngineGateway scanEngineGateway;
     private final IInstanceIngestDomainService instanceIngestDomainService;
     private final IWebhookPublishService webhookPublishService;
+    private final MockTaskCompletionCoordinator taskCompletionCoordinator;
 
     public OpenTaskDomainServiceImpl(IScanEngineGateway scanEngineGateway,
                                      IInstanceIngestDomainService instanceIngestDomainService,
-                                     IWebhookPublishService webhookPublishService) {
+                                     IWebhookPublishService webhookPublishService,
+                                     @Autowired(required = false) MockTaskCompletionCoordinator taskCompletionCoordinator) {
         this.scanEngineGateway = scanEngineGateway;
         this.instanceIngestDomainService = instanceIngestDomainService;
         this.webhookPublishService = webhookPublishService;
+        this.taskCompletionCoordinator = taskCompletionCoordinator;
     }
 
     @Override
@@ -212,6 +217,9 @@ public class OpenTaskDomainServiceImpl
         databaseRepository.updateById(task);
         if ("FINISHED".equals(progress.getStatus()) && !wasFinished) {
             instanceIngestDomainService.tryIngestOnTaskFinished(task);
+            if (taskCompletionCoordinator != null) {
+                taskCompletionCoordinator.scheduleNotify(task.getTaskId());
+            }
         }
         if ("FAILED".equals(progress.getStatus()) && !wasFailed) {
             webhookPublishService.publishTaskFailed(task);

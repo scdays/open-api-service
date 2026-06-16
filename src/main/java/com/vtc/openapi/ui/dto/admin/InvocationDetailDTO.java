@@ -21,8 +21,15 @@ public class InvocationDetailDTO extends InvocationDTO {
     @ApiModelProperty("??????????????")
     private String requestHeadersPreview;
 
-    @ApiModelProperty("??????????JSON ???????????δ?????????????·??/????????")
+    @ApiModelProperty("请求体摘要（已废弃，请调用 request-body 接口按需获取）")
+    @Deprecated
     private String requestBodyPreview;
+
+    @ApiModelProperty("是否存在可二次加载的请求报文")
+    private Boolean hasRequestBody;
+
+    @ApiModelProperty("已持久化请求报文大小（字节近似，0 表示仅摘要）")
+    private Long requestBodyByteSize;
 
     @ApiModelProperty("响应头摘要（文本）")
     private String responseHeadersPreview;

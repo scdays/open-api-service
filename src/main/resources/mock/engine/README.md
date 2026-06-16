@@ -28,7 +28,9 @@ python svmp/docs/internal/scripts/import-nsfocus-xml-to-mock-bundle.py \
 
 ## 半人工联调（ingest-mode=manual）
 
-Profile：`spring.profiles.active=mock-manual`（自动 include `mock`）。
+完整配置步骤见仓库文档 **`svmp/docs/internal/open-api-mock-manual-配置指南.md`**（Nacos / Profile / `application.yml` 三种方式）。
+
+Profile：`spring.profiles.active=mock-manual`（`adapter-mode` 仍为 **`mock`**，勿写 `mock-manual`）。
 
 | 步骤 | 说明 |
 |------|------|

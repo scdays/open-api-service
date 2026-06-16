@@ -24,6 +24,7 @@ import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.InvocationDetailDTO;
 import com.vtc.openapi.ui.dto.admin.InvocationDTO;
 import com.vtc.openapi.ui.dto.admin.InvocationPageDto;
+import com.vtc.openapi.ui.dto.admin.InvocationRequestBodyDTO;
 import com.vtc.openapi.ui.dto.admin.InvocationResponseBodyDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerInvocationStatsDto;
 import com.vtc.openapi.ui.dto.admin.PartnerQuotaDTO;
@@ -135,6 +136,26 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         dto.setBodyFormatted(bodyFormatted);
         dto.setByteSize(stored
                 ? apiInvocationRepository.findResponseBodyByteSize(invocation.getInvocationId())
+                : (long) bodyFormatted.length());
+        return ApiResponse.ok(dto);
+    }
+
+    @Override
+    public ApiResponse<InvocationRequestBodyDTO> getInvocationRequestBody(String invocationId) {
+        ApiInvocationDO invocation = invocationDomainService.requireInvocation(invocationId);
+        String storedJson = apiInvocationRepository.findRequestBodyJson(invocation.getInvocationId());
+        boolean stored = StringUtils.hasText(storedJson);
+        String bodyFormatted = stored
+                ? formatJson(storedJson)
+                : buildFallbackRequestBodyPreview(invocation);
+
+        InvocationRequestBodyDTO dto = new InvocationRequestBodyDTO();
+        dto.setInvocationId(invocation.getInvocationId());
+        dto.setRequestId(invocation.getRequestId());
+        dto.setStored(stored);
+        dto.setBodyFormatted(bodyFormatted);
+        dto.setByteSize(stored
+                ? apiInvocationRepository.findRequestBodyByteSize(invocation.getInvocationId())
                 : (long) bodyFormatted.length());
         return ApiResponse.ok(dto);
     }
@@ -314,7 +335,9 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         InvocationDetailDTO dto = adminGovernanceAppConvertor.toInvocationDetailDto(row);
         dto.setResponseMessage(resolveResponseMessage(row));
         dto.setRequestHeadersPreview(buildRequestHeadersPreview(row));
-        dto.setRequestBodyPreview(buildRequestBodyPreview(row));
+        long requestBodyByteSize = apiInvocationRepository.findRequestBodyByteSize(row.getInvocationId());
+        dto.setRequestBodyByteSize(requestBodyByteSize);
+        dto.setHasRequestBody(requestBodyByteSize > 0L || canBuildFallbackRequestBody(row));
         dto.setResponseHeadersPreview(buildResponseHeadersPreview(row));
         long responseBodyByteSize = apiInvocationRepository.findResponseBodyByteSize(row.getInvocationId());
         dto.setResponseBodyByteSize(responseBodyByteSize);
@@ -360,6 +383,16 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
             sb.append("\nHTTP-Status: ").append(row.getHttpStatus());
         }
         return sb.toString();
+    }
+
+    private boolean canBuildFallbackRequestBody(ApiInvocationDO row) {
+        return StringUtils.hasText(row.getOperationId())
+                || StringUtils.hasText(row.getRequestPath())
+                || StringUtils.hasText(row.getResourceId());
+    }
+
+    private String buildFallbackRequestBodyPreview(ApiInvocationDO row) {
+        return buildRequestBodyPreview(row);
     }
 
     private boolean canBuildFallbackResponseBody(ApiInvocationDO row) {

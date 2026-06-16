@@ -2,6 +2,7 @@ package com.vtc.openapi.domain.export.service.business.impl;
 
 import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.OpenExportFileType;
+import com.vtc.openapi.domain.export.model.ReportTemplateCatalog;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.model.entity.OpenExportFileDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
@@ -38,7 +39,6 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
     private static final Logger log = LoggerFactory.getLogger(ExportAssemblyDomainServiceImpl.class);
     private static final String STATUS_READY = "READY";
     private static final String STATUS_FAILED = "FAILED";
-    private static final String[] FORMATS = {"xml", "json"};
 
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
@@ -128,7 +128,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
             Date generatedAt = new Date();
             Date expiresAt = addDays(generatedAt, properties.getExport().getTtlDays());
 
-            for (String format : FORMATS) {
+            for (String format : ReportTemplateCatalog.resolveFormats(task.getReportTemplateId())) {
                 publishFormat(task, exportStage, verifyFixJobId, instances, format, generatedAt, expiresAt);
             }
         } catch (Exception ex) {

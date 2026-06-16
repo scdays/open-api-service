@@ -1,5 +1,7 @@
 package com.vtc.openapi.app.convert;
 
+import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
+import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
 import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
 import com.vtc.openapi.domain.open.model.support.InvocationDomainSupport;
@@ -23,6 +25,14 @@ import java.util.stream.Collectors;
  */
 @Component
 public class AdminGovernanceAppConvertor {
+
+    private static final String EXPORT_STATUS_READY = "READY";
+
+    private final IOpenExportRepository exportRepository;
+
+    public AdminGovernanceAppConvertor(IOpenExportRepository exportRepository) {
+        this.exportRepository = exportRepository;
+    }
 
     public InvocationDTO toInvocationDto(ApiInvocationDO row) {
         if (row == null) {
@@ -149,7 +159,14 @@ public class AdminGovernanceAppConvertor {
         if (!org.springframework.util.StringUtils.hasText(dto.getRelatedTaskId())) {
             dto.setRelatedTaskId(exportReady.getTaskId());
         }
-        dto.setExportDownloadable("SUCCESS".equalsIgnoreCase(row.getStatus())
-                && org.springframework.util.StringUtils.hasText(exportReady.getExportId()));
+        dto.setExportDownloadable(isExportReadyForDownload(exportReady.getExportId()));
+    }
+
+    private boolean isExportReadyForDownload(String exportId) {
+        if (!org.springframework.util.StringUtils.hasText(exportId)) {
+            return false;
+        }
+        OpenExportDO export = exportRepository.findByExportId(exportId.trim());
+        return export != null && EXPORT_STATUS_READY.equals(export.getStatus());
     }
 }

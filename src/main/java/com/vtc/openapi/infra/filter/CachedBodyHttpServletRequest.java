@@ -44,6 +44,25 @@ public class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
         return cachedBody != null ? new String(cachedBody, StandardCharsets.UTF_8) : "";
     }
 
+    /** 从 ContentCachingFilter 包装链读取已缓存的请求体。 */
+    public static String extractBody(HttpServletRequest request) {
+        if (request == null) {
+            return "";
+        }
+        HttpServletRequest current = request;
+        while (current != null) {
+            if (current instanceof CachedBodyHttpServletRequest) {
+                return ((CachedBodyHttpServletRequest) current).getCachedBodyAsString();
+            }
+            if (current instanceof javax.servlet.http.HttpServletRequestWrapper) {
+                current = (HttpServletRequest) ((javax.servlet.http.HttpServletRequestWrapper) current).getRequest();
+            } else {
+                break;
+            }
+        }
+        return "";
+    }
+
     @Override
     public ServletInputStream getInputStream() {
         return new CachedServletInputStream(cachedBody);

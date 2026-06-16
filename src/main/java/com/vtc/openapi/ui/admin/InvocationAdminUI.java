@@ -64,6 +64,13 @@ public class InvocationAdminUI extends BaseUI {
         return invocationAdminAppService.getInvocationResponseBody(invocationId);
     }
 
+    @ApiOperation("按需获取调用请求报文（大报文二次加载）")
+    @GetMapping("/invocations/{invocationId}/request-body")
+    public ApiResponse<InvocationRequestBodyDTO> getInvocationRequestBody(
+            @PathVariable("invocationId") String invocationId) {
+        return invocationAdminAppService.getInvocationRequestBody(invocationId);
+    }
+
     @ApiOperation(value = "平台侧下载外发文件", notes = "GET /internal/admin/exports/{exportId}/download · 走 open-api 文件存储")
     @GetMapping("/exports/{exportId}/download")
     public ResponseEntity<byte[]> downloadExport(

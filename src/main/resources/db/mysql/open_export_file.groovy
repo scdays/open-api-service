@@ -2,7 +2,7 @@ package db.mysql
 
 databaseChangeLog(logicalFilePath: 'open_export_file.groovy') {
     changeSet(id: '2026-06-13-create-table-open_export_file', author: 'open-api') {
-        createTable(tableName: 'open_export_file', remarks: '开放平台外发文件（对齐 vul_scan_task_file）') {
+        createTable(tableName: 'open_export_file', remarks: 'vul_scan_task_file') {
             column(name: 'id', type: 'BIGINT', autoIncrement: true) {
                 constraints(primaryKey: true, primaryKeyName: 'pk_open_export_file')
             }
@@ -16,7 +16,7 @@ databaseChangeLog(logicalFilePath: 'open_export_file.groovy') {
             column(name: 'file_position', type: 'VARCHAR(255)', remarks: 'bucket')
             column(name: 'file_field', type: 'VARCHAR(255)', remarks: 'fileKey')
             column(name: 'file_metadata', type: 'VARCHAR(255)')
-            column(name: 'file_type', type: 'INT', remarks: '11=外发XML 12=外发JSON')
+            column(name: 'file_type', type: 'INT', remarks: '11=锟解发XML 12=锟解发JSON')
             column(name: 'create_time', type: 'DATETIME', defaultValueComputed: 'CURRENT_TIMESTAMP')
             column(name: 'update_time', type: 'DATETIME')
         }

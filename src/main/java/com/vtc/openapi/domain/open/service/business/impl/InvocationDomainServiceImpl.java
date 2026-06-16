@@ -59,6 +59,9 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
         row.setRequestPath(ctx.getRequestPath());
         row.setClientIp(ctx.getClientIp());
         row.setStartedAt(new Date(ctx.getStartedAtMillis()));
+        if (StringUtils.hasText(ctx.getRequestBodyJson())) {
+            row.setRequestBodyJson(ctx.getRequestBodyJson());
+        }
         apiInvocationRepository.insert(row);
     }
 

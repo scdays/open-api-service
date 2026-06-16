@@ -85,7 +85,7 @@ $createTask = Invoke-RestMethod -Method Post -Uri "$Base/api/open/v1/tasks/vul" 
         type             = 1
         scanTemplateId   = $ScanTemplateId
         reportTemplateId = 2001
-        targets          = @{ hosts = "10.0.0.1" }
+        targets          = @{ hosts = "172.16.3.22,172.16.3.23,172.16.3.24,172.16.3.25,172.16.3.26" }
     } | ConvertTo-Json -Depth 3)
 Assert-Code $createTask "create task"
 $taskId = $createTask.data.taskId

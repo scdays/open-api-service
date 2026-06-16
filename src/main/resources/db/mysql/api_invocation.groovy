@@ -49,10 +49,9 @@ databaseChangeLog(logicalFilePath: 'api_invocation.groovy') {
         }
     }
 
-    changeSet(id: '2026-05-26-api-invocation-response-body-mediumtext', author: 'open-api') {
-        preConditions(onFail: 'MARK_RAN') {
-            columnExists(tableName: 'api_invocation', columnName: 'response_body_json')
+    changeSet(id: '2026-06-13-api-invocation-request-body-json', author: 'open-api') {
+        addColumn(tableName: 'api_invocation') {
+            column(name: 'request_body_json', type: 'MEDIUMTEXT', remarks: 'Partner 实际提交的请求体 JSON')
         }
-        modifyDataType(tableName: 'api_invocation', columnName: 'response_body_json', newDataType: 'MEDIUMTEXT')
     }
 }

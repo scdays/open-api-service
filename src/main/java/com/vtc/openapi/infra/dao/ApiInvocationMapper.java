@@ -74,4 +74,10 @@ public interface ApiInvocationMapper extends IBaseMapper<ApiInvocationPO> {
 
     @Select("SELECT IFNULL(CHAR_LENGTH(response_body_json), 0) FROM api_invocation WHERE invocation_id = #{invocationId}")
     Long selectResponseBodyByteSize(@Param("invocationId") String invocationId);
+
+    @Select("SELECT request_body_json FROM api_invocation WHERE invocation_id = #{invocationId}")
+    String selectRequestBodyJson(@Param("invocationId") String invocationId);
+
+    @Select("SELECT IFNULL(CHAR_LENGTH(request_body_json), 0) FROM api_invocation WHERE invocation_id = #{invocationId}")
+    Long selectRequestBodyByteSize(@Param("invocationId") String invocationId);
 }

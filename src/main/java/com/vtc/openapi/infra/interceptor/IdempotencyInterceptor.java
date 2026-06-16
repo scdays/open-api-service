@@ -111,7 +111,7 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
 
     /** 计算请求体 SHA-256 摘要；无 body 时以空串摘要 */
     private static String computeBodyHash(HttpServletRequest request) {
-        String body = extractCachedBody(request);
+        String body = CachedBodyHttpServletRequest.extractBody(request);
         if (!StringUtils.hasText(body)) {
             body = "";
         }
@@ -120,18 +120,7 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
 
     /** 从 Filter 包装链中读取 ContentCachingFilter 缓存的 body */
     private static String extractCachedBody(HttpServletRequest request) {
-        HttpServletRequest current = request;
-        while (current != null) {
-            if (current instanceof CachedBodyHttpServletRequest) {
-                return ((CachedBodyHttpServletRequest) current).getCachedBodyAsString();
-            }
-            if (current instanceof HttpServletRequestWrapper) {
-                current = (HttpServletRequest) ((HttpServletRequestWrapper) current).getRequest();
-            } else {
-                break;
-            }
-        }
-        return "";
+        return CachedBodyHttpServletRequest.extractBody(request);
     }
 
     private static void writeConflict(HttpServletResponse response, String message) throws java.io.IOException {

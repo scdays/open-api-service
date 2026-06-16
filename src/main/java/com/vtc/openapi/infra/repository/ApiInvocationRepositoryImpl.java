@@ -366,4 +366,21 @@ public class ApiInvocationRepositoryImpl implements IApiInvocationRepository {
         Long size = apiInvocationMapper.selectResponseBodyByteSize(invocationId.trim());
         return size == null ? 0L : size;
     }
+
+    @Override
+    public String findRequestBodyJson(String invocationId) {
+        if (!StringUtils.hasText(invocationId)) {
+            return null;
+        }
+        return apiInvocationMapper.selectRequestBodyJson(invocationId.trim());
+    }
+
+    @Override
+    public long findRequestBodyByteSize(String invocationId) {
+        if (!StringUtils.hasText(invocationId)) {
+            return 0L;
+        }
+        Long size = apiInvocationMapper.selectRequestBodyByteSize(invocationId.trim());
+        return size == null ? 0L : size;
+    }
 }

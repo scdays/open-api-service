@@ -14,6 +14,7 @@ import com.vtc.openapi.domain.webhook.service.business.IWebhookDomainService;
 import com.vtc.openapi.infra.adapter.WebhookDeliveryAdapter;
 import com.vtc.openapi.infra.dao.WebhookDeliveryLogMapper;
 import com.vtc.openapi.infra.dao.po.WebhookDeliveryLogPO;
+import com.vtc.openapi.infra.webhook.WebhookCallbackUrlResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,15 +47,18 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
     private final IApiInvocationRepository apiInvocationRepository;
     private final WebhookDeliveryAdapter deliveryAdapter;
     private final WebhookDeliveryLogMapper deliveryLogMapper;
+    private final WebhookCallbackUrlResolver callbackUrlResolver;
 
     public WebhookDomainServiceImpl(IPartnerRepository partnerRepository,
                                     IApiInvocationRepository apiInvocationRepository,
                                     WebhookDeliveryAdapter deliveryAdapter,
-                                    WebhookDeliveryLogMapper deliveryLogMapper) {
+                                    WebhookDeliveryLogMapper deliveryLogMapper,
+                                    WebhookCallbackUrlResolver callbackUrlResolver) {
         this.partnerRepository = partnerRepository;
         this.apiInvocationRepository = apiInvocationRepository;
         this.deliveryAdapter = deliveryAdapter;
         this.deliveryLogMapper = deliveryLogMapper;
+        this.callbackUrlResolver = callbackUrlResolver;
     }
 
     @Override
@@ -64,13 +68,14 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
         }
 
         PartnerWebhookConfigDO config = partnerRepository.findWebhookConfig(event.getPartnerId());
-        if (config == null || !StringUtils.hasText(config.getCallbackUrl())) {
-            log.debug("Partner {} 未配置 callbackUrl，跳过 Webhook 投递", event.getPartnerId());
+        String callbackUrl = callbackUrlResolver.resolveForPartner(event.getPartnerId());
+        if (!StringUtils.hasText(callbackUrl)) {
+            log.warn("Partner {} 未配置 callbackUrl 且测试接收端未启用，跳过 Webhook 投递 eventType={}",
+                    event.getPartnerId(), event.getEventType());
             return;
         }
 
-        String callbackUrl = config.getCallbackUrl();
-        String webhookSecret = config.getWebhookSecret();
+        String webhookSecret = config != null ? config.getWebhookSecret() : null;
 
         if (event.getEventId() == null) {
             event.setEventId("evt-" + java.util.UUID.randomUUID().toString().replace("-", ""));

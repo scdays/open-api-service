@@ -16,6 +16,7 @@ import org.w3c.dom.NodeList;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -52,12 +53,12 @@ public class NsfocusMockXmlParser {
         }
         Document doc = parseDocument(xmlBytes);
         Element root = doc.getDocumentElement();
-        Element report = findFirstChild(findFirstChild(root, "data"), "report");
+        Element report = findReport(root);
         if (report == null) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "invalid NSFocus XML: missing report");
         }
         String vendor = childText(report, "vendor");
-        if (!NSFOCUS_VENDOR.equals(vendor)) {
+        if (!isNsfocusVendor(vendor)) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR,
                     "unsupported XML vendor (expect NSFocus): " + vendor);
         }
@@ -138,17 +139,12 @@ public class NsfocusMockXmlParser {
         boolean weak = "pwd".equals(profile) || isWeakPasswordScan(taskType, target);
 
         if (weak) {
-            Map<String, VulnScanned> scannedByService = new HashMap<>();
-            for (VulnScanned scanned : scannedList) {
-                if (StringUtils.hasText(scanned.service)) {
-                    scannedByService.put(scanned.service.toUpperCase(Locale.ROOT), scanned);
-                }
-            }
+            Map<String, VulnScanned> scannedByService = indexScannedByService(scannedList);
             for (PasswordResult pwd : loadPasswordResults(target)) {
                 if (!StringUtils.hasText(pwd.type)) {
                     continue;
                 }
-                VulnScanned scanned = scannedByService.get(pwd.type.toUpperCase(Locale.ROOT));
+                VulnScanned scanned = findScannedForPassword(pwd.type, scannedList, scannedByService);
                 if (scanned == null) {
                     continue;
                 }
@@ -175,7 +171,7 @@ public class NsfocusMockXmlParser {
         } else {
             for (VulnScanned scanned : scannedList) {
                 VulnDetail detail = details.get(scanned.vulId);
-                if (detail == null) {
+                if (detail == null && !StringUtils.hasText(scanned.messString)) {
                     continue;
                 }
                 if (limit > 0 && instances.size() >= limit) {
@@ -441,10 +437,10 @@ public class NsfocusMockXmlParser {
                 }
             }
         }
-        NodeList rrNodes = info.getChildNodes();
+        NodeList rrNodes = info.getElementsByTagName("record_results");
         for (int i = 0; i < rrNodes.getLength(); i++) {
             Node n = rrNodes.item(i);
-            if (n.getNodeType() != Node.ELEMENT_NODE || !"record_results".equals(n.getNodeName())) {
+            if (n.getNodeType() != Node.ELEMENT_NODE || !info.equals(n.getParentNode())) {
                 continue;
             }
             Element rr = (Element) n;
@@ -469,6 +465,60 @@ public class NsfocusMockXmlParser {
             }
         }
         return table;
+    }
+
+    private static Map<String, VulnScanned> indexScannedByService(List<VulnScanned> scannedList) {
+        Map<String, VulnScanned> scannedByService = new HashMap<>();
+        for (VulnScanned scanned : scannedList) {
+            if (StringUtils.hasText(scanned.service)) {
+                scannedByService.put(scanned.service.toUpperCase(Locale.ROOT), scanned);
+            }
+            if (StringUtils.hasText(scanned.protocol)) {
+                scannedByService.putIfAbsent(scanned.protocol.toUpperCase(Locale.ROOT), scanned);
+            }
+        }
+        return scannedByService;
+    }
+
+    private static VulnScanned findScannedForPassword(String pwdType, List<VulnScanned> scannedList,
+                                                      Map<String, VulnScanned> scannedByService) {
+        String typeKey = pwdType.toUpperCase(Locale.ROOT);
+        VulnScanned scanned = scannedByService.get(typeKey);
+        if (scanned != null) {
+            return scanned;
+        }
+        String typeLower = pwdType.toLowerCase(Locale.ROOT);
+        for (VulnScanned candidate : scannedList) {
+            if (StringUtils.hasText(candidate.messString)
+                    && candidate.messString.toLowerCase(Locale.ROOT).contains(typeLower)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static Element findReport(Element root) {
+        Element data = findFirstChild(root, "data");
+        Element report = findFirstChild(data, "report");
+        if (report != null) {
+            return report;
+        }
+        NodeList reports = root.getElementsByTagName("report");
+        if (reports.getLength() > 0) {
+            return (Element) reports.item(0);
+        }
+        return null;
+    }
+
+    public static boolean isNsfocusVendor(String vendor) {
+        if (!StringUtils.hasText(vendor)) {
+            return false;
+        }
+        String trimmed = vendor.trim();
+        if (NSFOCUS_VENDOR.equals(trimmed)) {
+            return true;
+        }
+        return trimmed.contains("\u7eff\u76df") || trimmed.toLowerCase(Locale.ROOT).contains("nsfocus");
     }
 
     private static int indexOfColumn(List<String> names, String en, String zh) {
@@ -551,18 +601,56 @@ public class NsfocusMockXmlParser {
     }
 
     private static Document parseDocument(byte[] xmlBytes) {
+        byte[] normalized = stripBom(xmlBytes);
+        try {
+            return parseDocumentBytes(normalized);
+        } catch (OpenApiException first) {
+            if (looksUtf8(normalized)) {
+                throw first;
+            }
+            try {
+                String decoded = new String(normalized, Charset.forName("GBK"));
+                return parseDocumentBytes(decoded.getBytes(StandardCharsets.UTF_8));
+            } catch (OpenApiException second) {
+                throw first;
+            }
+        }
+    }
+
+    private static Document parseDocumentBytes(byte[] bytes) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(new ByteArrayInputStream(xmlBytes));
+            Document doc = builder.parse(new ByteArrayInputStream(bytes));
             doc.getDocumentElement().normalize();
             return doc;
         } catch (Exception ex) {
             throw new OpenApiException(OpenApiConstants.CODE_ENGINE_FAILED,
                     "failed to parse XML: " + ex.getMessage());
+        }
+    }
+
+    private static byte[] stripBom(byte[] xmlBytes) {
+        if (xmlBytes == null || xmlBytes.length < 3) {
+            return xmlBytes;
+        }
+        if (xmlBytes[0] == (byte) 0xEF && xmlBytes[1] == (byte) 0xBB && xmlBytes[2] == (byte) 0xBF) {
+            byte[] stripped = new byte[xmlBytes.length - 3];
+            System.arraycopy(xmlBytes, 3, stripped, 0, stripped.length);
+            return stripped;
+        }
+        return xmlBytes;
+    }
+
+    private static boolean looksUtf8(byte[] bytes) {
+        try {
+            String head = new String(bytes, 0, Math.min(bytes.length, 256), StandardCharsets.UTF_8);
+            return head.contains("<aurora") || head.contains("<report");
+        } catch (Exception ignored) {
+            return true;
         }
     }
 

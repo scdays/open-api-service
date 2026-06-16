@@ -2,16 +2,7 @@ package com.vtc.openapi.app.service;
 
 import com.botany.spore.core.page.PageInfo;
 import com.vtc.openapi.ui.dto.ApiResponse;
-import com.vtc.openapi.ui.dto.admin.InvocationDetailDTO;
-import com.vtc.openapi.ui.dto.admin.InvocationDTO;
-import com.vtc.openapi.ui.dto.admin.InvocationPageDto;
-import com.vtc.openapi.ui.dto.admin.PartnerInvocationStatsDto;
-import com.vtc.openapi.ui.dto.admin.PartnerQuotaDTO;
-import com.vtc.openapi.ui.dto.admin.PartnerQuotaPageDto;
-import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
-import com.vtc.openapi.ui.dto.admin.InvocationResponseBodyDTO;
-import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDetailDTO;
-import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogPageDto;
+import com.vtc.openapi.ui.dto.admin.*;
 
 public interface IInvocationAdminAppService {
 
@@ -28,6 +19,8 @@ public interface IInvocationAdminAppService {
     ApiResponse<InvocationDetailDTO> getInvocationDetail(String invocationId);
 
     ApiResponse<InvocationResponseBodyDTO> getInvocationResponseBody(String invocationId);
+
+    ApiResponse<InvocationRequestBodyDTO> getInvocationRequestBody(String invocationId);
 
     ApiResponse<PartnerInvocationStatsDto> getPartnerStats(String partnerId);
 

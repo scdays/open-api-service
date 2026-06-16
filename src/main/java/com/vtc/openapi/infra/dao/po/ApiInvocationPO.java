@@ -44,6 +44,9 @@ public class ApiInvocationPO extends BasePO {
     @TableField(select = false)
     private String responseBodyJson;
 
+    @TableField(select = false)
+    private String requestBodyJson;
+
     private Date startedAt;
 
     private Date finishedAt;

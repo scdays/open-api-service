@@ -11,6 +11,7 @@ import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
 import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import com.vtc.openapi.infra.redis.PartnerTokenRedisStore;
+import com.vtc.openapi.infra.webhook.WebhookCallbackUrlResolver;
 import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
@@ -36,20 +37,23 @@ public class PartnerAdminAppServiceImpl
         implements IPartnerAdminAppService {
 
     private final PartnerTokenRedisStore tokenRedisStore;
+    private final WebhookCallbackUrlResolver callbackUrlResolver;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PartnerAdminAppServiceImpl(IPartnerDomainService partnerDomainService,
-                                      PartnerTokenRedisStore tokenRedisStore) {
+                                      PartnerTokenRedisStore tokenRedisStore,
+                                      WebhookCallbackUrlResolver callbackUrlResolver) {
         this.domainService = partnerDomainService;
         this.tokenRedisStore = tokenRedisStore;
+        this.callbackUrlResolver = callbackUrlResolver;
     }
 
     @Override
     public ApiResponse<PartnerDTO> createPartner(CreatePartnerParams params) {
         PartnerDO toCreate = ConvertHelper.convert(fromCreateParams(params), PartnerDO.class);
         PartnerDO saved = domainService.createPartner(
-                toCreate, params.getCapabilities(), params.getDefaultCallbackUrl());
+                toCreate, params.getCapabilities(), callbackUrlResolver.resolveForCreate(params.getDefaultCallbackUrl()));
         return ApiResponse.ok(enrichDetail(saved));
     }
 

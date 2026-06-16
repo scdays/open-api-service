@@ -10,6 +10,7 @@ import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.support.TaskTypeSupport;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
+import com.vtc.openapi.domain.task.service.MockTaskCompletionCoordinator;
 import com.vtc.openapi.infra.adapter.mock.MockEngineFixtureLoader;
 import com.vtc.openapi.infra.adapter.mock.MockReportImportRunner;
 import com.vtc.openapi.infra.adapter.mock.MockTaskDataPathResolver;
@@ -44,6 +45,7 @@ public class MockTaskAdminAppServiceImpl implements IMockTaskAdminAppService {
     private final MockTaskDataPathResolver pathResolver;
     private final OpenApiProperties properties;
     private final IInstanceIngestDomainService instanceIngestDomainService;
+    private final MockTaskCompletionCoordinator taskCompletionCoordinator;
 
     public MockTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
                                        IOpenVulnInstanceRepository vulnInstanceRepository,
@@ -51,7 +53,8 @@ public class MockTaskAdminAppServiceImpl implements IMockTaskAdminAppService {
                                        MockEngineFixtureLoader fixtureLoader,
                                        MockTaskDataPathResolver pathResolver,
                                        OpenApiProperties properties,
-                                       IInstanceIngestDomainService instanceIngestDomainService) {
+                                       IInstanceIngestDomainService instanceIngestDomainService,
+                                       MockTaskCompletionCoordinator taskCompletionCoordinator) {
         this.openTaskRepository = openTaskRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.reportImportRunner = reportImportRunner;
@@ -59,6 +62,7 @@ public class MockTaskAdminAppServiceImpl implements IMockTaskAdminAppService {
         this.pathResolver = pathResolver;
         this.properties = properties;
         this.instanceIngestDomainService = instanceIngestDomainService;
+        this.taskCompletionCoordinator = taskCompletionCoordinator;
     }
 
     @Override
@@ -101,6 +105,8 @@ public class MockTaskAdminAppServiceImpl implements IMockTaskAdminAppService {
         openTaskRepository.updateById(task);
 
         instanceIngestDomainService.tryIngestOnTaskFinished(task);
+        // Always schedule after commit: covers ingest failure and manual FINISHED confirmation.
+        taskCompletionCoordinator.scheduleNotify(task.getTaskId());
         return ApiResponse.ok(buildImportResult(task.getTaskId(), instanceCount));
     }
 

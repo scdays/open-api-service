@@ -376,22 +376,22 @@ if ($list.code -eq 0 -and $list.data.items.Count -ge 1) {
     Record "GET /tasks list with extTaskId filter" "FAIL"
 }
 
-Write-Phase "Phase 4.5 - Export APIs (TASK_COMPLETED xml+json)"
-$exportList = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 2 `
+Write-Phase "Phase 4.5 - Export APIs (TASK_COMPLETED, reportTemplateId=2001 -> json only)"
+$exportList = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 1 `
     -ExportStage "TASK_COMPLETED" -MaxWaitSec $ExportWaitSec
 $exportList = Record-ExportWaitResult -Name "GET /tasks/{taskId}/exports TASK_COMPLETED" `
-    -TaskId $taskMain -Headers $openA -ExportStage "TASK_COMPLETED" -MinReady 2 -ExportData $exportList
+    -TaskId $taskMain -Headers $openA -ExportStage "TASK_COMPLETED" -MinReady 1 -ExportData $exportList
 if ($null -ne $exportList) {
     $tcItems = @($exportList.items | Where-Object { $_.exportStage -eq "TASK_COMPLETED" -and $_.status -eq "READY" })
     $fmtXml = @($tcItems | Where-Object { $_.format -eq "xml" })
     $fmtJson = @($tcItems | Where-Object { $_.format -eq "json" })
-    if ($tcItems.Count -ge 2 -and $fmtXml.Count -ge 1 -and $fmtJson.Count -ge 1) {
-        Record "TASK_COMPLETED xml+json formats" "PASS" "xml=$($fmtXml.Count) json=$($fmtJson.Count)"
+    if ($tcItems.Count -ge 1 -and $fmtJson.Count -ge 1 -and $fmtXml.Count -eq 0) {
+        Record "TASK_COMPLETED json-only (reportTemplateId=2001)" "PASS" "json=$($fmtJson.Count)"
     } else {
-        Record "TASK_COMPLETED xml+json formats" "FAIL" "items=$($tcItems.Count)"
+        Record "TASK_COMPLETED json-only (reportTemplateId=2001)" "FAIL" "items=$($tcItems.Count) xml=$($fmtXml.Count) json=$($fmtJson.Count)"
     }
 
-    $exportMetaId = $fmtXml[0].exportId
+    $exportMetaId = $fmtJson[0].exportId
     $meta = Invoke-Api -Uri "$Base/api/open/v1/exports/$exportMetaId" -Headers $openA
     if ($meta.code -eq 0 -and $meta.data.downloadUrl -match "/api/open/v1/exports/.+/download") {
         Record "GET /exports/{exportId} metadata" "PASS" "has partner downloadUrl"
@@ -408,7 +408,7 @@ if ($null -ne $exportList) {
             $dl = Invoke-Api -Uri "$Base/api/open/v1/exports/$exportMetaId/download" -Headers $openA -Raw
             $ct = $dl.Headers["Content-Type"]
             $len = $dl.RawContentLength
-            if ($len -gt 50 -and $ct -match "xml") {
+            if ($len -gt 50 -and $ct -match "json") {
                 Record "GET /exports/{exportId}/download" "PASS" "bytes=$len"
             } else {
                 Record "GET /exports/{exportId}/download" "FAIL" "bytes=$len ct=$ct"
@@ -417,7 +417,7 @@ if ($null -ne $exportList) {
             Record "GET /exports/{exportId}/download" "FAIL" $_.Exception.Message
         }
     } else {
-        Record "GET /exports/{exportId}/download" "SKIP" "no READY xml export"
+        Record "GET /exports/{exportId}/download" "SKIP" "no READY json export"
     }
 }
 
@@ -444,10 +444,10 @@ $v1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/verify
 Expect-Code $v1 0 "POST verify VALID (1->2)"
 
 Start-Sleep -Seconds $VerifyScanWaitSec
-$vsAfterMain = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 2 `
+$vsAfterMain = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 1 `
     -ExportStage "VERIFY_SCAN" -MaxWaitSec $ExportWaitSec
 Record-ExportWaitResult -Name "VERIFY_SCAN exports after verify (instMain)" `
-    -TaskId $taskMain -Headers $openA -ExportStage "VERIFY_SCAN" -MinReady 2 -ExportData $vsAfterMain | Out-Null
+    -TaskId $taskMain -Headers $openA -ExportStage "VERIFY_SCAN" -MinReady 1 -ExportData $vsAfterMain | Out-Null
 
 $hRem = New-OpenHeaders -Token $token -PartnerId $partnerA -IdempotencyKey "rem-main-$ts"
 $r1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/remediate" -Headers $hRem -Body (@{
@@ -462,10 +462,10 @@ $vf1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/verif
 Expect-Code $vf1 0 "POST verify-fix FIX_CONFIRMED (5->6)"
 
 Start-Sleep -Seconds $VerifyScanWaitSec
-$vfExports = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 2 `
+$vfExports = Wait-TaskExportsReady -TaskId $taskMain -Headers $openA -MinReady 1 `
     -ExportStage "VERIFY_FIX_SCAN" -MaxWaitSec $ExportWaitSec
 Record-ExportWaitResult -Name "VERIFY_FIX_SCAN exports after verify-fix" `
-    -TaskId $taskMain -Headers $openA -ExportStage "VERIFY_FIX_SCAN" -MinReady 2 -ExportData $vfExports | Out-Null
+    -TaskId $taskMain -Headers $openA -ExportStage "VERIFY_FIX_SCAN" -MinReady 1 -ExportData $vfExports | Out-Null
 
 # False positive branch: 1 -> 3
 $hFp = New-OpenHeaders -Token $token -PartnerId $partnerA -IdempotencyKey "fp-$ts"
@@ -571,16 +571,14 @@ if ($tcWh -ge 1) {
 }
 
 $erWh = Count-WebhookEventType -PartnerId $partnerA -EventType "EXPORT_READY"
-if ($erWh -ge 2) {
-    Record "Webhook EXPORT_READY logged (xml+json)" "PASS" "count=$erWh"
-} elseif ($erWh -ge 1) {
-    Record "Webhook EXPORT_READY logged (xml+json)" "FAIL" "count=$erWh expected>=2"
+if ($erWh -ge 1) {
+    Record "Webhook EXPORT_READY logged (json, reportTemplateId=2001)" "PASS" "count=$erWh"
 } else {
     $expSum = Get-TaskExportSummary -TaskId $taskMain -Headers $openA
-    if ($expSum.failed -ge 2 -and $expSum.ready -eq 0) {
-        Record "Webhook EXPORT_READY logged (xml+json)" "SKIP" "exports FAILED (file-sharing-center?)"
+    if ($expSum.failed -ge 1 -and $expSum.ready -eq 0) {
+        Record "Webhook EXPORT_READY logged (json, reportTemplateId=2001)" "SKIP" "exports FAILED (file-sharing-center?)"
     } else {
-        Record "Webhook EXPORT_READY logged (xml+json)" "FAIL" "count=0"
+        Record "Webhook EXPORT_READY logged (json, reportTemplateId=2001)" "FAIL" "count=0"
     }
 }
 

@@ -52,4 +52,8 @@ public interface IApiInvocationRepository {
     String findResponseBodyJson(String invocationId);
 
     long findResponseBodyByteSize(String invocationId);
+
+    String findRequestBodyJson(String invocationId);
+
+    long findRequestBodyByteSize(String invocationId);
 }

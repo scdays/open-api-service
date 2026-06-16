@@ -15,6 +15,7 @@ public class InvocationContext {
     private String invocationId;
     private String resourceType;
     private String resourceId;
+    private String requestBodyJson;
 
     public InvocationContext(String partnerId, String requestId, String operationId,
                              String httpMethod, String requestPath, String clientIp) {
@@ -77,5 +78,13 @@ public class InvocationContext {
 
     public void setResourceId(String resourceId) {
         this.resourceId = resourceId;
+    }
+
+    public String getRequestBodyJson() {
+        return requestBodyJson;
+    }
+
+    public void setRequestBodyJson(String requestBodyJson) {
+        this.requestBodyJson = requestBodyJson;
     }
 }

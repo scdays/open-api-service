@@ -6,6 +6,7 @@ import com.vtc.openapi.domain.partner.context.PartnerContext;
 import com.vtc.openapi.domain.open.service.business.IApiCatalogDomainService;
 import com.vtc.openapi.domain.open.model.InvocationContext;
 import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
+import com.vtc.openapi.infra.filter.CachedBodyHttpServletRequest;
 import com.vtc.openapi.infra.interceptor.IdempotencyInterceptor;
 import com.vtc.openapi.infra.redis.IdempotencyStore;
 import com.vtc.openapi.ui.dto.ApiResponse;
@@ -93,7 +94,12 @@ public class InvocationPipeline {
         String httpMethod = request != null ? request.getMethod() : "UNKNOWN";
         String requestPath = request != null ? request.getRequestURI() : "";
         String clientIp = resolveClientIp(request);
-        return new InvocationContext(partnerId, requestId, operationId, httpMethod, requestPath, clientIp);
+        InvocationContext ctx = new InvocationContext(partnerId, requestId, operationId, httpMethod, requestPath, clientIp);
+        String requestBody = CachedBodyHttpServletRequest.extractBody(request);
+        if (StringUtils.hasText(requestBody)) {
+            ctx.setRequestBodyJson(requestBody.trim());
+        }
+        return ctx;
     }
 
     private static HttpServletRequest currentRequest() {

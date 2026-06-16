@@ -373,6 +373,8 @@ public class OpenApiProperties {
         private boolean enabled = true;
         /** 是否启用内置 Webhook 测试接收端（生产建议关闭） */
         private boolean testReceiverEnabled = true;
+        /** 测试接收端所在服务根地址，如 http://127.0.0.1:35780 */
+        private String testReceiverBaseUrl = "http://127.0.0.1:35780";
         /** 测试接收端路径，Partner defaultCallbackUrl 可填完整 URL */
         private String testReceiverPath = "/internal/dev/webhook/receive";
 
@@ -390,6 +392,14 @@ public class OpenApiProperties {
 
         public void setTestReceiverEnabled(boolean testReceiverEnabled) {
             this.testReceiverEnabled = testReceiverEnabled;
+        }
+
+        public String getTestReceiverBaseUrl() {
+            return testReceiverBaseUrl;
+        }
+
+        public void setTestReceiverBaseUrl(String testReceiverBaseUrl) {
+            this.testReceiverBaseUrl = testReceiverBaseUrl;
         }
 
         public String getTestReceiverPath() {
