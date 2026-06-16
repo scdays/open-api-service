@@ -8,8 +8,6 @@ spring:
     nacos: 172.16.3.33:8848
   main:
     allow-bean-definition-overriding: true
-  autoconfigure:
-    exclude: com.botany.spore.core.config.Swagger2Config
   cloud:
     nacos:
       discovery:

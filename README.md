@@ -65,7 +65,7 @@ Partner 上下文**仅**来自请求头 `X-Partner-Id`（由 **partner-gateway**
 |----|-----|
 | 文档 UI | `http://{host}:{port}/doc.html`（默认 `http://127.0.0.1:35780/doc.html`） |
 | OpenAPI JSON | `/v2/api-docs` |
-| 配置类 | `infra/config/OpenApiSwaggerConfig.java` |
+| 配置类 | `com.botany.spore.core.config.Swagger2Config`（`esmp-starter-core` 自动装配） |
 | 开关 | `knife4j.enable=true`（`application.yml`） |
 
 Controller 使用 `@Api` / `@ApiOperation`；请求/响应 DTO 使用 `@ApiModel` / `@ApiModelProperty`（参考 clover `PartnerTokenUI`、`ApiResponse`）。
