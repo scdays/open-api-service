@@ -1,5 +1,6 @@
 package com.vtc.openapi.domain.export.service;
 
+import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson.JSON;
 import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
@@ -30,7 +31,7 @@ class MockTaskExportAssemblerTest {
     @Test
     void liveProbeTaskIncludesLiveResultsOnly() {
         OpenTaskDO task = baseTask(1002, 1);
-        List<OpenVulnInstanceDO> instances = List.of(instance(
+        List<OpenVulnInstanceDO> instances = CollUtil.newArrayList(instance(
                 "VI-live-1", 1,
                 snapshot("LIVE-58", "LIVE-PROBE", "10.65.195.204", 0, "ICMP", "liveProbe=true")));
 
@@ -60,8 +61,8 @@ class MockTaskExportAssemblerTest {
     @Test
     void portScanTaskIncludesLiveAndPortResults() {
         OpenTaskDO task = baseTask(1003, 1);
-        List<OpenVulnInstanceDO> instances = List.of(
-                instance("VI-port-1", 1, snapshot("PORT-22", "PORT-SCAN", "10.65.195.204", 22, "ssh", "open")),
+        List<OpenVulnInstanceDO> instances = CollUtil.newArrayList((
+                instance("VI-port-1", 1, snapshot("PORT-22", "PORT-SCAN", "10.65.195.204", 22, "ssh", "open"))),
                 instance("VI-port-2", 1, snapshot("PORT-111", "PORT-SCAN", "10.65.195.204", 111, "rpcbind", "open")));
 
         Map<String, Object> root = assemble(task, instances);
@@ -91,9 +92,9 @@ class MockTaskExportAssemblerTest {
     @Test
     void vulnerabilityTaskIncludesLivePortAndVulnerabilities() {
         OpenTaskDO task = baseTask(1001, 1);
-        List<OpenVulnInstanceDO> instances = List.of(
+        List<OpenVulnInstanceDO> instances = CollUtil.newArrayList((
                 instance("VI-vul-1", 1, snapshot("VUL-73699", "CVE-2016-10160",
-                        "172.30.3.22", 443, "https", "php/5.3.10")),
+                        "172.30.3.22", 443, "https", "php/5.3.10"))),
                 instance("VI-vul-2", 1, snapshot("VUL-73011", "CVE-2007-1888",
                         "172.30.3.22", 443, "https", "php/5.3.10")));
 
@@ -128,8 +129,8 @@ class MockTaskExportAssemblerTest {
     @Test
     void verifyFixScanIncludesAllSectionsForVulnerabilityTask() {
         OpenTaskDO task = baseTask(1001, 1);
-        List<OpenVulnInstanceDO> instances = List.of(
-                instance("VI-vul-1", 5, snapshot("VUL-1", "CVE-1", "10.0.0.1", 80, "http", "hit")));
+        List<OpenVulnInstanceDO> instances = CollUtil.newArrayList((
+                instance("VI-vul-1", 5, snapshot("VUL-1", "CVE-1", "10.0.0.1", 80, "http", "hit"))));
 
         Map<String, Object> root = assembler.assemble(
                 task, ExportStage.VERIFY_FIX_SCAN, "json", instances, "EXP-test",
@@ -144,8 +145,8 @@ class MockTaskExportAssemblerTest {
     @Test
     void verifyScanExcludesPortScanResults() {
         OpenTaskDO task = baseTask(1001, 1);
-        List<OpenVulnInstanceDO> instances = List.of(
-                instance("VI-vul-1", 1, snapshot("VUL-1", "CVE-1", "10.0.0.1", 443, "https", "hit")));
+        List<OpenVulnInstanceDO> instances = CollUtil.newArrayList((
+                instance("VI-vul-1", 1, snapshot("VUL-1", "CVE-1", "10.0.0.1", 443, "https", "hit"))));
 
         Map<String, Object> root = assembler.assemble(
                 task, ExportStage.VERIFY_SCAN, "json", instances, "EXP-test",

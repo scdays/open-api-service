@@ -17,7 +17,7 @@
 	<!-- 日志文件保存规则，以天为单位，最大为100MB文件，历史文件进行gz压缩，最多保存30天历史 -->
 	<appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
 	    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-	    	<FileNamePattern>${user.dir}/logs/clover.%d{yyyy-MM-dd}.%i.log.gz</FileNamePattern>   
+	    	<FileNamePattern>${user.dir}/logs/open-api-service.%d{yyyy-MM-dd}.%i.log.gz</FileNamePattern>   
 	      	<MaxHistory>30</MaxHistory>
 	      	<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
 	      		<maxFileSize>100MB</maxFileSize> 
