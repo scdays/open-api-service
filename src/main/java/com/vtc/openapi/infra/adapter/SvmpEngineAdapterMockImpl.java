@@ -79,21 +79,35 @@ public class SvmpEngineAdapterMockImpl implements SvmpEngineAdapter {
 
     @Override
     public SvmpTaskProgressResult getTaskProgress(String engineTaskId) {
+        // Manual import may mark open_task FINISHED while engine memory state is still RUNNING.
+        SvmpTaskProgressResult persisted = progressFromPersistedTask(engineTaskId);
+        if (persisted != null && isTerminalStatus(persisted.getStatus())) {
+            return persisted;
+        }
         MockTaskState state = taskStates.get(engineTaskId);
         if (state == null) {
-            return progressFromPersistedTask(engineTaskId);
+            return persisted != null ? persisted : notFoundProgress(engineTaskId);
         }
         return progressFromElapsed(state.createdAtMs);
+    }
+
+    private static boolean isTerminalStatus(String status) {
+        return "FINISHED".equals(status) || "FAILED".equals(status);
+    }
+
+    private static SvmpTaskProgressResult notFoundProgress(String engineTaskId) {
+        SvmpTaskProgressResult progress = new SvmpTaskProgressResult();
+        progress.setStatus("FAILED");
+        progress.setProgress(0);
+        progress.setErrorMessage("mock engine task not found: " + engineTaskId);
+        return progress;
     }
 
     private SvmpTaskProgressResult progressFromPersistedTask(String engineTaskId) {
         OpenTaskDO task = openTaskRepository.findByEngineTaskId(engineTaskId);
         SvmpTaskProgressResult progress = new SvmpTaskProgressResult();
         if (task == null) {
-            progress.setStatus("FAILED");
-            progress.setProgress(0);
-            progress.setErrorMessage("mock engine task not found: " + engineTaskId);
-            return progress;
+            return null;
         }
         if ("FINISHED".equals(task.getStatus())) {
             progress.setStatus("FINISHED");

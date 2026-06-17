@@ -30,4 +30,9 @@ public interface IOpenVulnInstanceRepository extends IDatabaseRepository<OpenVul
     void updateState(Long id, String partnerId, int vulInfoStat, String method, String remedDesc);
 
     void updateRemediateState(Long id, String partnerId, int vulInfoStat, RemediateInstanceCommand command);
+
+    /**
+     * 按接入方查询实例，可选 taskId / vulInfoStat 过滤。
+     */
+    List<OpenVulnInstanceDO> listByPartner(String partnerId, String taskId, Integer vulInfoStat, int limit);
 }

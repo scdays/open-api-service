@@ -9,7 +9,7 @@ public interface IVulnInstanceGateway {
 
     InstancePageResult searchInstances(SearchInstanceCommand command);
 
-    InstanceItemResult findByVulInfoId(String vulInfoId);
+    InstanceItemResult findByVulInfoId(String partnerId, String vulInfoId);
 
     void updateInstance(Long id, int vulInfoStat, String method, String remedDesc);
 

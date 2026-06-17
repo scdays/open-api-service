@@ -12,4 +12,6 @@ public class VerifyFixInstanceCommand {
     private String verifyResult;
     private String transferTime;
     private String remark;
+    /** 批量核验共享批次 ID（内部填充） */
+    private String batchId;
 }

@@ -53,7 +53,10 @@ public class VulnInstanceGatewayImpl implements IVulnInstanceGateway {
     }
 
     @Override
-    public InstanceItemResult findByVulInfoId(String vulInfoId) {
+    public InstanceItemResult findByVulInfoId(String partnerId, String vulInfoId) {
+        if (!StringUtils.hasText(vulInfoId)) {
+            return null;
+        }
         Map<String, Object> params = new HashMap<>();
         params.put("current", "1");
         params.put("size", "1");

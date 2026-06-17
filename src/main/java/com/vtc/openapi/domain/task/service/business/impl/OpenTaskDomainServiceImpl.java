@@ -207,6 +207,10 @@ public class OpenTaskDomainServiceImpl
         boolean wasFinished = "FINISHED".equals(task.getStatus());
         boolean wasFailed = "FAILED".equals(task.getStatus());
         ScanEngineProgressResult progress = scanEngineGateway.getTaskProgress(task.getEngineTaskId());
+        if ((wasFinished || wasFailed) && "RUNNING".equals(progress.getStatus())) {
+            // mock-manual: operator import already terminal; ignore stale in-memory engine RUNNING.
+            return;
+        }
         task.setStatus(progress.getStatus());
         task.setProgress(progress.getProgress());
         task.setErrorMessage(progress.getErrorMessage());

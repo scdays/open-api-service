@@ -52,19 +52,21 @@ public class VulnInstanceGatewayMockImpl implements IVulnInstanceGateway {
     }
 
     @Override
-    public InstanceItemResult findByVulInfoId(String vulInfoId) {
+    public InstanceItemResult findByVulInfoId(String partnerId, String vulInfoId) {
         if (!StringUtils.hasText(vulInfoId)) {
             return null;
         }
-        String partnerId = PartnerContext.getPartnerId();
-        if (StringUtils.hasText(partnerId)) {
+        String effectivePartnerId = StringUtils.hasText(partnerId)
+                ? partnerId.trim()
+                : PartnerContext.getPartnerId();
+        if (StringUtils.hasText(effectivePartnerId)) {
             InstanceItemResult fromDb = InstanceItemConverter.fromSnapshot(
-                    vulnInstanceRepository.findByPartnerAndVulInfoId(partnerId, vulInfoId));
+                    vulnInstanceRepository.findByPartnerAndVulInfoId(effectivePartnerId, vulInfoId.trim()));
             if (fromDb != null) {
                 return fromDb;
             }
         }
-        return findInFixture(vulInfoId);
+        return findInFixture(vulInfoId.trim());
     }
 
     @Override

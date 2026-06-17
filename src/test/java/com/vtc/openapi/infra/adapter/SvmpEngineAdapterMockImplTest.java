@@ -1,5 +1,6 @@
 package com.vtc.openapi.infra.adapter;
 
+import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.infra.adapter.dto.SvmpTaskCreateRequest;
 import com.vtc.openapi.infra.adapter.dto.SvmpTaskProgressResult;
@@ -65,5 +66,32 @@ public class SvmpEngineAdapterMockImplTest {
         SvmpTaskProgressResult progress = manualAdapter.getTaskProgress(engineId);
         assertEquals("RUNNING", progress.getStatus());
         assertEquals(Integer.valueOf(50), progress.getProgress());
+    }
+
+    @Test
+    public void manualIngestModeRespectsPersistedFinished() {
+        OpenApiProperties manualProps = new OpenApiProperties();
+        manualProps.getEngine().setAdapterMode("mock");
+        manualProps.getEngine().getMock().setIngestMode("manual");
+        MockEngineFixtureLoader loader = mock(MockEngineFixtureLoader.class);
+        when(loader.listBundles()).thenReturn(java.util.Collections.emptyList());
+        MockFixtureResolver resolver = mock(MockFixtureResolver.class);
+        IOpenTaskRepository openTaskRepository = mock(IOpenTaskRepository.class);
+        SvmpEngineAdapterMockImpl manualAdapter = new SvmpEngineAdapterMockImpl(
+                manualProps, loader, resolver, openTaskRepository);
+
+        SvmpTaskCreateRequest req = new SvmpTaskCreateRequest();
+        req.setTaskName("manual-imported");
+        String engineId = manualAdapter.createTask(req).getEngineTaskId();
+
+        OpenTaskDO task = new OpenTaskDO();
+        task.setEngineTaskId(engineId);
+        task.setStatus("FINISHED");
+        task.setProgress(100);
+        when(openTaskRepository.findByEngineTaskId(engineId)).thenReturn(task);
+
+        SvmpTaskProgressResult progress = manualAdapter.getTaskProgress(engineId);
+        assertEquals("FINISHED", progress.getStatus());
+        assertEquals(Integer.valueOf(100), progress.getProgress());
     }
 }

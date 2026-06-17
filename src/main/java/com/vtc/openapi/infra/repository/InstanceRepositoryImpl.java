@@ -27,7 +27,7 @@ public class InstanceRepositoryImpl implements IInstanceRepository {
 
     @Override
     public InstanceItemResult findByVulInfoId(String partnerId, String vulInfoId) {
-        return vulnInstanceGateway.findByVulInfoId(vulInfoId);
+        return vulnInstanceGateway.findByVulInfoId(partnerId, vulInfoId);
     }
 
     @Override
