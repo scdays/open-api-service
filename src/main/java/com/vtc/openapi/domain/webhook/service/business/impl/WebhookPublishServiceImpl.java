@@ -86,12 +86,19 @@ public class WebhookPublishServiceImpl implements IWebhookPublishService {
     @Override
     public void publishVerifyFixCompleted(String partnerId, String verifyFixJobId, String batchId,
                                           List<VerifyFixItem> items) {
+        publishVerifyFixCompleted(partnerId, verifyFixJobId, batchId, items, "FINISHED");
+    }
+
+    @Override
+    public void publishVerifyFixCompleted(String partnerId, String verifyFixJobId, String batchId,
+                                          List<VerifyFixItem> items, String verifyFixStatus) {
         if (!properties.getWebhook().isEnabled() || !org.springframework.util.StringUtils.hasText(partnerId)) {
             return;
         }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("verifyFixJobId", verifyFixJobId != null ? verifyFixJobId : "VF-" + System.currentTimeMillis());
-        payload.put("verifyFixStatus", "FINISHED");
+        payload.put("verifyFixStatus", org.springframework.util.StringUtils.hasText(verifyFixStatus)
+                ? verifyFixStatus : "FINISHED");
         payload.put("totalCount", CollectionUtils.isEmpty(items) ? 0 : items.size());
         if (batchId != null) {
             payload.put("batchId", batchId);

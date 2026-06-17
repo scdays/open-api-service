@@ -22,6 +22,10 @@ public class OpenTaskDO extends BaseDO {
 
     private String engineTaskId;
 
+    private Long passTaskId;
+
+    private String scanPolicy;
+
     private String taskName;
 
     private String targetType;

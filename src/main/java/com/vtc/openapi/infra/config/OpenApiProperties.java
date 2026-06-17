@@ -192,6 +192,7 @@ public class OpenApiProperties {
         private String engineServiceName = "vul-pass";
         /** vul-pass Controller 根路径；真实接口为 /vul-scan-task/* */
         private String enginePathPrefix = "";
+        private final Orchestration orchestration = new Orchestration();
         private final Dispatch dispatch = new Dispatch();
 
         public String getEngineServiceName() {
@@ -212,6 +213,34 @@ public class OpenApiProperties {
 
         public Dispatch getDispatch() {
             return dispatch;
+        }
+
+        public Orchestration getOrchestration() {
+            return orchestration;
+        }
+
+        /**
+         * OPEN 编排 Internal API（/internal/open/v1），替代考核 dispatch。
+         */
+        public static class Orchestration {
+            private boolean enabled = false;
+            private String pathPrefix = "/internal/open/v1";
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public String getPathPrefix() {
+                return pathPrefix;
+            }
+
+            public void setPathPrefix(String pathPrefix) {
+                this.pathPrefix = pathPrefix;
+            }
         }
 
         /**

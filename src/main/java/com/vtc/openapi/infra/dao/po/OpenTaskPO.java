@@ -25,6 +25,12 @@ public class OpenTaskPO extends BasePO {
 
     private String engineTaskId;
 
+    /** vul-pass vul_scan_task.id */
+    private Long passTaskId;
+
+    /** SOC_DUAL / SINGLE / CUSTOM */
+    private String scanPolicy;
+
     private String taskName;
 
     private String targetType;

@@ -63,4 +63,15 @@ databaseChangeLog(logicalFilePath: 'open_task.groovy') {
             column(name: 'engine_task_id')
         }
     }
+
+    changeSet(id: '2026-06-16-wave0-pass-task-link', author: 'open-api') {
+        comment 'Wave0：关联 vul-pass 编排任务'
+        addColumn(tableName: 'open_task') {
+            column(name: 'pass_task_id', type: 'BIGINT', remarks: 'vul-pass vul_scan_task.id')
+            column(name: 'scan_policy', type: 'VARCHAR(32)', defaultValue: 'SOC_DUAL', remarks: '扫描策略：SOC_DUAL/SINGLE/CUSTOM')
+        }
+        createIndex(tableName: 'open_task', indexName: 'idx_open_task_pass_task_id', unique: false) {
+            column(name: 'pass_task_id')
+        }
+    }
 }

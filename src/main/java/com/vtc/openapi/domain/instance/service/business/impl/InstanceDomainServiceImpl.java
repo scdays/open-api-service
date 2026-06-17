@@ -1,5 +1,6 @@
 package com.vtc.openapi.domain.instance.service.business.impl;
 
+import com.vtc.openapi.domain.instance.gateway.IInstanceLifecycleGateway;
 import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.VerifyFixInstanceCommand;
@@ -7,13 +8,12 @@ import com.vtc.openapi.domain.instance.model.command.VerifyInstanceCommand;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
 import com.vtc.openapi.domain.instance.model.result.InstanceStateResult;
+import com.vtc.openapi.domain.instance.model.result.VerifyFixSubmitResult;
 import com.vtc.openapi.domain.instance.repository.IInstanceRepository;
 import com.vtc.openapi.domain.instance.service.business.IInstanceDomainService;
 import com.vtc.openapi.domain.instance.service.business.IInstanceScanFollowUpService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -29,9 +29,6 @@ import java.util.UUID;
 @Service
 public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
-    private static final Logger log = LoggerFactory.getLogger(InstanceDomainServiceImpl.class);
-
-    /** verify 允许的前置状态：潜在预警(0)、初始发现(1) */
     private static final Set<Integer> VERIFY_ALLOWED_STATES = new HashSet<>(Arrays.asList(0, 1));
     /** remediate 允许的前置状态：初始发现(1)、已验证有效(2)、核验未修复(7) */
     private static final Set<Integer> REMEDIATE_ALLOWED_STATES = new HashSet<>(Arrays.asList(1, 2, 7));
@@ -59,11 +56,14 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
     private final IInstanceRepository instanceRepository;
     private final IInstanceScanFollowUpService scanFollowUpService;
+    private final IInstanceLifecycleGateway lifecycleGateway;
 
     public InstanceDomainServiceImpl(IInstanceRepository instanceRepository,
-                                     IInstanceScanFollowUpService scanFollowUpService) {
+                                     IInstanceScanFollowUpService scanFollowUpService,
+                                     IInstanceLifecycleGateway lifecycleGateway) {
         this.instanceRepository = instanceRepository;
         this.scanFollowUpService = scanFollowUpService;
+        this.lifecycleGateway = lifecycleGateway;
     }
 
     @Override
@@ -73,11 +73,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
     @Override
     public InstanceItemResult getByVulInfoId(String partnerId, String vulInfoId) {
-        InstanceItemResult result = instanceRepository.findByVulInfoId(partnerId, vulInfoId);
-        if (result == null) {
-            return null;
-        }
-        return result;
+        return instanceRepository.findByVulInfoId(partnerId, vulInfoId);
     }
 
     @Override
@@ -88,8 +84,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
         if (!VERIFY_ALLOWED_STATES.contains(currentStat)) {
             if (currentStat == STAT_VALIDATED_TRUE || currentStat == STAT_VALIDATED_FALSE) {
-                throw new OpenApiException(OpenApiConstants.CODE_DUPLICATE_OP,
-                        "实例已验证");
+                throw new OpenApiException(OpenApiConstants.CODE_DUPLICATE_OP, "实例已验证");
             }
             throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID,
                     "实例当前状态不允许验证，当前状态: " + currentStat);
@@ -126,11 +121,15 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
         if (!VERIFY_FIX_ALLOWED_STATES.contains(currentStat)) {
             if (currentStat == STAT_VERIFIED_FIXED || currentStat == STAT_VERIFIED_UNFIXED) {
-                throw new OpenApiException(OpenApiConstants.CODE_DUPLICATE_OP,
-                        "实例已核验");
+                throw new OpenApiException(OpenApiConstants.CODE_DUPLICATE_OP, "实例已核验");
             }
             throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID,
                     "实例当前状态不允许核验修复，当前状态: " + currentStat);
+        }
+
+        if (lifecycleGateway.isAsyncVerifyFixEnabled()) {
+            VerifyFixSubmitResult asyncResult = lifecycleGateway.submitVerifyFix(partnerId, command);
+            return toVerifyFixAccepted(asyncResult, command.getTransferTime());
         }
 
         if (!StringUtils.hasText(command.getVerifyResult())) {
@@ -153,6 +152,17 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
                 current, targetStat, null, null, command.getTransferTime());
         scanFollowUpService.scheduleVerifyFixScan(
                 partnerId, current.getVulInfoId(), previousStat, targetStat, null);
+        return result;
+    }
+
+    private InstanceStateResult toVerifyFixAccepted(VerifyFixSubmitResult asyncResult, String transferTime) {
+        InstanceStateResult result = new InstanceStateResult();
+        result.setVulInfoId(asyncResult.getVulInfoId());
+        result.setVulInfoStat(asyncResult.getCurrentStat() != null ? asyncResult.getCurrentStat() : STAT_FIXED);
+        result.setVerifyFixJobId(asyncResult.getVerifyFixJobId());
+        result.setVerifyFixStatus(asyncResult.getVerifyFixStatus());
+        result.setMessage("修复核验已受理");
+        result.setTransferTime(resolveTransferTime(transferTime));
         return result;
     }
 
@@ -206,8 +216,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
     private int requireStat(InstanceItemResult item) {
         if (item.getVulInfoStat() == null) {
-            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID,
-                    "实例状态未知");
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "实例状态未知");
         }
         return item.getVulInfoStat();
     }

@@ -2,6 +2,8 @@
 
 开放平台业务服务（Nacos 注册名：`open-api-service`），Partner 身份 + 业务一体，与门户 **morningglory / clover 零耦合**。
 
+> **开发说明（单人维护）**：请仅在本目录开发并 push。`open-api-service-v1` 为历史联调目录，与远端同一仓库，勿再并行修改。
+
 ## 架构位置
 
 ```text

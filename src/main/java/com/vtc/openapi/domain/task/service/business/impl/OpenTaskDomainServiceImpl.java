@@ -85,9 +85,11 @@ public class OpenTaskDomainServiceImpl
                     toCreatedResult(existingTask, command.getExtTaskId()));
         }
 
-        ScanEngineCreateResult engineResult = scanEngineGateway.createTask(toEngineCommand(command));
-
         String platformTaskId = "TASK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
+        ScanEngineCreateResult engineResult = scanEngineGateway.createTask(
+                toEngineCommand(command, partnerId, platformTaskId));
+
         Date now = new Date();
 
         OpenTaskDO task = new OpenTaskDO();
@@ -95,6 +97,7 @@ public class OpenTaskDomainServiceImpl
         task.setPartnerId(partnerId);
         task.setExtTaskId(command.getExtTaskId());
         task.setEngineTaskId(engineResult.getEngineTaskId());
+        task.setPassTaskId(parsePassTaskId(engineResult.getEngineTaskId()));
         task.setTaskName(command.getTaskName());
         task.setTargetType(TaskTypeSupport.resolveTargetType(command.getType()));
         task.setVulnType(command.getType());
@@ -226,7 +229,9 @@ public class OpenTaskDomainServiceImpl
         }
     }
 
-    private ScanEngineCreateCommand toEngineCommand(CreateOpenTaskCommand command) {
+    private ScanEngineCreateCommand toEngineCommand(CreateOpenTaskCommand command,
+                                                    String partnerId,
+                                                    String platformTaskId) {
         ScanEngineCreateCommand engineReq = new ScanEngineCreateCommand();
         engineReq.setTaskName(command.getTaskName());
         engineReq.setType(command.getType());
@@ -236,6 +241,8 @@ public class OpenTaskDomainServiceImpl
         engineReq.setPriority(command.getPriority());
         Map<String, Object> options = command.getOptions() != null
                 ? new HashMap<>(command.getOptions()) : new HashMap<>();
+        options.put("partnerId", partnerId);
+        options.put("platformTaskId", platformTaskId);
         options.put("extTaskId", command.getExtTaskId());
         if (command.getReportTemplateId() != null) {
             options.put("reportTemplateId", command.getReportTemplateId());
@@ -255,8 +262,22 @@ public class OpenTaskDomainServiceImpl
         if (StringUtils.hasText(command.getFileXml())) {
             options.put("fileXml", command.getFileXml());
         }
+        if (StringUtils.hasText(command.getCallbackUrl())) {
+            options.put("callbackUrl", command.getCallbackUrl());
+        }
         engineReq.setOptions(options.isEmpty() ? null : options);
         return engineReq;
+    }
+
+    private static Long parsePassTaskId(String engineTaskId) {
+        if (!StringUtils.hasText(engineTaskId)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(engineTaskId.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private OpenTaskCreatedResult toCreatedResult(OpenTaskDO task, String extTaskId) {

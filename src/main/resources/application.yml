@@ -63,6 +63,9 @@ open-api:
   svmp:
     engine-service-name: vul-pass
     engine-path-prefix: ""
+    orchestration:
+      enabled: false
+      path-prefix: /internal/open/v1
     dispatch:
       # 须为 vul-pass 指令库中已存在的 orderId（格式 1-31-19位数字）
       order-id: ""

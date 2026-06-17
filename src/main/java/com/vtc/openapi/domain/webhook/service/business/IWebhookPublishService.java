@@ -17,4 +17,7 @@ public interface IWebhookPublishService {
 
     void publishVerifyFixCompleted(String partnerId, String verifyFixJobId, String batchId,
                                    List<VerifyFixItem> items);
+
+    void publishVerifyFixCompleted(String partnerId, String verifyFixJobId, String batchId,
+                                   List<VerifyFixItem> items, String verifyFixStatus);
 }
