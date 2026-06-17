@@ -107,6 +107,25 @@ public class ApiInvocationRepositoryImpl implements IApiInvocationRepository {
     }
 
     @Override
+    public List<ApiInvocationDO> listRecentByPartnerAndOperations(String partnerId, List<String> operationIds,
+                                                                  Integer responseCode, int limit) {
+        if (!StringUtils.hasText(partnerId) || operationIds == null || operationIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<ApiInvocationPO> wrapper = new LambdaQueryWrapper<ApiInvocationPO>()
+                .eq(ApiInvocationPO::getPartnerId, partnerId.trim())
+                .in(ApiInvocationPO::getOperationId, operationIds)
+                .orderByDesc(ApiInvocationPO::getStartedAt)
+                .orderByDesc(ApiInvocationPO::getFinishedAt);
+        if (responseCode != null) {
+            wrapper.eq(ApiInvocationPO::getResponseCode, responseCode);
+        }
+        int capped = Math.max(1, Math.min(limit, 500));
+        wrapper.last("LIMIT " + capped);
+        return ConvertHelper.convertList(apiInvocationMapper.selectList(wrapper), ApiInvocationDO.class);
+    }
+
+    @Override
     public ApiInvocationDO findByInvocationId(String invocationId) {
         if (!StringUtils.hasText(invocationId)) {
             return null;

@@ -20,6 +20,9 @@ public interface IApiInvocationRepository {
 
     PageInfo<ApiInvocationDO> pageInvocations(InvocationAdminQuery query);
 
+    List<ApiInvocationDO> listRecentByPartnerAndOperations(String partnerId, List<String> operationIds,
+                                                           Integer responseCode, int limit);
+
     ApiInvocationDO findByInvocationId(String invocationId);
 
     ApiInvocationDO findByRequestId(String requestId);

@@ -10,6 +10,7 @@ import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
 import com.vtc.openapi.domain.instance.model.result.InstanceStateResult;
 import com.vtc.openapi.domain.instance.service.business.IInstanceDomainService;
+import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.OpenApiOperations;
@@ -45,11 +46,14 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
 
     private final InvocationPipeline invocationPipeline;
     private final IInstanceDomainService instanceDomainService;
+    private final IVerifyFixJobDomainService verifyFixJobDomainService;
 
     public OpenInstanceAppServiceImpl(InvocationPipeline invocationPipeline,
-                                      IInstanceDomainService instanceDomainService) {
+                                      IInstanceDomainService instanceDomainService,
+                                      IVerifyFixJobDomainService verifyFixJobDomainService) {
         this.invocationPipeline = invocationPipeline;
         this.instanceDomainService = instanceDomainService;
+        this.verifyFixJobDomainService = verifyFixJobDomainService;
     }
 
     @Override
@@ -179,9 +183,32 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         validateBatchRequest(request);
         return invocationPipeline.invoke(OpenApiOperations.VERIFY_FIX_INSTANCE_BATCH, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
+            boolean allAsync = request.getItems().stream()
+                    .noneMatch(item -> StringUtils.hasText(item.getVerifyResult()));
+            if (allAsync) {
+                String batchId = "batch-" + System.currentTimeMillis();
+                List<VerifyFixInstanceCommand> commands = new ArrayList<>();
+                for (BatchItem item : request.getItems()) {
+                    VerifyFixInstanceCommand cmd = new VerifyFixInstanceCommand();
+                    cmd.setVulInfoId(item.getVulInfoID());
+                    cmd.setTransferTime(item.getTransferTime());
+                    cmd.setRemark(item.getRemark());
+                    cmd.setBatchId(batchId);
+                    commands.add(cmd);
+                }
+                List<InstanceStateResult> results = verifyFixJobDomainService.acceptBatch(
+                        partnerId, batchId, commands);
+                InstanceBatchOperationResponse response = new InstanceBatchOperationResponse();
+                response.setSuccess(results.stream()
+                        .map(this::toOperationResponse)
+                        .collect(Collectors.toList()));
+                response.setFailed(new ArrayList<>());
+                return response;
+            }
             return executeBatch(partnerId, request.getItems(), (pid, item) -> {
                 VerifyFixInstanceCommand cmd = new VerifyFixInstanceCommand();
                 cmd.setVulInfoId(item.getVulInfoID());
+                cmd.setVerifyResult(item.getVerifyResult());
                 cmd.setTransferTime(item.getTransferTime());
                 cmd.setRemark(item.getRemark());
                 return instanceDomainService.verifyFix(pid, cmd);

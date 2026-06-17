@@ -11,9 +11,4 @@ public class InstanceScanFollowUpNoOpService implements IInstanceScanFollowUpSer
     @Override
     public void scheduleVerifyScan(String partnerId, String vulInfoId) {
     }
-
-    @Override
-    public void scheduleVerifyFixScan(String partnerId, String vulInfoId, int previousStat, int newStat,
-                                        String batchId) {
-    }
 }

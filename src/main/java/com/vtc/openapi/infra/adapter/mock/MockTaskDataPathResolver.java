@@ -37,6 +37,10 @@ public class MockTaskDataPathResolver {
         return writableRoot().resolve("tasks").resolve(taskId);
     }
 
+    public Path verifyFixJobDir(String jobId) {
+        return writableRoot().resolve("verify-fix-jobs").resolve(jobId);
+    }
+
     public String dataDirPatternBase() {
         String dataDir = properties.getEngine().getMock().getDataDir();
         if (!StringUtils.hasText(dataDir)) {

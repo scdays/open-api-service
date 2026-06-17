@@ -1,7 +1,6 @@
 package com.vtc.openapi.domain.instance.service.business.impl;
 
 import com.vtc.openapi.domain.export.service.business.IExportAssemblyDomainService;
-import com.vtc.openapi.domain.export.service.business.VerifyFixItem;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.service.business.IInstanceScanFollowUpService;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
@@ -13,11 +12,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.Collections;
-import java.util.UUID;
-
 /**
- * Mock verify / verify-fix scan export follow-up (delayed VERIFY_SCAN and VERIFY_FIX_SCAN).
+ * Mock 验证阶段复扫外发跟进（verify-fix 不走外发，见 {@link VerifyFixJobDomainServiceImpl}）。
  */
 @Service
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "mock")
@@ -47,25 +43,6 @@ public class MockInstanceScanFollowUpService implements IInstanceScanFollowUpSer
         }
         log.info("Mock VERIFY_SCAN export triggered: taskId={} vulInfoId={}", row.getTaskId(), vulInfoId);
         exportAssemblyDomainService.assembleForVerifyScan(partnerId, row.getTaskId());
-    }
-
-    @Async
-    @Override
-    public void scheduleVerifyFixScan(String partnerId, String vulInfoId, int previousStat, int newStat,
-                                      String batchId) {
-        sleep();
-        OpenVulnInstanceDO row = vulnInstanceRepository.findByPartnerAndVulInfoId(partnerId, vulInfoId);
-        if (row == null || !StringUtils.hasText(row.getTaskId())) {
-            return;
-        }
-        VerifyFixItem item = new VerifyFixItem();
-        item.setVulInfoId(vulInfoId);
-        item.setVulInfoStat(newStat);
-        item.setPreviousVulInfoStat(previousStat);
-        String jobId = "VF-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        log.info("Mock VERIFY_FIX_SCAN export triggered: taskId={} vulInfoId={}", row.getTaskId(), vulInfoId);
-        exportAssemblyDomainService.assembleForVerifyFixScan(
-                partnerId, row.getTaskId(), jobId, Collections.singletonList(item));
     }
 
     private void sleep() {

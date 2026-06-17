@@ -8,6 +8,7 @@ import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
 import com.vtc.openapi.domain.instance.model.result.InstanceStateResult;
 import com.vtc.openapi.domain.instance.repository.IInstanceRepository;
+import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
 import com.vtc.openapi.domain.instance.service.business.IInstanceDomainService;
 import com.vtc.openapi.domain.instance.service.business.IInstanceScanFollowUpService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
@@ -21,7 +22,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * 实例领域服务：状态机校验 + 写操作 + Webhook 事件发布。
@@ -55,15 +55,17 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
     private static final String VERIFY_RESULT_FALSE_POSITIVE = "FALSE_POSITIVE";
     private static final String VERIFY_FIX_RESULT_CONFIRMED = "FIX_CONFIRMED";
     private static final String VERIFY_FIX_RESULT_FAILED = "FIX_FAILED";
-    private static final String VERIFY_FIX_STATUS_PENDING = "PENDING";
 
     private final IInstanceRepository instanceRepository;
     private final IInstanceScanFollowUpService scanFollowUpService;
+    private final IVerifyFixJobDomainService verifyFixJobDomainService;
 
     public InstanceDomainServiceImpl(IInstanceRepository instanceRepository,
-                                     IInstanceScanFollowUpService scanFollowUpService) {
+                                     IInstanceScanFollowUpService scanFollowUpService,
+                                     IVerifyFixJobDomainService verifyFixJobDomainService) {
         this.instanceRepository = instanceRepository;
         this.scanFollowUpService = scanFollowUpService;
+        this.verifyFixJobDomainService = verifyFixJobDomainService;
     }
 
     @Override
@@ -134,26 +136,13 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
         }
 
         if (!StringUtils.hasText(command.getVerifyResult())) {
-            String jobId = "VF-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-            scanFollowUpService.scheduleVerifyFixScan(
-                    partnerId, current.getVulInfoId(), currentStat, STAT_FIXED, jobId);
-            InstanceStateResult result = new InstanceStateResult();
-            result.setVulInfoId(current.getVulInfoId());
-            result.setVulInfoStat(STAT_FIXED);
-            result.setVerifyFixStatus(VERIFY_FIX_STATUS_PENDING);
-            result.setVerifyFixJobId(jobId);
-            result.setMessage("修复核验已受理，平台将异步复扫");
-            result.setTransferTime(resolveTransferTime(command.getTransferTime()));
-            return result;
+            return verifyFixJobDomainService.accept(partnerId, command, command.getBatchId());
         }
 
         int previousStat = requireStat(current);
         int targetStat = resolveVerifyFixTarget(command.getVerifyResult());
-        InstanceStateResult result = executeStateChange(
+        return executeStateChange(
                 current, targetStat, null, null, command.getTransferTime());
-        scanFollowUpService.scheduleVerifyFixScan(
-                partnerId, current.getVulInfoId(), previousStat, targetStat, null);
-        return result;
     }
 
     private void validateVerifyCommand(VerifyInstanceCommand command) {
