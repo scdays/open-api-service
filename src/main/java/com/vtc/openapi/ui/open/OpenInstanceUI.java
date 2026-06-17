@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -39,15 +40,19 @@ public class OpenInstanceUI {
 
     // ===================== 读接口（无幂等） =====================
 
-    @ApiOperation(value = "搜索实例", notes = "POST /instances/search - INSTANCE_READ")
+    @ApiOperation(value = "搜索实例", notes = "POST /instances/search - INSTANCE_READ；查询参数 exportProfile 可选")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "X-Partner-Id", value = "Partner ID", required = true,
                     paramType = "header", dataType = "string"),
-            @ApiImplicitParam(name = "X-Request-Id", value = "请求追踪 ID", paramType = "header", dataType = "string")
+            @ApiImplicitParam(name = "X-Request-Id", value = "请求追踪 ID", paramType = "header", dataType = "string"),
+            @ApiImplicitParam(name = "exportProfile", value = "部侧扩展字段档，如 MIIT-2025",
+                    paramType = "query", dataType = "string")
     })
     @PostMapping("/instances/search")
-    public ApiResponse<InstanceSearchResponse> searchInstances(@RequestBody InstanceSearchRequest request) {
-        return openInstanceAppService.searchInstances(request);
+    public ApiResponse<InstanceSearchResponse> searchInstances(
+            @RequestParam(value = "exportProfile", required = false) String exportProfile,
+            @RequestBody InstanceSearchRequest request) {
+        return openInstanceAppService.searchInstances(request, exportProfile);
     }
 
     @ApiOperation(value = "查询实例详情", notes = "GET /instances/{vulInfoID} - INSTANCE_READ")

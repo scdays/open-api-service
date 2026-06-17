@@ -68,12 +68,17 @@ public final class InstanceItemConverter {
         item.setVulInstVer(src.getString("vulInstVer"));
         item.setRemedDesc(src.getString("remedDesc"));
         item.setFixLnk(src.getString("fixLnk"));
+        item.setDefDev(src.getString("defDev"));
         item.setRemedTime(src.getString("remedTime"));
         item.setMethod(src.getInteger("srcMethod") != null ? src.getInteger("srcMethod") : src.getInteger("method"));
         item.setVulAddrType(src.getInteger("vulAddrType"));
         item.setVulTransProto(src.getString("vulTransProto"));
         item.setUnitType(src.getString("unitType"));
         item.setExtVulnRef(src.getString("extVulnRef"));
+        item.setArchiveReason(src.getString("archiveReason"));
+        if (src.getJSONObject("provincialFields") != null) {
+            item.setProvincialFields(src.getJSONObject("provincialFields").getInnerMap());
+        }
     }
 
     public static OpenVulnInstanceDO toPersistRow(OpenVulnInstanceDO target, JSONObject src) {

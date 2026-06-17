@@ -43,16 +43,16 @@ public class ExportFileStorageAdapter {
                 return fileKey;
             }
             String msg = result != null ? result.getMessage() : "upload failed";
-            throw new IllegalStateException("?????????: " + msg);
+            throw new IllegalStateException("外发文件上传失败: " + msg);
         } catch (Exception ex) {
-            throw new IllegalStateException("????????: " + ex.getMessage(), ex);
+            throw new IllegalStateException("外发文件上传异常: " + ex.getMessage(), ex);
         }
     }
 
     public byte[] read(String fileKey) {
         byte[] bytes = fileServiceFeign.readBytes(bucket, null, fileKey);
         if (bytes == null || bytes.length == 0) {
-            throw new IllegalStateException("?????????: " + fileKey);
+            throw new IllegalStateException("外发文件读取失败: " + fileKey);
         }
         return bytes;
     }
@@ -73,6 +73,6 @@ public class ExportFileStorageAdapter {
 
     private static boolean looksLikeSuccessMessage(String message) {
         String lower = message.toLowerCase();
-        return message.contains("???") || lower.contains("success");
+        return message.contains("成功") || lower.contains("success");
     }
 }

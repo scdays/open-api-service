@@ -8,5 +8,10 @@ import lombok.Data;
 @Data
 public class VerifyInstanceCommand {
     private String vulInfoId;
+    private Integer vulnType;
     private String verifyResult;
+    private Integer srcMethod;
+    private String transferTime;
+    private String operator;
+    private String remark;
 }

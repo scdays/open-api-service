@@ -5,6 +5,7 @@ import com.botany.spore.ddd.app.service.IAppService;
 import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
+import com.vtc.openapi.ui.dto.admin.PartnerWebhookSecretDTO;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.params.admin.CreatePartnerParams;
 import com.vtc.openapi.ui.params.admin.UpdatePartnerParams;
@@ -27,4 +28,6 @@ public interface IPartnerAdminAppService extends IAppService<PartnerDTO> {
     ApiResponse<PartnerCredentialDTO> createCredential(String partnerId);
 
     ApiResponse<List<PartnerCredentialDTO>> listCredentials(String partnerId);
+
+    ApiResponse<PartnerWebhookSecretDTO> rotateWebhookSecret(String partnerId);
 }

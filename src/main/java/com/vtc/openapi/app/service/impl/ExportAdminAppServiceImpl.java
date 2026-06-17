@@ -36,7 +36,7 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
     @Override
     public ResponseEntity<byte[]> downloadExport(String partnerId, String exportId) {
         if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(exportId)) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId/exportId 不能为空");
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId/exportId 涓嶈兘涓虹┖");
         }
         partnerDomainService.requireByPartnerId(partnerId.trim());
         String trimmedExportId = exportId.trim();
@@ -49,7 +49,7 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
                 "/internal/admin/exports/" + trimmedExportId + "/download",
                 null);
         invocationDomainService.start(ctx);
-        ApiResponse<Void> auditResponse = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误", null);
+        ApiResponse<Void> auditResponse = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "鏈嶅姟鍐呴儴閿欒", null);
         try {
             ExportDownloadResult result = openExportDomainService.download(ctx, partnerId.trim(), trimmedExportId);
             auditResponse = ApiResponse.ok(null);
@@ -62,7 +62,7 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
             auditResponse = ApiResponse.of(ex.getCode(), ex.getMessage(), null);
             throw ex;
         } catch (RuntimeException ex) {
-            auditResponse = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误", null);
+            auditResponse = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "鏈嶅姟鍐呴儴閿欒", null);
             throw ex;
         } finally {
             auditResponse.setRequestId(requestId);

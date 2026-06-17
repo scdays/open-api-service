@@ -5,16 +5,16 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
- * 批量操作失败条目。
+ * 批量操作失败条目（§5.3.2 / §5.4.2 / §5.5.2 failed[]）。
  */
 @Data
 @ApiModel(description = "批量操作失败条目")
 public class InstanceBatchFailedItem {
 
-    @ApiModelProperty(value = "实例唯一 ID")
+    @ApiModelProperty(value = "实例 ID", required = true)
     private String vulInfoID;
-    @ApiModelProperty(value = "错误码")
-    private String errorCode;
-    @ApiModelProperty(value = "错误信息")
-    private String errorMessage;
+    @ApiModelProperty(value = "业务错误码", required = true)
+    private Integer code;
+    @ApiModelProperty(value = "错误描述", required = true)
+    private String message;
 }

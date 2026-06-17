@@ -451,7 +451,8 @@ Record-ExportWaitResult -Name "VERIFY_SCAN exports after verify (instMain)" `
 
 $hRem = New-OpenHeaders -Token $token -PartnerId $partnerA -IdempotencyKey "rem-main-$ts"
 $r1 = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/$instMain/remediate" -Headers $hRem -Body (@{
-    srcMethod = "1050"; remedDesc = "e2e fix"
+    vulInfoStat = 5; srcMethod = "1050"; remedDesc = "e2e fix"; remedTime = "3日"
+    fixLnk = "https://example.com/patch"
 } | ConvertTo-Json)
 Expect-Code $r1 0 "POST remediate (2->5)"
 
@@ -487,8 +488,8 @@ Expect-Code $batchV 0 "POST /instances/verify:batch"
 $hBatchR = New-OpenHeaders -Token $token -PartnerId $partnerA -IdempotencyKey "batch-rem-$ts"
 $batchR = Invoke-Api -Method Post -Uri "$Base/api/open/v1/instances/remediate:batch" -Headers $hBatchR -Body (@{
     items = @(
-        @{ vulInfoID = $instB1; srcMethod = "1050"; remedDesc = "batch fix 1" },
-        @{ vulInfoID = $instB2; srcMethod = "1050"; remedDesc = "batch fix 2" }
+        @{ vulInfoID = $instB1; vulInfoStat = 5; srcMethod = "1050"; remedDesc = "batch fix 1"; remedTime = "3日"; fixLnk = "https://example.com/patch" },
+        @{ vulInfoID = $instB2; vulInfoStat = 5; srcMethod = "1050"; remedDesc = "batch fix 2"; remedTime = "3日"; fixLnk = "https://example.com/patch" }
     )
 } | ConvertTo-Json -Depth 4)
 Expect-Code $batchR 0 "POST /instances/remediate:batch"

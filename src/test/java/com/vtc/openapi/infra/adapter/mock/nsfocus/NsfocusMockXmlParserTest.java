@@ -90,8 +90,8 @@ public class NsfocusMockXmlParserTest {
         }
         parseAndAssert(mockDataDir.resolve("report_by_vul.xml"), "vul", 2);
         parseAndAssert(mockDataDir.resolve("report_by_pwd.xml"), "pwd", 1);
-        parseAndAssert(mockDataDir.resolve("????????1166.xml"), "vul", 100);
-        parseAndAssert(mockDataDir.resolve("???????????1053.xml"), "pwd", 8);
+        parseAndAssert(mockDataDir.resolve("漏洞扫描结果1166.xml"), "vul", 100);
+        parseAndAssert(mockDataDir.resolve("弱口令扫描结果1053.xml"), "pwd", 8);
     }
 
     private void parseAndAssert(Path xmlPath, String expectedProfile, int minInstances) throws Exception {

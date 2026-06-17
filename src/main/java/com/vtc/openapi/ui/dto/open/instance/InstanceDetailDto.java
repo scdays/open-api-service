@@ -2,43 +2,46 @@ package com.vtc.openapi.ui.dto.open.instance;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import java.util.Map;
 import lombok.Data;
 
 /**
- * 实例详情 DTO。
+ * 实例详情（§5.2.2）。
  */
 @Data
 @ApiModel(description = "实例详情")
 public class InstanceDetailDto {
 
-    @ApiModelProperty(value = "实例唯一 ID")
+    @ApiModelProperty(value = "系统漏洞实例 ID", required = true)
     private String vulInfoID;
-    @ApiModelProperty(value = "漏洞 ID")
+    @ApiModelProperty(value = "产品漏洞编号")
     private String vulID;
-    @ApiModelProperty(value = "实例状态")
+    @ApiModelProperty(value = "实例状态", required = true)
     private Integer vulInfoStat;
-    @ApiModelProperty(value = "等级变更原因")
-    private String lvRsn;
-    @ApiModelProperty(value = "漏洞名称")
+    @ApiModelProperty(value = "未修复原因")
+    private Integer lvRsn;
+    @ApiModelProperty(value = "漏洞名称", required = true)
     private String vulName;
-    @ApiModelProperty(value = "漏洞等级")
-    private String vulLevel;
-    @ApiModelProperty(value = "组织漏洞 ID")
+    @ApiModelProperty(value = "危害等级")
+    private Integer vulLevel;
+    @ApiModelProperty(value = "原始编号（如 CVE）")
     private String orgVulId;
-    @ApiModelProperty(value = "IP/域名")
+    @ApiModelProperty(value = "网络地址")
     private String vulNetAddr;
     @ApiModelProperty(value = "端口")
-    private String vulPort;
+    private Integer vulPort;
     @ApiModelProperty(value = "服务")
     private String vulSvc;
-    @ApiModelProperty(value = "是否可达")
-    private Boolean isAccess;
-    @ApiModelProperty(value = "流转时间")
+    @ApiModelProperty(value = "0=内网，1=互联网")
+    private Integer isAccess;
+    @ApiModelProperty(value = "状态变更时间", required = true)
     private String transferTime;
-    @ApiModelProperty(value = "处置 ID")
+    @ApiModelProperty(value = "引擎处置 ID")
     private String vulnDisposalId;
-    @ApiModelProperty(value = "地址类型")
-    private String vulAddrType;
+    @ApiModelProperty(value = "Partner 扩展引用")
+    private String extVulnRef;
+    @ApiModelProperty(value = "地址类型：1=IPv4, 2=IPv6, 3=HTTP, 4=N/A, 5=其他")
+    private Integer vulAddrType;
     @ApiModelProperty(value = "资产 ID")
     private String assetID;
     @ApiModelProperty(value = "资产名称")
@@ -53,16 +56,20 @@ public class InstanceDetailDto {
     private String vulInstName;
     @ApiModelProperty(value = "组件版本")
     private String vulInstVer;
-    @ApiModelProperty(value = "修复说明")
+    @ApiModelProperty(value = "修复方案说明")
     private String remedDesc;
-    @ApiModelProperty(value = "修复链接")
+    @ApiModelProperty(value = "补丁链接")
     private String fixLnk;
-    @ApiModelProperty(value = "修复时间")
+    @ApiModelProperty(value = "防护/阻断设备")
+    private String defDev;
+    @ApiModelProperty(value = "修复耗时，如 3日")
     private String remedTime;
-    @ApiModelProperty(value = "修复方式")
-    private String srcMethod;
+    @ApiModelProperty(value = "处置方式")
+    private Integer srcMethod;
     @ApiModelProperty(value = "传输协议")
     private String vulTransProto;
-    @ApiModelProperty(value = "外部漏洞引用")
-    private String extVulnRef;
+    @ApiModelProperty(value = "企业内部备案说明")
+    private String archiveReason;
+    @ApiModelProperty(value = "省侧扩展 JSON")
+    private Map<String, Object> provincialFields;
 }

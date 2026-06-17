@@ -11,7 +11,7 @@ public class SearchInstanceCommand {
     private String taskId;
     private String extTaskId;
     private List<Integer> vulInfoStatList;
-    private List<String> vulLevelList;
+    private List<Integer> vulLevelList;
     private String vulNetAddr;
     private String assetName;
     private String vulName;
@@ -21,4 +21,5 @@ public class SearchInstanceCommand {
     private String unitType;
     private Integer page;
     private Integer size;
+    private String exportProfile;
 }

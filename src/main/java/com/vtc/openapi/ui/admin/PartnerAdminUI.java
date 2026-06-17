@@ -8,6 +8,7 @@ import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerInvocationStatsDto;
 import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
+import com.vtc.openapi.ui.dto.admin.PartnerWebhookSecretDTO;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.params.admin.CreatePartnerParams;
 import com.vtc.openapi.ui.params.admin.UpdatePartnerParams;
@@ -88,5 +89,11 @@ public class PartnerAdminUI extends BaseUI {
     @GetMapping("/{partnerId}/stats")
     public ApiResponse<PartnerInvocationStatsDto> getPartnerStats(@PathVariable("partnerId") String partnerId) {
         return invocationAdminAppService.getPartnerStats(partnerId);
+    }
+
+    @ApiOperation(value = "轮换 Webhook Secret", notes = "webhookSecret 明文仅本次返回")
+    @PostMapping("/{partnerId}/webhook-secret/rotate")
+    public ApiResponse<PartnerWebhookSecretDTO> rotateWebhookSecret(@PathVariable("partnerId") String partnerId) {
+        return partnerAdminAppService.rotateWebhookSecret(partnerId);
     }
 }

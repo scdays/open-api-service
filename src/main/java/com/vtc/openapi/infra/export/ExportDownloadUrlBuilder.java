@@ -22,9 +22,9 @@ public class ExportDownloadUrlBuilder {
     }
 
     /**
-     * @param exportId �ⷢ ID��open-api ģʽ���
-     * @param bucket   file-sharing ģʽʹ��
-     * @param fileKey  file-sharing ģʽʹ��
+     * @param exportId 外发 ID（open-api 模式必填）
+     * @param bucket   file-sharing 模式使用
+     * @param fileKey  file-sharing 模式使用
      */
     public String build(String exportId, String bucket, String fileKey) {
         if (MODE_FILE_SHARING.equalsIgnoreCase(properties.getExport().getDownloadUrlMode())) {

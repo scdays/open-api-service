@@ -172,4 +172,34 @@ public class PartnerRepositoryImpl
         return config != null ? ConvertHelper.convert(config, PartnerWebhookConfigDO.class) : null;
     }
 
+    @Override
+    public boolean hasWebhookSecret(String partnerId) {
+        PartnerWebhookConfigPO config = webhookConfigMapper.selectOne(
+                new LambdaQueryWrapper<PartnerWebhookConfigPO>()
+                        .eq(PartnerWebhookConfigPO::getPartnerId, partnerId));
+        return config != null && StringUtils.hasText(config.getWebhookSecret());
+    }
+
+    @Override
+    public void saveWebhookSecret(String partnerId, String webhookSecret) {
+        if (!StringUtils.hasText(webhookSecret)) {
+            return;
+        }
+        PartnerWebhookConfigPO existing = webhookConfigMapper.selectOne(
+                new LambdaQueryWrapper<PartnerWebhookConfigPO>()
+                        .eq(PartnerWebhookConfigPO::getPartnerId, partnerId));
+        Date now = new Date();
+        if (existing == null) {
+            PartnerWebhookConfigDO row = new PartnerWebhookConfigDO();
+            row.setPartnerId(partnerId);
+            row.setWebhookSecret(webhookSecret);
+            row.setUpdatedAt(now);
+            webhookConfigMapper.insert(ConvertHelper.convert(row, PartnerWebhookConfigPO.class));
+        } else {
+            existing.setWebhookSecret(webhookSecret);
+            existing.setUpdatedAt(now);
+            webhookConfigMapper.updateById(existing);
+        }
+    }
+
 }

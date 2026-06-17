@@ -6,36 +6,22 @@ import java.util.List;
 import lombok.Data;
 
 /**
- * 实例搜索请求。
+ * 实例搜索请求（§5.2.1）。
  */
 @Data
 @ApiModel(description = "实例搜索请求")
 public class InstanceSearchRequest {
 
-    @ApiModelProperty(value = "任务 ID")
+    @ApiModelProperty(value = "平台任务 ID")
     private String taskId;
-    @ApiModelProperty(value = "外部任务 ID")
+    @ApiModelProperty(value = "Partner 外部任务 ID，平台解析为 taskId")
     private String extTaskId;
-    @ApiModelProperty(value = "实例状态列表，如 [0,1,2]")
+    @ApiModelProperty(value = "实例状态过滤列表，空表示不过滤")
     private List<Integer> vulInfoStatList;
-    @ApiModelProperty(value = "漏洞等级列表，如 [\"high\",\"critical\"]")
-    private List<String> vulLevelList;
-    @ApiModelProperty(value = "IP/域名")
-    private String vulNetAddr;
-    @ApiModelProperty(value = "资产名称")
-    private String assetName;
-    @ApiModelProperty(value = "漏洞名称")
-    private String vulName;
-    @ApiModelProperty(value = "组织漏洞 ID")
-    private String orgVulId;
-    @ApiModelProperty(value = "漏洞 ID")
-    private String vulId;
-    @ApiModelProperty(value = "是否可达（true/false）")
-    private Boolean isAccess;
-    @ApiModelProperty(value = "单元类型")
-    private String unitType;
-    @ApiModelProperty(value = "页码，默认 1", required = true)
+    @ApiModelProperty(value = "危害等级过滤列表")
+    private List<Integer> vulLevelList;
+    @ApiModelProperty(value = "页码，从 1 开始", required = true)
     private Integer page = 1;
-    @ApiModelProperty(value = "每页条数，默认 20", required = true)
+    @ApiModelProperty(value = "每页条数，≤1000", required = true)
     private Integer size = 20;
 }

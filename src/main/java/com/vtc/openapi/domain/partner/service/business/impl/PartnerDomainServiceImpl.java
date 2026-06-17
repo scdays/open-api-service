@@ -7,6 +7,7 @@ import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.partner.model.PartnerConstants;
 import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
+import com.vtc.openapi.domain.partner.model.support.WebhookSecretGenerator;
 import com.vtc.openapi.domain.partner.repository.IPartnerRepository;
 import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import org.springframework.dao.DuplicateKeyException;
@@ -132,5 +133,32 @@ public class PartnerDomainServiceImpl
     @Override
     public PartnerCredentialDO findCredentialByClientId(String clientId) {
         return databaseRepository.findCredentialByClientId(clientId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String assignWebhookSecretIfAbsent(String partnerId) {
+        requireByPartnerId(partnerId);
+        if (databaseRepository.hasWebhookSecret(partnerId)) {
+            return null;
+        }
+        String secret = WebhookSecretGenerator.generate();
+        databaseRepository.saveWebhookSecret(partnerId, secret);
+        return secret;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String rotateWebhookSecret(String partnerId) {
+        requireByPartnerId(partnerId);
+        String secret = WebhookSecretGenerator.generate();
+        databaseRepository.saveWebhookSecret(partnerId, secret);
+        return secret;
+    }
+
+    @Override
+    public boolean hasWebhookSecret(String partnerId) {
+        requireByPartnerId(partnerId);
+        return databaseRepository.hasWebhookSecret(partnerId);
     }
 }

@@ -8,18 +8,18 @@ import lombok.Data;
 @ApiModel("InvocationRequestBodyDTO")
 public class InvocationRequestBodyDTO {
 
-    @ApiModelProperty("µ÷ÓÃ¼ÇÂ¼ ID")
+    @ApiModelProperty("è°ƒç”¨è®°å½• ID")
     private String invocationId;
 
     @ApiModelProperty("requestId")
     private String requestId;
 
-    @ApiModelProperty("ÇëÇó±¨ÎÄ×Ö½ÚÊı£¨UTF-8 ×Ö·û³¤¶È½üËÆ£©")
+    @ApiModelProperty("è¯·æ±‚ä½“å­—èŠ‚æ•°ï¼ˆUTF-8 å­—ç¬¦ä¸²é•¿åº¦è¿‘ä¼¼ï¼‰")
     private Long byteSize;
 
-    @ApiModelProperty("ÊÇ·ñÀ´×Ô³Ö¾Ã»¯µÄÍêÕûÇëÇóÌå£¨false ±íÊ¾ÕªÒªÖØ½¨£©")
+    @ApiModelProperty("æ˜¯å¦æ¥è‡ªæŒä¹…åŒ–å®Œæ•´è¯·æ±‚ä½“ï¼ˆfalse è¡¨ç¤ºæ‘˜è¦é‡å»ºï¼‰")
     private Boolean stored;
 
-    @ApiModelProperty("¸ñÊ½»¯ºóµÄ Request Body JSON")
+    @ApiModelProperty("æ ¼å¼åŒ–åçš„ Request Body JSON")
     private String bodyFormatted;
 }

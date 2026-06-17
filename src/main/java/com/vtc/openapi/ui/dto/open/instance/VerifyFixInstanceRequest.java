@@ -5,13 +5,14 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
- * 核验修复请求。
+ * 修复核验请求（§5.5.1）。
  */
 @Data
-@ApiModel(description = "核验修复请求")
+@ApiModel(description = "修复核验请求")
 public class VerifyFixInstanceRequest {
 
-    @ApiModelProperty(value = "核验结果: FIX_CONFIRMED=确认已修复, FIX_FAILED=确认未修复", required = true,
-            allowableValues = "FIX_CONFIRMED,FIX_FAILED")
-    private String verifyResult;
+    @ApiModelProperty(value = "状态变更时间（Unix 秒字符串）")
+    private String transferTime;
+    @ApiModelProperty(value = "备注")
+    private String remark;
 }

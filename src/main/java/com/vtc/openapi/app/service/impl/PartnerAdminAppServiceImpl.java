@@ -15,6 +15,7 @@ import com.vtc.openapi.infra.webhook.WebhookCallbackUrlResolver;
 import com.vtc.openapi.ui.dto.admin.PartnerCredentialDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerDTO;
 import com.vtc.openapi.ui.dto.admin.PartnerPageDto;
+import com.vtc.openapi.ui.dto.admin.PartnerWebhookSecretDTO;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.params.admin.CreatePartnerParams;
 import com.vtc.openapi.ui.params.admin.UpdatePartnerParams;
@@ -54,7 +55,12 @@ public class PartnerAdminAppServiceImpl
         PartnerDO toCreate = ConvertHelper.convert(fromCreateParams(params), PartnerDO.class);
         PartnerDO saved = domainService.createPartner(
                 toCreate, params.getCapabilities(), callbackUrlResolver.resolveForCreate(params.getDefaultCallbackUrl()));
-        return ApiResponse.ok(enrichDetail(saved));
+        String webhookSecret = domainService.assignWebhookSecretIfAbsent(saved.getPartnerId());
+        PartnerDTO dto = enrichDetail(saved);
+        if (webhookSecret != null) {
+            dto.setWebhookSecret(webhookSecret);
+        }
+        return ApiResponse.ok(dto);
     }
 
     @Override
@@ -109,6 +115,15 @@ public class PartnerAdminAppServiceImpl
         return ApiResponse.ok(items);
     }
 
+    @Override
+    public ApiResponse<PartnerWebhookSecretDTO> rotateWebhookSecret(String partnerId) {
+        String webhookSecret = domainService.rotateWebhookSecret(partnerId);
+        PartnerWebhookSecretDTO data = new PartnerWebhookSecretDTO();
+        data.setPartnerId(partnerId);
+        data.setWebhookSecret(webhookSecret);
+        return ApiResponse.ok(data);
+    }
+
     private PartnerDTO fromCreateParams(CreatePartnerParams params) {
         PartnerDTO dto = new PartnerDTO();
         dto.setPartnerId(params.getPartnerId());
@@ -130,6 +145,7 @@ public class PartnerAdminAppServiceImpl
         PartnerDTO dto = ConvertHelper.convert(partner, PartnerDTO.class);
         dto.setCapabilities(new ArrayList<>(domainService.listCapabilities(partner.getPartnerId())));
         dto.setDefaultCallbackUrl(domainService.findCallbackUrl(partner.getPartnerId()));
+        dto.setWebhookSecretConfigured(domainService.hasWebhookSecret(partner.getPartnerId()));
         return dto;
     }
 

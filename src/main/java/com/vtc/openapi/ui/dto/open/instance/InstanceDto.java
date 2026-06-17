@@ -5,38 +5,38 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
- * 实例摘要 DTO（列表页用）。
+ * 实例列表项（§5.2.1 data.items[]）。
  */
 @Data
 @ApiModel(description = "实例摘要")
 public class InstanceDto {
 
-    @ApiModelProperty(value = "实例唯一 ID")
+    @ApiModelProperty(value = "系统漏洞实例 ID", required = true)
     private String vulInfoID;
-    @ApiModelProperty(value = "漏洞 ID")
+    @ApiModelProperty(value = "产品漏洞编号")
     private String vulID;
-    @ApiModelProperty(value = "实例状态: 0=潜在预警 1=初始发现 2=已验证有效 3=误报 5=已修复 6=核验已修复 7=核验未修复")
+    @ApiModelProperty(value = "实例状态", required = true)
     private Integer vulInfoStat;
-    @ApiModelProperty(value = "等级变更原因")
-    private String lvRsn;
-    @ApiModelProperty(value = "漏洞名称")
+    @ApiModelProperty(value = "未修复原因")
+    private Integer lvRsn;
+    @ApiModelProperty(value = "漏洞名称", required = true)
     private String vulName;
-    @ApiModelProperty(value = "漏洞等级")
-    private String vulLevel;
-    @ApiModelProperty(value = "组织漏洞 ID")
+    @ApiModelProperty(value = "危害等级")
+    private Integer vulLevel;
+    @ApiModelProperty(value = "原始编号（如 CVE）")
     private String orgVulId;
-    @ApiModelProperty(value = "IP/域名")
+    @ApiModelProperty(value = "网络地址")
     private String vulNetAddr;
     @ApiModelProperty(value = "端口")
-    private String vulPort;
+    private Integer vulPort;
     @ApiModelProperty(value = "服务")
     private String vulSvc;
-    @ApiModelProperty(value = "是否可达")
-    private Boolean isAccess;
-    @ApiModelProperty(value = "流转时间")
+    @ApiModelProperty(value = "0=内网，1=互联网")
+    private Integer isAccess;
+    @ApiModelProperty(value = "状态变更时间", required = true)
     private String transferTime;
-    @ApiModelProperty(value = "处置 ID")
+    @ApiModelProperty(value = "引擎处置 ID")
     private String vulnDisposalId;
-    @ApiModelProperty(value = "外部漏洞引用")
+    @ApiModelProperty(value = "Partner 扩展引用")
     private String extVulnRef;
 }

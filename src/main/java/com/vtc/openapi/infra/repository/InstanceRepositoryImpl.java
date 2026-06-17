@@ -1,5 +1,6 @@
 package com.vtc.openapi.infra.repository;
 
+import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
@@ -33,5 +34,10 @@ public class InstanceRepositoryImpl implements IInstanceRepository {
     public void updateInstanceState(Long id, Integer targetStat, String srcMethod, String remedDesc) {
         int stat = targetStat != null ? targetStat : 0;
         vulnInstanceGateway.updateInstance(id, stat, srcMethod, remedDesc);
+    }
+
+    @Override
+    public void updateRemediateState(Long id, int targetStat, RemediateInstanceCommand command) {
+        vulnInstanceGateway.updateRemediateInstance(id, targetStat, command);
     }
 }

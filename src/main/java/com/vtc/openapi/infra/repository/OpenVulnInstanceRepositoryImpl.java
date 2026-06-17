@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.botany.spore.ddd.infra.repository.DatabaseRepositoryImpl;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
+import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
@@ -128,21 +129,61 @@ public class OpenVulnInstanceRepositoryImpl
         if (row == null) {
             return;
         }
+        applyStatePatch(row, vulInfoStat, method, remedDesc, null, null, null, null, null);
+        baseMapper.updateById(ConvertHelper.convert(row, OpenVulnInstancePO.class));
+    }
+
+    @Override
+    public void updateRemediateState(Long id, String partnerId, int vulInfoStat, RemediateInstanceCommand command) {
+        OpenVulnInstanceDO row = findByIdAndPartner(id, partnerId);
+        if (row == null) {
+            return;
+        }
+        applyStatePatch(row, vulInfoStat,
+                command != null && command.getSrcMethod() != null ? String.valueOf(command.getSrcMethod()) : null,
+                command != null ? command.getRemedDesc() : null,
+                command != null ? command.getFixLnk() : null,
+                command != null ? command.getRemedTime() : null,
+                command != null ? command.getDefDev() : null,
+                command != null ? command.getLvRsn() : null,
+                command != null ? command.getArchiveReason() : null);
+        baseMapper.updateById(ConvertHelper.convert(row, OpenVulnInstancePO.class));
+    }
+
+    private void applyStatePatch(OpenVulnInstanceDO row, int vulInfoStat, String method, String remedDesc,
+                                 String fixLnk, String remedTime, String defDev, Integer lvRsn, String archiveReason) {
         row.setVulInfoStat(vulInfoStat);
         row.setUpdatedAt(new Date());
-        if (StringUtils.hasText(row.getSnapshotJson())) {
-            JSONObject snap = JSON.parseObject(row.getSnapshotJson());
-            snap.put("vulInfoStat", vulInfoStat);
-            if (StringUtils.hasText(method)) {
-                snap.put("method", method);
-                snap.put("srcMethod", method);
-            }
-            if (StringUtils.hasText(remedDesc)) {
-                snap.put("remedDesc", remedDesc);
-            }
-            row.setSnapshotJson(snap.toJSONString());
+        if (!StringUtils.hasText(row.getSnapshotJson())) {
+            return;
         }
-        baseMapper.updateById(ConvertHelper.convert(row, OpenVulnInstancePO.class));
+        JSONObject snap = JSON.parseObject(row.getSnapshotJson());
+        snap.put("vulInfoStat", vulInfoStat);
+        if (StringUtils.hasText(method)) {
+            snap.put("method", method);
+            snap.put("srcMethod", method);
+        }
+        if (StringUtils.hasText(remedDesc)) {
+            snap.put("remedDesc", remedDesc);
+        }
+        if (StringUtils.hasText(fixLnk)) {
+            snap.put("fixLnk", fixLnk);
+        }
+        if (StringUtils.hasText(remedTime)) {
+            snap.put("remedTime", remedTime);
+        }
+        if (StringUtils.hasText(defDev)) {
+            snap.put("defDev", defDev);
+        }
+        if (lvRsn != null) {
+            snap.put("lvRsn", lvRsn);
+        } else if (vulInfoStat == 5) {
+            snap.remove("lvRsn");
+        }
+        if (StringUtils.hasText(archiveReason)) {
+            snap.put("archiveReason", archiveReason);
+        }
+        row.setSnapshotJson(snap.toJSONString());
     }
 
     private boolean matchesFilters(InstanceItemResult item, SearchInstanceCommand command) {
@@ -157,8 +198,8 @@ public class OpenVulnInstanceRepositoryImpl
                 return false;
             }
             boolean levelMatch = false;
-            for (String level : command.getVulLevelList()) {
-                if (Objects.equals(String.valueOf(item.getVulLevel()), level)) {
+            for (Integer level : command.getVulLevelList()) {
+                if (Objects.equals(item.getVulLevel(), level)) {
                     levelMatch = true;
                     break;
                 }

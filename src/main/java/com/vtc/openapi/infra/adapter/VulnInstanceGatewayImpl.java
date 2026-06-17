@@ -3,6 +3,7 @@ package com.vtc.openapi.infra.adapter;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
@@ -86,6 +87,43 @@ public class VulnInstanceGatewayImpl implements IVulnInstanceGateway {
         if (StringUtils.hasText(remedDesc)) {
             body.put("remedDesc", remedDesc);
         }
+        invokeUpdate(body, id);
+    }
+
+    @Override
+    public void updateRemediateInstance(Long id, int vulInfoStat, RemediateInstanceCommand command) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("id", id);
+        body.put("vulInfoStat", vulInfoStat);
+        if (command == null) {
+            invokeUpdate(body, id);
+            return;
+        }
+        if (command.getSrcMethod() != null) {
+            body.put("method", String.valueOf(command.getSrcMethod()));
+        }
+        if (StringUtils.hasText(command.getRemedDesc())) {
+            body.put("remedDesc", command.getRemedDesc());
+        }
+        if (StringUtils.hasText(command.getFixLnk())) {
+            body.put("fixLnk", command.getFixLnk());
+        }
+        if (StringUtils.hasText(command.getRemedTime())) {
+            body.put("remedTime", command.getRemedTime());
+        }
+        if (StringUtils.hasText(command.getDefDev())) {
+            body.put("defDev", command.getDefDev());
+        }
+        if (command.getLvRsn() != null) {
+            body.put("lvRsn", command.getLvRsn());
+        }
+        if (StringUtils.hasText(command.getArchiveReason())) {
+            body.put("archiveReason", command.getArchiveReason());
+        }
+        invokeUpdate(body, id);
+    }
+
+    private void invokeUpdate(Map<String, Object> body, Long id) {
         try {
             instanceFeign.updateInstance(body);
         } catch (OpenApiException ex) {

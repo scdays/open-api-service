@@ -12,16 +12,16 @@ import java.util.List;
 @ApiModel("WebhookDeliveryLogDetailDTO")
 public class WebhookDeliveryLogDetailDTO extends WebhookDeliveryLogDTO {
 
-    @ApiModelProperty("?????? JSON")
+    @ApiModelProperty("事件载荷 JSON")
     private String payloadJson;
 
-    @ApiModelProperty("??????????????")
+    @ApiModelProperty("格式化后的事件 JSON")
     private String payloadJsonFormatted;
 
-    @ApiModelProperty("????????/??????")
+    @ApiModelProperty("重试历史（自动/手动）")
     private List<WebhookDeliveryRetryHistoryDto> retryHistory;
 
-    @ApiModelProperty("?????????? API ??????????")
+    @ApiModelProperty("同资源关联的 Open API 调用记录")
     private List<RelatedInvocationDto> relatedInvocations;
 
     @Data

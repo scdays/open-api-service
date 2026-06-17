@@ -2,6 +2,7 @@ package com.vtc.openapi.domain.instance.repository;
 
 import com.botany.spore.ddd.domain.repository.IDatabaseRepository;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
+import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
@@ -27,4 +28,6 @@ public interface IOpenVulnInstanceRepository extends IDatabaseRepository<OpenVul
     int deleteByPartnerAndTaskId(String partnerId, String taskId);
 
     void updateState(Long id, String partnerId, int vulInfoStat, String method, String remedDesc);
+
+    void updateRemediateState(Long id, String partnerId, int vulInfoStat, RemediateInstanceCommand command);
 }

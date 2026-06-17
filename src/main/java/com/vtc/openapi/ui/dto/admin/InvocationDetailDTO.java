@@ -12,42 +12,42 @@ import java.util.List;
 @ApiModel("InvocationDetailDTO")
 public class InvocationDetailDTO extends InvocationDTO {
 
-    @ApiModelProperty("????? IP")
+    @ApiModelProperty("è°ƒç”¨æ–¹ IP")
     private String clientIp;
 
-    @ApiModelProperty("??? message?????/???????")
+    @ApiModelProperty("å“åº” messageï¼ˆæˆåŠŸ/å¤±è´¥æ‘˜è¦ï¼‰")
     private String responseMessage;
 
-    @ApiModelProperty("??????????????")
+    @ApiModelProperty("è¯·æ±‚å¤´æ‘˜è¦ï¼ˆæ–‡æœ¬ï¼‰")
     private String requestHeadersPreview;
 
-    @ApiModelProperty("ÇëÇóÌåÕªÒª£¨ÒÑ·ÏÆú£¬Çëµ÷ÓÃ request-body ½Ó¿Ú°´Ğè»ñÈ¡£©")
+    @ApiModelProperty("è¯·æ±‚ä½“æ‘˜è¦ï¼ˆå·²åºŸå¼ƒï¼Œè¯·è°ƒç”¨ request-body æ¥å£æŒ‰éœ€è·å–ï¼‰")
     @Deprecated
     private String requestBodyPreview;
 
-    @ApiModelProperty("ÊÇ·ñ´æÔÚ¿É¶ş´Î¼ÓÔØµÄÇëÇó±¨ÎÄ")
+    @ApiModelProperty("æ˜¯å¦å­˜åœ¨å¯äºŒæ¬¡åŠ è½½çš„è¯·æ±‚æŠ¥æ–‡")
     private Boolean hasRequestBody;
 
-    @ApiModelProperty("ÒÑ³Ö¾Ã»¯ÇëÇó±¨ÎÄ´óĞ¡£¨×Ö½Ú½üËÆ£¬0 ±íÊ¾½öÕªÒª£©")
+    @ApiModelProperty("å·²æŒä¹…åŒ–è¯·æ±‚æŠ¥æ–‡å¤§å°ï¼ˆå­—èŠ‚è¿‘ä¼¼ï¼Œ0 è¡¨ç¤ºä»…æ‘˜è¦ï¼‰")
     private Long requestBodyByteSize;
 
-    @ApiModelProperty("ÏìÓ¦Í·ÕªÒª£¨ÎÄ±¾£©")
+    @ApiModelProperty("å“åº”å¤´æ‘˜è¦ï¼ˆæ–‡æœ¬ï¼‰")
     private String responseHeadersPreview;
 
-    @ApiModelProperty("ÊÇ·ñ´æÔÚ¿É¶ş´Î¼ÓÔØµÄÏìÓ¦±¨ÎÄ")
+    @ApiModelProperty("æ˜¯å¦å­˜åœ¨å¯äºŒæ¬¡åŠ è½½çš„å“åº”æŠ¥æ–‡")
     private Boolean hasResponseBody;
 
-    @ApiModelProperty("ÒÑ³Ö¾Ã»¯ÏìÓ¦±¨ÎÄ´óĞ¡£¨×Ö½Ú½üËÆ£¬0 ±íÊ¾½öÕªÒª£©")
+    @ApiModelProperty("å·²æŒä¹…åŒ–å“åº”æŠ¥æ–‡å¤§å°ï¼ˆå­—èŠ‚è¿‘ä¼¼ï¼Œ0 è¡¨ç¤ºä»…æ‘˜è¦ï¼‰")
     private Long responseBodyByteSize;
 
-    @ApiModelProperty("ÏìÓ¦ÌåÕªÒª£¨ÒÑ·ÏÆú£¬Çëµ÷ÓÃ response-body ½Ó¿Ú°´Ğè»ñÈ¡£©")
+    @ApiModelProperty("å“åº”ä½“æ‘˜è¦ï¼ˆå·²åºŸå¼ƒï¼Œè¯·è°ƒç”¨ response-body æ¥å£æŒ‰éœ€è·å–ï¼‰")
     @Deprecated
     private String responseBodyPreview;
 
-    @ApiModelProperty("?????? Timeline")
+    @ApiModelProperty("è°ƒç”¨è¿‡ç¨‹ Timeline")
     private List<InvocationTimelineItemDto> timeline;
 
-    @ApiModelProperty("? Partner ???????? Webhook ???")
+    @ApiModelProperty("åŒ Partner åŒèµ„æºå…³è”çš„ Webhook æŠ•é€’")
     private List<InvocationRelatedWebhookDto> relatedWebhooks;
 
     @Data

@@ -40,4 +40,8 @@ public interface IPartnerRepository extends IDatabaseRepository<PartnerDO> {
      * @return 配置对象；未配置时返回 null
      */
     PartnerWebhookConfigDO findWebhookConfig(String partnerId);
+
+    boolean hasWebhookSecret(String partnerId);
+
+    void saveWebhookSecret(String partnerId, String webhookSecret);
 }

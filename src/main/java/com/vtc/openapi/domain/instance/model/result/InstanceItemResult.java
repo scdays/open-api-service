@@ -33,7 +33,10 @@ public class InstanceItemResult {
     private String vulInstVer;
     private String remedDesc;
     private String fixLnk;
+    private String defDev;
     private String remedTime;
+    private String archiveReason;
+    private java.util.Map<String, Object> provincialFields;
     private Integer method;
     private String vulTransProto;
     private String unitType;

@@ -28,6 +28,7 @@ import com.vtc.openapi.ui.dto.open.instance.RemediateInstanceRequest;
 import com.vtc.openapi.ui.dto.open.instance.VerifyFixInstanceRequest;
 import com.vtc.openapi.ui.dto.open.instance.VerifyInstanceRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +40,8 @@ import java.util.stream.Collectors;
 @Service
 public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
 
-    /** 批量操作最大条数 */
-    private static final int MAX_BATCH_SIZE = 100;
+    /** 批量操作最大条数（与 OpenAPI maxItems 一致） */
+    private static final int MAX_BATCH_SIZE = 500;
 
     private final InvocationPipeline invocationPipeline;
     private final IInstanceDomainService instanceDomainService;
@@ -51,23 +52,25 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         this.instanceDomainService = instanceDomainService;
     }
 
-    // ===================== 读接口 =====================
-
     @Override
-    public ApiResponse<InstanceSearchResponse> searchInstances(InstanceSearchRequest request) {
+    public ApiResponse<InstanceSearchResponse> searchInstances(InstanceSearchRequest request,
+                                                               String exportProfile) {
         if (request == null) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "请求体不能为空");
         }
         if (request.getPage() == null || request.getPage() < 1) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "page 必须为正整数");
         }
-        if (request.getSize() == null || request.getSize() < 1) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "size 必须为正整数");
+        if (request.getSize() == null || request.getSize() < 1 || request.getSize() > 1000) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "size 必须为 1–1000");
         }
 
         return invocationPipeline.invoke(OpenApiOperations.SEARCH_INSTANCES, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
             SearchInstanceCommand command = toCommand(request);
+            if (StringUtils.hasText(exportProfile)) {
+                command.setExportProfile(exportProfile.trim());
+            }
             InstancePageResult result = instanceDomainService.search(partnerId, command);
             return toSearchResponse(result);
         });
@@ -90,22 +93,15 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         });
     }
 
-    // ===================== 写接口（单条） =====================
-
     @Override
     public ApiResponse<InstanceOperationResponse> verifyInstance(String vulInfoId, VerifyInstanceRequest request) {
         if (vulInfoId == null || vulInfoId.trim().isEmpty()) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "vulInfoID 不能为空");
         }
-        if (request == null || request.getVerifyResult() == null || request.getVerifyResult().trim().isEmpty()) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "verifyResult 不能为空");
-        }
 
         return invocationPipeline.invoke(OpenApiOperations.VERIFY_INSTANCE, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
-            VerifyInstanceCommand command = new VerifyInstanceCommand();
-            command.setVulInfoId(vulInfoId);
-            command.setVerifyResult(request.getVerifyResult());
+            VerifyInstanceCommand command = toVerifyCommand(vulInfoId, request);
             InstanceStateResult result = instanceDomainService.verify(partnerId, command);
             return toOperationResponse(result);
         });
@@ -119,13 +115,7 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
 
         return invocationPipeline.invoke(OpenApiOperations.REMEDIATE_INSTANCE, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
-            RemediateInstanceCommand command = new RemediateInstanceCommand();
-            command.setVulInfoId(vulInfoId);
-            if (request != null) {
-                command.setSrcMethod(request.getSrcMethod());
-                command.setRemedDesc(request.getRemedDesc());
-                command.setFixLnk(request.getFixLnk());
-            }
+            RemediateInstanceCommand command = toRemediateCommand(vulInfoId, request);
             InstanceStateResult result = instanceDomainService.remediate(partnerId, command);
             return toOperationResponse(result);
         });
@@ -136,31 +126,37 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         if (vulInfoId == null || vulInfoId.trim().isEmpty()) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "vulInfoID 不能为空");
         }
-        if (request == null || request.getVerifyResult() == null || request.getVerifyResult().trim().isEmpty()) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "verifyResult 不能为空");
-        }
 
         return invocationPipeline.invoke(OpenApiOperations.VERIFY_FIX_INSTANCE, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
             VerifyFixInstanceCommand command = new VerifyFixInstanceCommand();
             command.setVulInfoId(vulInfoId);
-            command.setVerifyResult(request.getVerifyResult());
+            if (request != null) {
+                command.setTransferTime(request.getTransferTime());
+                command.setRemark(request.getRemark());
+            }
             InstanceStateResult result = instanceDomainService.verifyFix(partnerId, command);
             return toOperationResponse(result);
         });
     }
 
-    // ===================== 写接口（批量） =====================
-
     @Override
     public ApiResponse<InstanceBatchOperationResponse> verifyInstanceBatch(InstanceBatchOperationRequest request) {
         validateBatchRequest(request);
+        if (!StringUtils.hasText(request.getOperator())) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "operator 不能为空");
+        }
         return invocationPipeline.invoke(OpenApiOperations.VERIFY_INSTANCE_BATCH, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
             return executeBatch(partnerId, request.getItems(), (pid, item) -> {
                 VerifyInstanceCommand cmd = new VerifyInstanceCommand();
                 cmd.setVulInfoId(item.getVulInfoID());
+                cmd.setVulnType(item.getVulnType());
                 cmd.setVerifyResult(item.getVerifyResult());
+                cmd.setSrcMethod(item.getSrcMethod());
+                cmd.setTransferTime(item.getTransferTime());
+                cmd.setOperator(request.getOperator());
+                cmd.setRemark(item.getRemark());
                 return instanceDomainService.verify(pid, cmd);
             });
         });
@@ -172,11 +168,7 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         return invocationPipeline.invoke(OpenApiOperations.REMEDIATE_INSTANCE_BATCH, ctx -> {
             String partnerId = PartnerContext.requirePartnerId();
             return executeBatch(partnerId, request.getItems(), (pid, item) -> {
-                RemediateInstanceCommand cmd = new RemediateInstanceCommand();
-                cmd.setVulInfoId(item.getVulInfoID());
-                cmd.setSrcMethod(item.getSrcMethod());
-                cmd.setRemedDesc(item.getRemedDesc());
-                cmd.setFixLnk(item.getFixLnk());
+                RemediateInstanceCommand cmd = toRemediateCommand(item.getVulInfoID(), item);
                 return instanceDomainService.remediate(pid, cmd);
             });
         });
@@ -190,13 +182,12 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
             return executeBatch(partnerId, request.getItems(), (pid, item) -> {
                 VerifyFixInstanceCommand cmd = new VerifyFixInstanceCommand();
                 cmd.setVulInfoId(item.getVulInfoID());
-                cmd.setVerifyResult(item.getVerifyResult());
+                cmd.setTransferTime(item.getTransferTime());
+                cmd.setRemark(item.getRemark());
                 return instanceDomainService.verifyFix(pid, cmd);
             });
         });
     }
-
-    // ===================== 私有方法 =====================
 
     private void validateBatchRequest(InstanceBatchOperationRequest request) {
         if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
@@ -213,10 +204,9 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         InstanceStateResult execute(String partnerId, BatchItem item) throws OpenApiException;
     }
 
-    /** 循环执行单条操作，聚合 success[] + failed[] */
     private InstanceBatchOperationResponse executeBatch(String partnerId,
-                                                         List<BatchItem> items,
-                                                         BatchSingleHandler handler) {
+                                                       List<BatchItem> items,
+                                                       BatchSingleHandler handler) {
         List<InstanceOperationResponse> successList = new ArrayList<>();
         List<InstanceBatchFailedItem> failedList = new ArrayList<>();
 
@@ -227,8 +217,8 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
             } catch (OpenApiException ex) {
                 InstanceBatchFailedItem failed = new InstanceBatchFailedItem();
                 failed.setVulInfoID(item.getVulInfoID());
-                failed.setErrorCode(String.valueOf(ex.getCode()));
-                failed.setErrorMessage(ex.getMessage());
+                failed.setCode(ex.getCode());
+                failed.setMessage(ex.getMessage());
                 failedList.add(failed);
             }
         }
@@ -245,16 +235,23 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         cmd.setExtTaskId(request.getExtTaskId());
         cmd.setVulInfoStatList(request.getVulInfoStatList());
         cmd.setVulLevelList(request.getVulLevelList());
-        cmd.setVulNetAddr(request.getVulNetAddr());
-        cmd.setAssetName(request.getAssetName());
-        cmd.setVulName(request.getVulName());
-        cmd.setOrgVulId(request.getOrgVulId());
-        cmd.setVulId(request.getVulId());
-        cmd.setIsAccess(request.getIsAccess());
-        cmd.setUnitType(request.getUnitType());
         cmd.setPage(request.getPage());
         cmd.setSize(request.getSize());
         return cmd;
+    }
+
+    private VerifyInstanceCommand toVerifyCommand(String vulInfoId, VerifyInstanceRequest request) {
+        VerifyInstanceCommand command = new VerifyInstanceCommand();
+        command.setVulInfoId(vulInfoId);
+        if (request != null) {
+            command.setVulnType(request.getVulnType());
+            command.setVerifyResult(request.getVerifyResult());
+            command.setSrcMethod(request.getSrcMethod());
+            command.setTransferTime(request.getTransferTime());
+            command.setOperator(request.getOperator());
+            command.setRemark(request.getRemark());
+        }
+        return command;
     }
 
     private InstanceSearchResponse toSearchResponse(InstancePageResult result) {
@@ -275,14 +272,14 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         dto.setVulInfoID(r.getVulInfoId());
         dto.setVulID(r.getVulId());
         dto.setVulInfoStat(r.getVulInfoStat());
-        dto.setLvRsn(toStringOrNull(r.getLvRsn()));
+        dto.setLvRsn(r.getLvRsn());
         dto.setVulName(r.getVulName());
-        dto.setVulLevel(toStringOrNull(r.getVulLevel()));
+        dto.setVulLevel(r.getVulLevel());
         dto.setOrgVulId(r.getOrgVulId());
         dto.setVulNetAddr(r.getVulNetAddr());
-        dto.setVulPort(toStringOrNull(r.getVulPort()));
+        dto.setVulPort(r.getVulPort());
         dto.setVulSvc(r.getVulSvc());
-        dto.setIsAccess(toBooleanAccess(r.getIsAccess()));
+        dto.setIsAccess(r.getIsAccess());
         dto.setTransferTime(r.getTransferTime());
         dto.setVulnDisposalId(r.getVulnDisposalId());
         dto.setExtVulnRef(r.getExtVulnRef());
@@ -294,17 +291,18 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         dto.setVulInfoID(r.getVulInfoId());
         dto.setVulID(r.getVulId());
         dto.setVulInfoStat(r.getVulInfoStat());
-        dto.setLvRsn(toStringOrNull(r.getLvRsn()));
+        dto.setLvRsn(r.getLvRsn());
         dto.setVulName(r.getVulName());
-        dto.setVulLevel(toStringOrNull(r.getVulLevel()));
+        dto.setVulLevel(r.getVulLevel());
         dto.setOrgVulId(r.getOrgVulId());
         dto.setVulNetAddr(r.getVulNetAddr());
-        dto.setVulPort(toStringOrNull(r.getVulPort()));
+        dto.setVulPort(r.getVulPort());
         dto.setVulSvc(r.getVulSvc());
-        dto.setIsAccess(toBooleanAccess(r.getIsAccess()));
+        dto.setIsAccess(r.getIsAccess());
         dto.setTransferTime(r.getTransferTime());
         dto.setVulnDisposalId(r.getVulnDisposalId());
-        dto.setVulAddrType(toStringOrNull(r.getVulAddrType()));
+        dto.setExtVulnRef(r.getExtVulnRef());
+        dto.setVulAddrType(r.getVulAddrType());
         dto.setAssetID(r.getAssetId());
         dto.setAssetName(r.getAssetName());
         dto.setVulInstCpe(r.getVulInstCpe());
@@ -314,29 +312,89 @@ public class OpenInstanceAppServiceImpl implements IOpenInstanceAppService {
         dto.setVulInstVer(r.getVulInstVer());
         dto.setRemedDesc(r.getRemedDesc());
         dto.setFixLnk(r.getFixLnk());
+        dto.setDefDev(r.getDefDev());
         dto.setRemedTime(r.getRemedTime());
-        dto.setSrcMethod(toStringOrNull(r.getMethod()));
+        dto.setSrcMethod(r.getMethod());
         dto.setVulTransProto(r.getVulTransProto());
-        dto.setExtVulnRef(r.getExtVulnRef());
+        dto.setArchiveReason(r.getArchiveReason());
+        dto.setProvincialFields(r.getProvincialFields());
         return dto;
     }
 
-    private static String toStringOrNull(Integer value) {
-        return value != null ? String.valueOf(value) : null;
+    private RemediateInstanceCommand toRemediateCommand(String vulInfoId, RemediateInstanceRequest request) {
+        RemediateInstanceCommand command = new RemediateInstanceCommand();
+        command.setVulInfoId(vulInfoId);
+        if (request != null) {
+            fillRemediateCommand(command, request);
+        }
+        return command;
     }
 
-    private static Boolean toBooleanAccess(Integer isAccess) {
-        if (isAccess == null) {
-            return null;
+    private RemediateInstanceCommand toRemediateCommand(String vulInfoId, BatchItem item) {
+        RemediateInstanceCommand command = new RemediateInstanceCommand();
+        command.setVulInfoId(vulInfoId);
+        if (item != null) {
+            command.setVulInfoStat(item.getVulInfoStat());
+            command.setSrcMethod(item.getSrcMethod());
+            command.setRemedDesc(item.getRemedDesc());
+            command.setFixLnk(item.getFixLnk());
+            command.setDefDev(item.getDefDev());
+            command.setRemedTime(item.getRemedTime());
+            command.setLvRsn(item.getLvRsn());
+            command.setArchiveReason(item.getArchiveReason());
+            command.setApprovedBy(item.getApprovedBy());
+            command.setRecordAt(item.getRecordAt());
+            command.setProvincialFields(item.getProvincialFields());
+            command.setSrcTktRole(item.getSrcTktRole());
+            command.setDstTktRole(item.getDstTktRole());
+            command.setAssignerDept(item.getAssignerDept());
+            command.setAssignerEmail(item.getAssignerEmail());
+            command.setAssignerPhone(item.getAssignerPhone());
+            command.setHandlerDept(item.getHandlerDept());
+            command.setHandlerEmail(item.getHandlerEmail());
+            command.setHandlerPhone(item.getHandlerPhone());
+            command.setTransferTime(item.getTransferTime());
+            command.setRemark(item.getRemark());
         }
-        return isAccess != 0;
+        return command;
+    }
+
+    private static void fillRemediateCommand(RemediateInstanceCommand command, RemediateInstanceRequest request) {
+        command.setVulInfoStat(request.getVulInfoStat());
+        command.setSrcMethod(request.getSrcMethod());
+        command.setRemedDesc(request.getRemedDesc());
+        command.setFixLnk(request.getFixLnk());
+        command.setDefDev(request.getDefDev());
+        command.setRemedTime(request.getRemedTime());
+        command.setLvRsn(request.getLvRsn());
+        command.setArchiveReason(request.getArchiveReason());
+        command.setApprovedBy(request.getApprovedBy());
+        command.setRecordAt(request.getRecordAt());
+        command.setProvincialFields(request.getProvincialFields());
+        command.setSrcTktRole(request.getSrcTktRole());
+        command.setDstTktRole(request.getDstTktRole());
+        command.setAssignerDept(request.getAssignerDept());
+        command.setAssignerEmail(request.getAssignerEmail());
+        command.setAssignerPhone(request.getAssignerPhone());
+        command.setHandlerDept(request.getHandlerDept());
+        command.setHandlerEmail(request.getHandlerEmail());
+        command.setHandlerPhone(request.getHandlerPhone());
+        command.setTransferTime(request.getTransferTime());
+        command.setRemark(request.getRemark());
     }
 
     private InstanceOperationResponse toOperationResponse(InstanceStateResult result) {
         InstanceOperationResponse resp = new InstanceOperationResponse();
         resp.setVulInfoID(result.getVulInfoId());
-        resp.setPreviousStatus(result.getPreviousStat());
-        resp.setCurrentStatus(result.getCurrentStat());
+        resp.setVulInfoStat(result.getVulInfoStat());
+        resp.setLvRsn(result.getLvRsn());
+        resp.setTransferTime(result.getTransferTime());
+        resp.setSrcMethod(result.getSrcMethod());
+        resp.setRemedDesc(result.getRemedDesc());
+        resp.setArchiveReason(result.getArchiveReason());
+        resp.setVerifyFixJobId(result.getVerifyFixJobId());
+        resp.setVerifyFixStatus(result.getVerifyFixStatus());
+        resp.setMessage(result.getMessage());
         return resp;
     }
 }

@@ -13,7 +13,7 @@ import com.vtc.openapi.ui.dto.open.instance.VerifyInstanceRequest;
 
 public interface IOpenInstanceAppService {
 
-    ApiResponse<InstanceSearchResponse> searchInstances(InstanceSearchRequest request);
+    ApiResponse<InstanceSearchResponse> searchInstances(InstanceSearchRequest request, String exportProfile);
 
     ApiResponse<InstanceDetailDto> getInstance(String vulInfoId);
 

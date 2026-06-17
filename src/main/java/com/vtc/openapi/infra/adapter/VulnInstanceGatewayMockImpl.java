@@ -2,6 +2,7 @@ package com.vtc.openapi.infra.adapter;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstancePageResult;
@@ -77,6 +78,17 @@ public class VulnInstanceGatewayMockImpl implements IVulnInstanceGateway {
         log.warn("MOCK updateInstance: no persisted instance for id={}", id);
     }
 
+    @Override
+    public void updateRemediateInstance(Long id, int vulInfoStat, RemediateInstanceCommand command) {
+        String partnerId = PartnerContext.requirePartnerId();
+        if (id != null && vulnInstanceRepository.findByIdAndPartner(id, partnerId) != null) {
+            vulnInstanceRepository.updateRemediateState(id, partnerId, vulInfoStat, command);
+            log.info("MOCK updateRemediateInstance persisted: id={}, vulInfoStat={}", id, vulInfoStat);
+            return;
+        }
+        log.warn("MOCK updateRemediateInstance: no persisted instance for id={}", id);
+    }
+
     private boolean hasPersistedInstances(String partnerId, SearchInstanceCommand command) {
         if (!StringUtils.hasText(partnerId)) {
             return false;
@@ -142,8 +154,8 @@ public class VulnInstanceGatewayMockImpl implements IVulnInstanceGateway {
                 Integer level = inst.getInteger("vulLevel");
                 boolean levelMatch = false;
                 if (level != null) {
-                    for (String lv : command.getVulLevelList()) {
-                        if (Objects.equals(String.valueOf(level), lv)) {
+                    for (Integer lv : command.getVulLevelList()) {
+                        if (level.equals(lv)) {
                             levelMatch = true;
                             break;
                         }

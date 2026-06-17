@@ -31,4 +31,10 @@ public interface IPartnerDomainService extends IDomainService<PartnerDO> {
     List<PartnerCredentialDO> listCredentials(String partnerId);
 
     PartnerCredentialDO findCredentialByClientId(String clientId);
+
+    String assignWebhookSecretIfAbsent(String partnerId);
+
+    String rotateWebhookSecret(String partnerId);
+
+    boolean hasWebhookSecret(String partnerId);
 }

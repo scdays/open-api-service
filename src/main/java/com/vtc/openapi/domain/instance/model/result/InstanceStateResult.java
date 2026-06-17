@@ -8,6 +8,13 @@ import lombok.Data;
 @Data
 public class InstanceStateResult {
     private String vulInfoId;
-    private Integer previousStat;
-    private Integer currentStat;
+    private Integer vulInfoStat;
+    private Integer lvRsn;
+    private String transferTime;
+    private Integer srcMethod;
+    private String remedDesc;
+    private String archiveReason;
+    private String verifyFixJobId;
+    private String verifyFixStatus;
+    private String message;
 }

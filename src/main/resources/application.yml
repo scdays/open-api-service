@@ -81,7 +81,7 @@ open-api:
     ttl-days: 7
     download-url-mode: open-api
   partner-gateway:
-    public-base-url: http://172.16.2.4:35770
+    public-base-url: http://172.16.3.32:35770
   file-sharing:
     public-base-url: http://172.16.4.192
     download-username: admin
