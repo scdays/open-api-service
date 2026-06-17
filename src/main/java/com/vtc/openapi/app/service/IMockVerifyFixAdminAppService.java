@@ -3,6 +3,7 @@ package com.vtc.openapi.app.service;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixCompleteResultDto;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
+import com.vtc.openapi.ui.dto.admin.MockVulnInstanceOpsRowDto;
 import com.vtc.openapi.ui.dto.admin.OfflineTaskVerifyFixContextDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixInvocationCandidateDto;
 import com.vtc.openapi.ui.params.admin.CreateInternalVerifyFixJobParams;
@@ -28,6 +29,9 @@ public interface IMockVerifyFixAdminAppService {
     ApiResponse<OfflineTaskVerifyFixContextDto> getOfflineTaskContext(String partnerId, String taskId);
 
     ApiResponse<MockVerifyFixJobDto> createFromOfflineTask(CreateInternalVerifyFixJobParams params);
+
+    ApiResponse<List<MockVulnInstanceOpsRowDto>> listInstancesForOps(String partnerId, String taskId,
+                                                                     Integer vulInfoStat, int limit);
 
     ApiResponse<List<VerifyFixInvocationCandidateDto>> listInvocationCandidates(String partnerId, int limit);
 

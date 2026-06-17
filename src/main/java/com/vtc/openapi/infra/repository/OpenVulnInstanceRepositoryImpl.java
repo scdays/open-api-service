@@ -124,6 +124,26 @@ public class OpenVulnInstanceRepositoryImpl
     }
 
     @Override
+    public List<OpenVulnInstanceDO> listByPartner(String partnerId, String taskId, Integer vulInfoStat, int limit) {
+        if (!StringUtils.hasText(partnerId)) {
+            return new ArrayList<>();
+        }
+        int capped = Math.max(1, Math.min(limit, 500));
+        LambdaQueryWrapper<OpenVulnInstancePO> wrapper = new LambdaQueryWrapper<OpenVulnInstancePO>()
+                .eq(OpenVulnInstancePO::getPartnerId, partnerId.trim());
+        if (StringUtils.hasText(taskId)) {
+            wrapper.eq(OpenVulnInstancePO::getTaskId, taskId.trim());
+        }
+        if (vulInfoStat != null) {
+            wrapper.eq(OpenVulnInstancePO::getVulInfoStat, vulInfoStat);
+        }
+        wrapper.orderByDesc(OpenVulnInstancePO::getUpdatedAt)
+                .orderByDesc(OpenVulnInstancePO::getId)
+                .last("LIMIT " + capped);
+        return ConvertHelper.convertList(baseMapper.selectList(wrapper), OpenVulnInstanceDO.class);
+    }
+
+    @Override
     public void updateState(Long id, String partnerId, int vulInfoStat, String method, String remedDesc) {
         OpenVulnInstanceDO row = findByIdAndPartner(id, partnerId);
         if (row == null) {

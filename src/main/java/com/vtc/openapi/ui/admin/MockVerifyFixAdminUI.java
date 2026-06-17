@@ -4,6 +4,7 @@ import com.vtc.openapi.app.service.IMockVerifyFixAdminAppService;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixCompleteResultDto;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
+import com.vtc.openapi.ui.dto.admin.MockVulnInstanceOpsRowDto;
 import com.vtc.openapi.ui.dto.admin.OfflineTaskVerifyFixContextDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixInvocationCandidateDto;
 import com.vtc.openapi.ui.params.admin.CreateInternalVerifyFixJobParams;
@@ -94,7 +95,17 @@ public class MockVerifyFixAdminUI {
         return appService.createFromOfflineTask(params);
     }
 
-    @ApiOperation("Partner 修复核验调用记录中的待处理实例")
+    @ApiOperation("查询 open_vuln_instance 实例（运营多选：验证/处置/修复核验）")
+    @GetMapping("/instances")
+    public ApiResponse<List<MockVulnInstanceOpsRowDto>> listInstances(
+            @RequestParam("partnerId") String partnerId,
+            @RequestParam(value = "taskId", required = false) String taskId,
+            @RequestParam(value = "vulInfoStat", required = false) Integer vulInfoStat,
+            @RequestParam(value = "limit", defaultValue = "200") int limit) {
+        return appService.listInstancesForOps(partnerId, taskId, vulInfoStat, limit);
+    }
+
+    @ApiOperation("Partner 修复核验调用记录中的待处理实例（已不推荐，请用 /instances?vulInfoStat=5）")
     @GetMapping("/invocation-candidates")
     public ApiResponse<List<VerifyFixInvocationCandidateDto>> invocationCandidates(
             @RequestParam("partnerId") String partnerId,

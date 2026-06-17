@@ -20,6 +20,7 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.adapter.mock.MockVerifyFixRescanReportLoader;
+import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -478,7 +479,15 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
     }
 
     private InstanceItemResult requireFixedInstance(String partnerId, String vulInfoId) {
-        InstanceItemResult current = instanceRepository.findByVulInfoId(partnerId, vulInfoId);
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(vulInfoId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId/vulInfoId 不能为空");
+        }
+        OpenVulnInstanceDO row = vulnInstanceRepository.findByPartnerAndVulInfoId(
+                partnerId.trim(), vulInfoId.trim());
+        InstanceItemResult current = InstanceItemConverter.fromSnapshot(row);
+        if (current == null) {
+            current = instanceRepository.findByVulInfoId(partnerId, vulInfoId);
+        }
         if (current == null) {
             throw new OpenApiException(OpenApiConstants.CODE_CROSS_PARTNER, "实例不存在或无权访问");
         }

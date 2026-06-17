@@ -18,10 +18,13 @@ import com.vtc.openapi.domain.instance.model.support.VerifyFixCompleteMode;
 import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
 import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
+import com.vtc.openapi.infra.converter.InstanceItemConverter;
+import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixCompleteResultDto;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobItemDto;
+import com.vtc.openapi.ui.dto.admin.MockVulnInstanceOpsRowDto;
 import com.vtc.openapi.ui.dto.admin.MockBundleStatusDto;
 import com.vtc.openapi.ui.dto.admin.OfflineTaskVerifyFixContextDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixInvocationCandidateDto;
@@ -163,6 +166,38 @@ public class MockVerifyFixAdminAppServiceImpl implements IMockVerifyFixAdminAppS
                 params.getVulInfoIds(),
                 params.getBatchId());
         return ApiResponse.ok(toDto(verifyFixJobDomainService.requireJob(jobId), true));
+    }
+
+    @Override
+    public ApiResponse<List<MockVulnInstanceOpsRowDto>> listInstancesForOps(String partnerId, String taskId,
+                                                                           Integer vulInfoStat, int limit) {
+        if (!StringUtils.hasText(partnerId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId 不能为空");
+        }
+        int capped = Math.max(1, Math.min(limit, 500));
+        String normalizedTaskId = StringUtils.hasText(taskId) ? taskId.trim() : null;
+        List<OpenVulnInstanceDO> rows = vulnInstanceRepository.listByPartner(
+                partnerId.trim(), normalizedTaskId, vulInfoStat, capped);
+        List<MockVulnInstanceOpsRowDto> result = new ArrayList<>();
+        for (OpenVulnInstanceDO row : rows) {
+            MockVulnInstanceOpsRowDto dto = new MockVulnInstanceOpsRowDto();
+            dto.setVulInfoId(row.getVulInfoId());
+            dto.setVulInfoStat(row.getVulInfoStat());
+            dto.setTaskId(row.getTaskId());
+            InstanceItemResult item = InstanceItemConverter.fromSnapshot(row);
+            if (item != null) {
+                dto.setVulName(item.getVulName());
+                dto.setVulNetAddr(item.getVulNetAddr());
+                dto.setVulPort(item.getVulPort());
+            }
+            OpenVerifyFixJobItemDO pending = verifyFixJobRepository
+                    .findLatestPendingItemByPartnerAndVulInfoId(partnerId.trim(), row.getVulInfoId());
+            if (pending != null && StringUtils.hasText(pending.getJobId())) {
+                dto.setPendingVerifyFixJobId(pending.getJobId());
+            }
+            result.add(dto);
+        }
+        return ApiResponse.ok(result);
     }
 
     @Override

@@ -142,7 +142,7 @@ public class MockInstanceDbIntegrationTest {
 
         vulnInstanceGateway.updateInstance(item.getId(), 2, null, null);
 
-        InstanceItemResult after = vulnInstanceGateway.findByVulInfoId(item.getVulInfoId());
+        InstanceItemResult after = vulnInstanceGateway.findByVulInfoId(PARTNER_ID, item.getVulInfoId());
         Assert.assertEquals(Integer.valueOf(2), after.getVulInfoStat());
 
         OpenVulnInstancePO row = openVulnInstanceMapper.selectOne(
