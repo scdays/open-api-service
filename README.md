@@ -3,6 +3,10 @@
 开放平台业务服务（Nacos 注册名：`open-api-service`），Partner 身份 + 业务一体，与门户 **morningglory / clover 零耦合**。
 
 > **开发说明（单人维护）**：请仅在本目录开发并 push。`open-api-service-v1` 为历史联调目录，与远端同一仓库，勿再并行修改。
+>
+> **分支约定**：
+> - `main`：对外 API 对齐（v1 联调能力），可直接发版联调
+> - `feature/vul-pass-orchestration`：vul-pass 编排、修复核验回调等主线扩展，合并前在特性分支开发
 
 ## 架构位置
 
