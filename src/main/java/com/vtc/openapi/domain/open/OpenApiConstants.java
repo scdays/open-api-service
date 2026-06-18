@@ -37,6 +37,8 @@ public final class OpenApiConstants {
     public static final String TASK_ACCEPT_ACCEPTED = "ACCEPTED";
     public static final String TASK_ACCEPT_QUEUED = "QUEUED";
     public static final String TASK_ACCEPT_REJECTED = "REJECTED";
+    /** VTC/引擎下发失败，可重试（Partner 创建接口仍返回 ACCEPTED） */
+    public static final String TASK_DISPATCH_FAILED = "DISPATCH_FAILED";
 
     private OpenApiConstants() {
     }

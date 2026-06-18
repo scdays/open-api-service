@@ -5,6 +5,8 @@ import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.botany.spore.ddd.infra.repository.DatabaseRepositoryImpl;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
+import com.vtc.openapi.domain.instance.model.audit.OpenVulnInstanceAudit;
+import com.vtc.openapi.domain.instance.model.audit.OpenVulnInstanceAuditContext;
 import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
@@ -14,6 +16,7 @@ import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import com.vtc.openapi.infra.dao.OpenVulnInstanceMapper;
 import com.vtc.openapi.infra.dao.po.OpenVulnInstancePO;
+import com.vtc.openapi.infra.instance.OpenVulnInstanceLogWriter;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -27,6 +30,12 @@ import java.util.Objects;
 public class OpenVulnInstanceRepositoryImpl
         extends DatabaseRepositoryImpl<OpenVulnInstanceMapper, OpenVulnInstanceDO, OpenVulnInstancePO>
         implements IOpenVulnInstanceRepository {
+
+    private final OpenVulnInstanceLogWriter instanceLogWriter;
+
+    public OpenVulnInstanceRepositoryImpl(OpenVulnInstanceLogWriter instanceLogWriter) {
+        this.instanceLogWriter = instanceLogWriter;
+    }
 
     @Override
     public boolean existsByPartnerAndTaskId(String partnerId, String taskId) {
@@ -172,38 +181,47 @@ public class OpenVulnInstanceRepositoryImpl
 
     private void applyStatePatch(OpenVulnInstanceDO row, int vulInfoStat, String method, String remedDesc,
                                  String fixLnk, String remedTime, String defDev, Integer lvRsn, String archiveReason) {
+        Integer prevStat = row.getVulInfoStat();
         row.setVulInfoStat(vulInfoStat);
         row.setUpdatedAt(new Date());
-        if (!StringUtils.hasText(row.getSnapshotJson())) {
+        if (StringUtils.hasText(row.getSnapshotJson())) {
+            JSONObject snap = JSON.parseObject(row.getSnapshotJson());
+            snap.put("vulInfoStat", vulInfoStat);
+            if (StringUtils.hasText(method)) {
+                snap.put("method", method);
+                snap.put("srcMethod", method);
+            }
+            if (StringUtils.hasText(remedDesc)) {
+                snap.put("remedDesc", remedDesc);
+            }
+            if (StringUtils.hasText(fixLnk)) {
+                snap.put("fixLnk", fixLnk);
+            }
+            if (StringUtils.hasText(remedTime)) {
+                snap.put("remedTime", remedTime);
+            }
+            if (StringUtils.hasText(defDev)) {
+                snap.put("defDev", defDev);
+            }
+            if (lvRsn != null) {
+                snap.put("lvRsn", lvRsn);
+            } else if (vulInfoStat == 5) {
+                snap.remove("lvRsn");
+            }
+            if (StringUtils.hasText(archiveReason)) {
+                snap.put("archiveReason", archiveReason);
+            }
+            row.setSnapshotJson(snap.toJSONString());
+        }
+        writeAuditIfNeeded(row, prevStat, vulInfoStat);
+    }
+
+    private void writeAuditIfNeeded(OpenVulnInstanceDO row, Integer prevStat, int newStat) {
+        OpenVulnInstanceAudit audit = OpenVulnInstanceAuditContext.get();
+        if (audit == null) {
             return;
         }
-        JSONObject snap = JSON.parseObject(row.getSnapshotJson());
-        snap.put("vulInfoStat", vulInfoStat);
-        if (StringUtils.hasText(method)) {
-            snap.put("method", method);
-            snap.put("srcMethod", method);
-        }
-        if (StringUtils.hasText(remedDesc)) {
-            snap.put("remedDesc", remedDesc);
-        }
-        if (StringUtils.hasText(fixLnk)) {
-            snap.put("fixLnk", fixLnk);
-        }
-        if (StringUtils.hasText(remedTime)) {
-            snap.put("remedTime", remedTime);
-        }
-        if (StringUtils.hasText(defDev)) {
-            snap.put("defDev", defDev);
-        }
-        if (lvRsn != null) {
-            snap.put("lvRsn", lvRsn);
-        } else if (vulInfoStat == 5) {
-            snap.remove("lvRsn");
-        }
-        if (StringUtils.hasText(archiveReason)) {
-            snap.put("archiveReason", archiveReason);
-        }
-        row.setSnapshotJson(snap.toJSONString());
+        instanceLogWriter.writeStateChange(row, prevStat, newStat, audit);
     }
 
     private boolean matchesFilters(InstanceItemResult item, SearchInstanceCommand command) {

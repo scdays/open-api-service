@@ -36,4 +36,7 @@ public class CreateOpenTaskCommand {
     private String fileXml;
 
     private Map<String, Object> options;
+
+    /** 默认 true：排查完成后自动触发验证阶段交叉扫描 */
+    private Boolean autoVerify;
 }

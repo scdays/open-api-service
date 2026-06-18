@@ -58,4 +58,12 @@ public class OpenTaskPO extends BasePO {
     private Date createdAt;
 
     private Date updatedAt;
+
+    private Integer taskPhase;
+
+    private Boolean autoVerify;
+
+    private String verifyMergeStrategy;
+
+    private Boolean crossScan;
 }

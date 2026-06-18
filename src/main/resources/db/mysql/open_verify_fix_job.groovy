@@ -62,4 +62,23 @@ databaseChangeLog(logicalFilePath: 'open_verify_fix_job.groovy') {
             column(name: 'vul_info_id')
         }
     }
+
+    changeSet(id: '2026-06-18-open_verify_fix_job-vtc-columns', author: 'open-api') {
+        addColumn(tableName: 'open_verify_fix_job') {
+            column(name: 'center_sub_id', type: 'VARCHAR(32)', remarks: '内部复扫子任务 ID（对齐 open_task_sub）')
+            column(name: 'center_plan_id', type: 'VARCHAR(64)', remarks: 'vuln-task-center 计划 ID')
+            column(name: 'survey_id', type: 'VARCHAR(64)', remarks: '计划实例 surveyId')
+            column(name: 'scanner_type', type: 'VARCHAR(8)', remarks: '扫描器类型，默认绿盟 1')
+            column(name: 'input_ips', type: 'VARCHAR(2048)', remarks: '复扫目标 IP，逗号分隔')
+            column(name: 'progress', type: 'INT', defaultValueNumeric: 0, remarks: '复扫进度 0-100')
+        }
+        addColumn(tableName: 'open_verify_fix_job_item') {
+            column(name: 'rescan_matched', type: 'BOOLEAN', remarks: '复扫仍检出（true=未修复 stat7）')
+            column(name: 'rescan_sub_id', type: 'VARCHAR(32)', remarks: '关联复扫子任务 ID')
+        }
+        createIndex(tableName: 'open_verify_fix_job', indexName: 'idx_open_verify_fix_job_vtc', unique: false) {
+            column(name: 'status')
+            column(name: 'center_plan_id')
+        }
+    }
 }

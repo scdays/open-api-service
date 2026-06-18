@@ -128,4 +128,38 @@ public class OpenVerifyFixJobRepositoryImpl implements IOpenVerifyFixJobReposito
         }
         return null;
     }
+
+    @Override
+    public List<OpenVerifyFixJobDO> listActiveVtcJobs(int limit) {
+        int cap = limit > 0 ? limit : 50;
+        LambdaQueryWrapper<OpenVerifyFixJobPO> wrapper = new LambdaQueryWrapper<OpenVerifyFixJobPO>()
+                .isNotNull(OpenVerifyFixJobPO::getCenterPlanId)
+                .in(OpenVerifyFixJobPO::getStatus, "PENDING", "RUNNING")
+                .orderByAsc(OpenVerifyFixJobPO::getUpdatedAt)
+                .last("LIMIT " + cap);
+        return ConvertHelper.convertList(jobMapper.selectList(wrapper), OpenVerifyFixJobDO.class);
+    }
+
+    @Override
+    public List<OpenVerifyFixJobDO> listDispatchFailedJobs(int limit) {
+        int cap = limit > 0 ? limit : 50;
+        LambdaQueryWrapper<OpenVerifyFixJobPO> wrapper = new LambdaQueryWrapper<OpenVerifyFixJobPO>()
+                .eq(OpenVerifyFixJobPO::getStatus, "DISPATCH_FAILED")
+                .isNull(OpenVerifyFixJobPO::getCenterPlanId)
+                .orderByAsc(OpenVerifyFixJobPO::getUpdatedAt)
+                .last("LIMIT " + cap);
+        return ConvertHelper.convertList(jobMapper.selectList(wrapper), OpenVerifyFixJobDO.class);
+    }
+
+    @Override
+    public OpenVerifyFixJobDO findByCenterSubId(String centerSubId) {
+        if (!StringUtils.hasText(centerSubId)) {
+            return null;
+        }
+        OpenVerifyFixJobPO po = jobMapper.selectOne(new LambdaQueryWrapper<OpenVerifyFixJobPO>()
+                .eq(OpenVerifyFixJobPO::getCenterSubId, centerSubId.trim())
+                .orderByDesc(OpenVerifyFixJobPO::getId)
+                .last("LIMIT 1"));
+        return ConvertHelper.convert(po, OpenVerifyFixJobDO.class);
+    }
 }

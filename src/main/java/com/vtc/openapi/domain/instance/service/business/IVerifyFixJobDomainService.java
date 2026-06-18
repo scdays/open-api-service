@@ -14,6 +14,8 @@ public interface IVerifyFixJobDomainService {
     String STATUS_RUNNING = "RUNNING";
     String STATUS_FINISHED = "FINISHED";
     String STATUS_FAILED = "FAILED";
+    /** VTC 下发失败，可重试 */
+    String STATUS_DISPATCH_FAILED = "DISPATCH_FAILED";
 
     String ITEM_PENDING = "PENDING";
     String ITEM_DONE = "DONE";
@@ -43,6 +45,11 @@ public interface IVerifyFixJobDomainService {
      * 导入复扫 XML 后按报告自动比对并完成。
      */
     void importRescanXmlAndComplete(String jobId, byte[] xmlBytes);
+
+    /**
+     * task-center 复扫结果指纹比对完成（VTC 回收后调用）。
+     */
+    void completeFromRescanCompare(String jobId, java.util.Set<String> rescanFingerprintKeys);
 
     /**
      * vul-pass 内部回调：更新状态并仅推送 Webhook。

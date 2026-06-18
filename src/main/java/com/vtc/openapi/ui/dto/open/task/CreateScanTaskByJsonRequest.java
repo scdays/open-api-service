@@ -42,4 +42,7 @@ public class CreateScanTaskByJsonRequest {
     private String callbackUrl;
 
     private String priority;
+
+    /** 默认 true，见 API §1.3 autoVerify */
+    private Boolean autoVerify;
 }

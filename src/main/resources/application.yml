@@ -1,4 +1,15 @@
 spring:
+  kafka:
+    bootstrap-servers: 172.16.3.32:9092
+    consumer:
+      group-id: open-api-task-center
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      max-poll-records: 50
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      missing-topics-fatal: false
   jackson:
     time-zone: GMT+8
     date-format: yyyy-MM-dd HH:mm:ss
@@ -46,20 +57,30 @@ common:
   crypto:
     type: AES
     key: eWxtZkRseFhLcm04Skc0OWdGYlUwUT09
+  ftp:
+    type: SFTP
+    host: 172.16.3.32
+    port: 22
+    user: usftp
+    password: 8STRYXLCtn8
+    dir: /vulnerability/
 open-api:
   engine:
-    # mock：接入方联调（spring.profiles.active=mock）；vul-pass：生产
-    adapter-mode: mock
-    mock:
-      ingest-mode: manual       # 半人工：建任务后保持 RUNNING
-      xml-import-mode: java       # M3 默认，无需 Python
-      xml-import-profile: auto
-      data-dir: file:/data/open-api-mock   # 或 classpath:mock/engine
-      auto-ingest-instances-on-finish: true
-      #data-dir: classpath:mock/engine
-      #default-bundle: default
-      #task-finish-delay-seconds: 5
-      #auto-ingest-instances-on-finish: true
+    # mock | vul-pass | task-center（演示直连 vuln-task-center）
+    adapter-mode: task-center
+  task-center:
+    # Feign 使用 Nacos 服务名 vuln-task-center，勿配网关 :7000（会 401）
+    poll-enabled: true
+    poll-interval-ms: 30000
+    kafka:
+      enabled: true
+      queue-consume-enabled: true
+      group-id: open-api-task-center
+      topic-task-finish: task_finish_topic
+      topic-download-report-finish: download_report_finish_topic
+      queue-poll-interval-ms: 2000
+      queue-batch-size: 5
+      max-retry: 3
   svmp:
     engine-service-name: vul-pass
     engine-path-prefix: ""

@@ -1,0 +1,28 @@
+open-api:
+  engine:
+    adapter-mode: task-center
+  task-center:
+    poll-interval-ms: 30000
+    poll-enabled: true
+    kafka:
+      enabled: true
+      queue-consume-enabled: true
+      group-id: open-api-task-center
+      topic-task-finish: task_finish_topic
+      topic-download-report-finish: download_report_finish_topic
+      queue-poll-interval-ms: 2000
+      queue-batch-size: 5
+      max-retry: 3
+
+spring:
+  kafka:
+    bootstrap-servers: 172.16.3.32:9092
+    consumer:
+      group-id: open-api-task-center
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      max-poll-records: 50
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      missing-topics-fatal: false

@@ -27,6 +27,10 @@ import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.service.MockTaskCompletionCoordinator;
 import com.vtc.openapi.domain.task.service.business.IOpenTaskDomainService;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterPostAcceptDispatcher;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScannerPlanner;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
+import com.vtc.openapi.infra.config.OpenApiProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -59,15 +63,21 @@ public class OpenTaskDomainServiceImpl
     private final IInstanceIngestDomainService instanceIngestDomainService;
     private final IWebhookPublishService webhookPublishService;
     private final MockTaskCompletionCoordinator taskCompletionCoordinator;
+    private final TaskCenterPostAcceptDispatcher taskCenterPostAcceptDispatcher;
+    private final OpenApiProperties openApiProperties;
 
     public OpenTaskDomainServiceImpl(IScanEngineGateway scanEngineGateway,
                                      IInstanceIngestDomainService instanceIngestDomainService,
                                      IWebhookPublishService webhookPublishService,
-                                     @Autowired(required = false) MockTaskCompletionCoordinator taskCompletionCoordinator) {
+                                     @Autowired(required = false) MockTaskCompletionCoordinator taskCompletionCoordinator,
+                                     @Autowired(required = false) TaskCenterPostAcceptDispatcher taskCenterPostAcceptDispatcher,
+                                     OpenApiProperties openApiProperties) {
         this.scanEngineGateway = scanEngineGateway;
         this.instanceIngestDomainService = instanceIngestDomainService;
         this.webhookPublishService = webhookPublishService;
         this.taskCompletionCoordinator = taskCompletionCoordinator;
+        this.taskCenterPostAcceptDispatcher = taskCenterPostAcceptDispatcher;
+        this.openApiProperties = openApiProperties;
     }
 
     @Override
@@ -85,16 +95,16 @@ public class OpenTaskDomainServiceImpl
                     toCreatedResult(existingTask, command.getExtTaskId()));
         }
 
-        ScanEngineCreateResult engineResult = scanEngineGateway.createTask(toEngineCommand(command));
-
         String platformTaskId = "TASK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        ScanEngineCreateResult engineResult = scanEngineGateway.createTask(
+                toEngineCommand(command, isTaskCenterMode() ? platformTaskId : null));
         Date now = new Date();
 
         OpenTaskDO task = new OpenTaskDO();
         task.setTaskId(platformTaskId);
         task.setPartnerId(partnerId);
         task.setExtTaskId(command.getExtTaskId());
-        task.setEngineTaskId(engineResult.getEngineTaskId());
+        task.setEngineTaskId(isTaskCenterMode() ? platformTaskId : engineResult.getEngineTaskId());
         task.setTaskName(command.getTaskName());
         task.setTargetType(TaskTypeSupport.resolveTargetType(command.getType()));
         task.setVulnType(command.getType());
@@ -104,6 +114,13 @@ public class OpenTaskDomainServiceImpl
         task.setScanTemplateId(command.getScanTemplateId());
         task.setReportTemplateId(command.getReportTemplateId());
         task.setCallbackUrl(command.getCallbackUrl());
+        if (isTaskCenterMode()) {
+            task.setTaskPhase(TaskCenterSubSupport.PHASE_SURVEY);
+            task.setAutoVerify(resolveAutoVerify(command));
+            task.setCrossScan(TaskCenterScannerPlanner.isCrossScan(command.getScanTemplateId()));
+            task.setVerifyMergeStrategy(
+                    TaskCenterScannerPlanner.resolveVerifyMergeStrategy(command.getScanTemplateId()));
+        }
         if (command.getOptions() != null) {
             task.setOptionsJson(JSON.toJSONString(command.getOptions()));
         }
@@ -130,6 +147,9 @@ public class OpenTaskDomainServiceImpl
 
         ctx.setResourceType(OpenApiOperations.RESOURCE_TYPE_TASK);
         ctx.setResourceId(platformTaskId);
+        if (taskCenterPostAcceptDispatcher != null) {
+            taskCenterPostAcceptDispatcher.scheduleSurveyDispatch(platformTaskId);
+        }
         return toCreatedResult(task, command.getExtTaskId());
     }
 
@@ -230,7 +250,7 @@ public class OpenTaskDomainServiceImpl
         }
     }
 
-    private ScanEngineCreateCommand toEngineCommand(CreateOpenTaskCommand command) {
+    private ScanEngineCreateCommand toEngineCommand(CreateOpenTaskCommand command, String platformTaskId) {
         ScanEngineCreateCommand engineReq = new ScanEngineCreateCommand();
         engineReq.setTaskName(command.getTaskName());
         engineReq.setType(command.getType());
@@ -241,6 +261,9 @@ public class OpenTaskDomainServiceImpl
         Map<String, Object> options = command.getOptions() != null
                 ? new HashMap<>(command.getOptions()) : new HashMap<>();
         options.put("extTaskId", command.getExtTaskId());
+        if (StringUtils.hasText(platformTaskId)) {
+            options.put("platformTaskId", platformTaskId);
+        }
         if (command.getReportTemplateId() != null) {
             options.put("reportTemplateId", command.getReportTemplateId());
         }
@@ -267,7 +290,7 @@ public class OpenTaskDomainServiceImpl
         OpenTaskCreatedResult resp = new OpenTaskCreatedResult();
         resp.setExtTaskId(extTaskId);
         resp.setTaskId(task.getTaskId());
-        resp.setStatus(task.getStatus() != null ? task.getStatus() : OpenApiConstants.TASK_ACCEPT_ACCEPTED);
+        resp.setStatus(OpenApiConstants.TASK_ACCEPT_ACCEPTED);
         resp.setCreatedAt(formatUtc(task.getCreatedAt()));
         return resp;
     }
@@ -305,5 +328,16 @@ public class OpenTaskDomainServiceImpl
         synchronized (ISO_UTC) {
             return ISO_UTC.format(date);
         }
+    }
+
+    private boolean isTaskCenterMode() {
+        return "task-center".equalsIgnoreCase(openApiProperties.getEngine().getAdapterMode());
+    }
+
+    private static boolean resolveAutoVerify(CreateOpenTaskCommand command) {
+        if (command.getAutoVerify() != null) {
+            return command.getAutoVerify();
+        }
+        return true;
     }
 }

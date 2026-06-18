@@ -5,6 +5,8 @@ import com.vtc.openapi.domain.export.service.business.VerifyFixItem;
 import com.vtc.openapi.domain.instance.model.command.VerifyFixInstanceCommand;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
+import com.vtc.openapi.domain.instance.model.audit.OpenVulnInstanceAudit;
+import com.vtc.openapi.domain.instance.model.audit.OpenVulnInstanceAuditContext;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.model.result.InstanceStateResult;
@@ -20,6 +22,7 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.adapter.mock.MockVerifyFixRescanReportLoader;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterVerifyFixPostAcceptDispatcher;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +62,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
     private final IWebhookPublishService webhookPublishService;
     private final MockVerifyFixRescanMatcher rescanMatcher;
     private final MockVerifyFixRescanReportLoader rescanReportLoader;
+    private final TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher;
 
     public VerifyFixJobDomainServiceImpl(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                          IOpenVulnInstanceRepository vulnInstanceRepository,
@@ -66,7 +70,8 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
                                          IOpenTaskRepository openTaskRepository,
                                          IWebhookPublishService webhookPublishService,
                                          MockVerifyFixRescanMatcher rescanMatcher,
-                                         @Autowired(required = false) MockVerifyFixRescanReportLoader rescanReportLoader) {
+                                         @Autowired(required = false) MockVerifyFixRescanReportLoader rescanReportLoader,
+                                         @Autowired(required = false) TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.instanceRepository = instanceRepository;
@@ -74,6 +79,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         this.webhookPublishService = webhookPublishService;
         this.rescanMatcher = rescanMatcher;
         this.rescanReportLoader = rescanReportLoader;
+        this.verifyFixPostAcceptDispatcher = verifyFixPostAcceptDispatcher;
     }
 
     @Override
@@ -136,6 +142,10 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         job.setUpdatedAt(now);
         verifyFixJobRepository.saveJob(job);
         verifyFixJobRepository.saveItems(itemRows);
+
+        if (verifyFixPostAcceptDispatcher != null) {
+            verifyFixPostAcceptDispatcher.scheduleRescanDispatch(jobId);
+        }
 
         log.info("verify-fix job accepted: jobId={} partnerId={} items={}", jobId, partnerId, itemRows.size());
         return responses;
@@ -231,6 +241,52 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         job.setUpdatedAt(new Date());
         verifyFixJobRepository.updateJob(job);
         completeJob(jobId, VerifyFixCompleteMode.COMPARE_RESCAN);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeFromRescanCompare(String jobId, Set<String> rescanFingerprintKeys) {
+        OpenVerifyFixJobDO job = requireJob(jobId);
+        if (STATUS_FINISHED.equals(job.getStatus()) || STATUS_FAILED.equals(job.getStatus())) {
+            return;
+        }
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(jobId);
+        if (CollectionUtils.isEmpty(items)) {
+            markJobFailed(job, "无目标实例");
+            return;
+        }
+        Set<String> keys = rescanFingerprintKeys != null ? rescanFingerprintKeys : Collections.emptySet();
+        job.setStatus(STATUS_RUNNING);
+        job.setUpdatedAt(new Date());
+        verifyFixJobRepository.updateJob(job);
+
+        List<VerifyFixItem> webhookItems = new ArrayList<>();
+        boolean anyFailed = false;
+        for (OpenVerifyFixJobItemDO item : items) {
+            int resultStat = resolveResultStat(item, VerifyFixCompleteMode.COMPARE_RESCAN, keys);
+            if (resultStat == STAT_VERIFY_FAILED) {
+                anyFailed = true;
+            }
+            applyItemResultWithRescanFlag(item, resultStat, keys);
+            VerifyFixItem webhookItem = new VerifyFixItem();
+            webhookItem.setVulInfoId(item.getVulInfoId());
+            webhookItem.setVulInfoStat(resultStat);
+            webhookItem.setPreviousVulInfoStat(item.getPreviousStat());
+            webhookItems.add(webhookItem);
+        }
+
+        Date now = new Date();
+        job.setStatus(anyFailed ? STATUS_FAILED : STATUS_FINISHED);
+        job.setFinishedAt(now);
+        job.setUpdatedAt(now);
+        job.setErrorMessage(anyFailed ? "部分实例核验失败" : null);
+        job.setRescanImported(true);
+        verifyFixJobRepository.updateJob(job);
+
+        String webhookStatus = anyFailed ? STATUS_FAILED : STATUS_FINISHED;
+        webhookPublishService.publishVerifyFixCompleted(
+                job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
+        log.info("verify-fix vtc compare job completed: jobId={} items={}", jobId, webhookItems.size());
     }
 
     /**
@@ -405,7 +461,10 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         OpenVulnInstanceDO instance = vulnInstanceRepository.findByPartnerAndVulInfoId(
                 job.getPartnerId(), vulInfoId);
         if (instance != null && resultStat != null && !jobFailed) {
-            vulnInstanceRepository.updateState(instance.getId(), job.getPartnerId(), resultStat, null, null);
+            OpenVulnInstanceAuditContext.runWith(
+                    OpenVulnInstanceAudit.verifyFixComplete(job.getJobId()),
+                    () -> vulnInstanceRepository.updateState(
+                            instance.getId(), job.getPartnerId(), resultStat, null, null));
         }
         VerifyFixItem item = new VerifyFixItem();
         item.setVulInfoId(vulInfoId);
@@ -459,10 +518,22 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
     }
 
     private void applyItemResult(OpenVerifyFixJobItemDO item, int resultStat) {
+        applyItemResultWithRescanFlag(item, resultStat, null);
+    }
+
+    private void applyItemResultWithRescanFlag(OpenVerifyFixJobItemDO item, int resultStat,
+                                               Set<String> rescanKeys) {
         OpenVulnInstanceDO instance = vulnInstanceRepository.findByPartnerAndVulInfoId(
                 item.getPartnerId(), item.getVulInfoId());
         if (instance != null && resultStat != STAT_VERIFY_FAILED) {
-            vulnInstanceRepository.updateState(instance.getId(), item.getPartnerId(), resultStat, null, null);
+            OpenVulnInstanceAuditContext.runWith(
+                    OpenVulnInstanceAudit.verifyFixComplete(item.getJobId()),
+                    () -> vulnInstanceRepository.updateState(
+                            instance.getId(), item.getPartnerId(), resultStat, null, null));
+        }
+        if (rescanKeys != null) {
+            boolean matched = instance != null && rescanMatcher.isStillPresent(instance, rescanKeys);
+            item.setRescanMatched(matched);
         }
         item.setResultStat(resultStat);
         item.setItemStatus(resultStat == STAT_VERIFY_FAILED ? ITEM_FAILED : ITEM_DONE);

@@ -1,0 +1,481 @@
+package com.vtc.openapi.app.service.impl;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.botany.spore.core.page.PageInfo;
+import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
+import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
+import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
+import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
+import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
+import com.vtc.openapi.domain.open.OpenApiConstants;
+import com.vtc.openapi.domain.open.OpenApiException;
+import com.vtc.openapi.domain.open.OpenApiOperations;
+import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
+import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
+import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
+import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
+import com.vtc.openapi.domain.task.model.query.OpenTaskAdminQuery;
+import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
+import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterDispatchRetryResult;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSurveyFetchService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterTaskOrchestrator;
+import com.vtc.openapi.infra.config.OpenApiProperties;
+import com.vtc.openapi.infra.converter.InstanceItemConverter;
+import com.vtc.openapi.infra.feign.dto.taskcenter.TaskCenterSurveyBundle;
+import com.vtc.openapi.ui.dto.ApiResponse;
+import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskAdminDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceBriefDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskTimelineEventDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
+import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.stream.Collectors;
+
+@Service
+public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenTaskAdminAppServiceImpl.class);
+
+    private static final SimpleDateFormat ISO_UTC;
+
+    static {
+        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
+
+    private final IOpenTaskRepository openTaskRepository;
+    private final IOpenTaskSubRepository openTaskSubRepository;
+    private final IOpenVulnInstanceRepository vulnInstanceRepository;
+    private final IApiInvocationRepository apiInvocationRepository;
+    private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
+    private final OpenApiProperties openApiProperties;
+    private final TaskCenterSurveyFetchService surveyFetchService;
+    private final TaskCenterTaskOrchestrator taskCenterOrchestrator;
+    private final TaskCenterScanResultQueryService scanResultQueryService;
+
+    public OpenTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
+                                       IOpenTaskSubRepository openTaskSubRepository,
+                                       IOpenVulnInstanceRepository vulnInstanceRepository,
+                                       IApiInvocationRepository apiInvocationRepository,
+                                       AdminGovernanceAppConvertor adminGovernanceAppConvertor,
+                                       OpenApiProperties openApiProperties,
+                                       @Autowired(required = false) TaskCenterSurveyFetchService surveyFetchService,
+                                       @Autowired(required = false) TaskCenterTaskOrchestrator taskCenterOrchestrator,
+                                       @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService) {
+        this.openTaskRepository = openTaskRepository;
+        this.openTaskSubRepository = openTaskSubRepository;
+        this.vulnInstanceRepository = vulnInstanceRepository;
+        this.apiInvocationRepository = apiInvocationRepository;
+        this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
+        this.openApiProperties = openApiProperties;
+        this.surveyFetchService = surveyFetchService;
+        this.taskCenterOrchestrator = taskCenterOrchestrator;
+        this.scanResultQueryService = scanResultQueryService;
+    }
+
+    @Override
+    public ApiResponse<OpenTaskAdminPageDto> listTasks(String partnerId, String taskId, String extTaskId,
+                                                       String status, Integer scanTemplateId, Integer vulnType,
+                                                       int page, int size) {
+        if (page < 1) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "page 必须从 1 开始");
+        }
+        if (size < 1 || size > 200) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "size 必须在 1-200 之间");
+        }
+        OpenTaskAdminQuery query = new OpenTaskAdminQuery();
+        query.setPartnerId(partnerId);
+        query.setTaskId(taskId);
+        query.setExtTaskId(extTaskId);
+        query.setStatus(status);
+        query.setScanTemplateId(scanTemplateId);
+        query.setVulnType(vulnType);
+        query.setPage(page);
+        query.setSize(size);
+        PageInfo<OpenTaskDO> pageResult = openTaskRepository.pageForAdmin(query);
+        OpenTaskAdminPageDto dto = new OpenTaskAdminPageDto();
+        dto.setPage(page);
+        dto.setSize(size);
+        dto.setTotal(pageResult.getTotal());
+        if (!CollectionUtils.isEmpty(pageResult.getRecords())) {
+            dto.setItems(pageResult.getRecords().stream()
+                    .map(this::toAdminDto)
+                    .collect(Collectors.toList()));
+        }
+        return ApiResponse.ok(dto);
+    }
+
+    @Override
+    public ApiResponse<OpenTaskWorkspaceDto> getWorkspace(String taskId) {
+        if (!StringUtils.hasText(taskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId 不能为空");
+        }
+        OpenTaskDO task = openTaskRepository.findByTaskId(taskId);
+        if (task == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "任务不存在");
+        }
+        List<OpenTaskSubDO> subs = openTaskSubRepository.listByTaskId(taskId);
+        List<OpenVulnInstanceDO> instances = vulnInstanceRepository.listByPartnerAndTask(
+                task.getPartnerId(), taskId, task.getExtTaskId());
+
+        OpenTaskWorkspaceDto workspace = new OpenTaskWorkspaceDto();
+        workspace.setTask(toAdminDto(task, subs));
+        workspace.setTargetHosts(extractHosts(task));
+        workspace.setSurveySubs(filterSubs(subs, TaskCenterSubSupport.PHASE_SURVEY));
+        workspace.setVerifySubs(filterSubs(subs, TaskCenterSubSupport.PHASE_VERIFY));
+        workspace.setInstanceStatCounts(buildStatCounts(instances));
+        workspace.setInstances(buildInstanceBriefs(instances, 50));
+        workspace.setWebhookDeliveries(loadWebhookDeliveries(task));
+        workspace.setTimeline(buildTimeline(task, subs, instances));
+        return ApiResponse.ok(workspace);
+    }
+
+    @Override
+    public ApiResponse<OpenTaskSurveyResultsDto> getSurveyResults(String taskId, Integer scanPhase, String subId) {
+        if (!StringUtils.hasText(taskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId 不能为空");
+        }
+        OpenTaskDO task = openTaskRepository.findByTaskId(taskId);
+        if (task == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "任务不存在");
+        }
+        int phase = scanPhase != null ? scanPhase : TaskCenterSubSupport.PHASE_SURVEY;
+        OpenTaskSubDO sub = resolveSurveySub(taskId, phase, subId);
+        OpenTaskSurveyResultsDto dto = new OpenTaskSurveyResultsDto();
+        dto.setTaskId(taskId);
+        dto.setScanPhase(phase);
+        if (sub == null) {
+            dto.setSource("unavailable");
+            dto.setHint("该阶段暂无子任务，请先下发扫描或等待编排");
+            return ApiResponse.ok(dto);
+        }
+        dto.setSubId(sub.getSubId());
+        dto.setSurveyId(sub.getSurveyId());
+        dto.setScannerLabel(resolveScannerLabel(sub.getScannerType()));
+        if (!StringUtils.hasText(sub.getSurveyId())) {
+            dto.setSource("pending");
+            dto.setHint("surveyId 尚未生成，扫描进行中");
+            return ApiResponse.ok(dto);
+        }
+        if (surveyFetchService == null && scanResultQueryService == null) {
+            dto.setSource("mock");
+            dto.setHint("当前为 mock 模式，无 VTC 实时结果；请查看「漏洞实例」Tab 或导入 XML");
+            return ApiResponse.ok(dto);
+        }
+        if (scanResultQueryService != null && scanResultQueryService.hasPersistedResults(sub.getSubId())) {
+            List<Map<String, Object>> liveRows = scanResultQueryService.listLiveExportRowsBySub(sub.getSubId());
+            List<Map<String, Object>> portRows = scanResultQueryService.listPortExportRowsBySub(sub.getSubId());
+            dto.setSource("persisted");
+            dto.setSuccessIps(scanResultQueryService.listSuccessIpsFromLiveRows(liveRows));
+            dto.setFailIps(scanResultQueryService.listFailIpsFromLiveRows(liveRows));
+            dto.setPortScanResults(scanResultQueryService.toVtcPortScanRows(portRows));
+            fillVulnSurveyFromVtc(dto, sub.getSurveyId());
+            return ApiResponse.ok(dto);
+        }
+        if (surveyFetchService == null) {
+            dto.setSource("pending");
+            dto.setHint("扫描结果尚未落库，请稍后刷新");
+            return ApiResponse.ok(dto);
+        }
+        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(sub.getSurveyId());
+        dto.setSource("task-center");
+        dto.setSuccessIps(new ArrayList<>(bundle.getSuccessIps()));
+        dto.setFailIps(new ArrayList<>(bundle.getFailIps()));
+        dto.setPortScanResults(bundle.getPortScanRows());
+        dto.setVulnerabilities(bundle.getVulnScanResultList());
+        dto.setVulnDatabaseList(bundle.getVulnDatabaseList());
+        return ApiResponse.ok(dto);
+    }
+
+    private void fillVulnSurveyFromVtc(OpenTaskSurveyResultsDto dto, String surveyId) {
+        if (surveyFetchService == null || !StringUtils.hasText(surveyId)) {
+            dto.setHint("存活/端口来自落库；漏洞结果请查看「漏洞实例」Tab");
+            return;
+        }
+        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(surveyId);
+        dto.setVulnerabilities(bundle.getVulnScanResultList());
+        dto.setVulnDatabaseList(bundle.getVulnDatabaseList());
+        if (!bundle.isSuccessIpsQueryOk() || !bundle.isFailIpsQueryOk()) {
+            dto.setHint("存活/端口来自落库（VTC 双查容错合并）；漏洞自 VTC 实时拉取");
+        }
+    }
+
+    @Override
+    public ApiResponse<OpenTaskDispatchRetryResultDto> retrySurveyDispatch(String taskId,
+                                                                           Integer scanPhase,
+                                                                           String subId) {
+        if (!StringUtils.hasText(taskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId 不能为空");
+        }
+        if (!"task-center".equalsIgnoreCase(openApiProperties.getEngine().getAdapterMode())) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "仅 task-center 模式支持手动重试下发");
+        }
+        if (taskCenterOrchestrator == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "task-center 编排未启用");
+        }
+        int phase = scanPhase != null ? scanPhase : TaskCenterSubSupport.PHASE_SURVEY;
+        if (phase != TaskCenterSubSupport.PHASE_SURVEY && phase != TaskCenterSubSupport.PHASE_VERIFY) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "scanPhase 仅支持 1（排查）或 2（验证）");
+        }
+        try {
+            TaskCenterDispatchRetryResult retry = taskCenterOrchestrator.retryDispatchManual(taskId, phase, subId);
+            return ApiResponse.ok(toDispatchRetryDto(retry));
+        } catch (Exception ex) {
+            log.error("retrySurveyDispatch failed taskId={} scanPhase={} subId={}", taskId, phase, subId, ex);
+            OpenTaskDispatchRetryResultDto dto = new OpenTaskDispatchRetryResultDto();
+            dto.setTaskId(taskId);
+            dto.setSuccess(false);
+            dto.setMessage("重试下发失败，请稍后重试或联系平台运维");
+            dto.setRetriedCount(0);
+            dto.setSuccessCount(0);
+            dto.setFailedCount(0);
+            return ApiResponse.ok(dto);
+        }
+    }
+
+    private static OpenTaskDispatchRetryResultDto toDispatchRetryDto(TaskCenterDispatchRetryResult retry) {
+        OpenTaskDispatchRetryResultDto dto = new OpenTaskDispatchRetryResultDto();
+        dto.setTaskId(retry.getTaskId());
+        dto.setSuccess(retry.isSuccess());
+        dto.setMessage(retry.getMessage());
+        dto.setTaskStatus(retry.getTaskStatus());
+        dto.setRetriedCount(retry.getRetriedCount());
+        dto.setSuccessCount(retry.getSuccessCount());
+        dto.setFailedCount(retry.getFailedCount());
+        return dto;
+    }
+
+    private OpenTaskSubDO resolveSurveySub(String taskId, int phase, String subId) {
+        List<OpenTaskSubDO> subs = openTaskSubRepository.listByTaskIdAndPhase(taskId, phase);
+        if (CollectionUtils.isEmpty(subs)) {
+            return null;
+        }
+        if (StringUtils.hasText(subId)) {
+            for (OpenTaskSubDO sub : subs) {
+                if (subId.equals(sub.getSubId())) {
+                    return sub;
+                }
+            }
+            return null;
+        }
+        for (OpenTaskSubDO sub : subs) {
+            if (StringUtils.hasText(sub.getSurveyId())) {
+                return sub;
+            }
+        }
+        return subs.get(0);
+    }
+
+    private OpenTaskAdminDto toAdminDto(OpenTaskDO task) {
+        List<OpenTaskSubDO> subs = openTaskSubRepository.listByTaskId(task.getTaskId());
+        return toAdminDto(task, subs);
+    }
+
+    private OpenTaskAdminDto toAdminDto(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+        OpenTaskAdminDto dto = new OpenTaskAdminDto();
+        dto.setTaskId(task.getTaskId());
+        dto.setExtTaskId(task.getExtTaskId());
+        dto.setPartnerId(task.getPartnerId());
+        dto.setTaskName(task.getTaskName());
+        dto.setVulnType(task.getVulnType());
+        dto.setScanTemplateId(task.getScanTemplateId());
+        dto.setAutoVerify(task.getAutoVerify());
+        dto.setCrossScan(task.getCrossScan());
+        dto.setVerifyMergeStrategy(task.getVerifyMergeStrategy());
+        dto.setTaskPhase(task.getTaskPhase());
+        dto.setStatus(task.getStatus());
+        dto.setProgress(task.getProgress());
+        dto.setAdapterMode(openApiProperties.getEngine().getAdapterMode());
+        dto.setInstanceCount(vulnInstanceRepository.countByPartnerAndTaskId(
+                task.getPartnerId(), task.getTaskId()));
+        dto.setSubTaskCount(subs != null ? subs.size() : 0);
+        dto.setCreatedAt(formatUtc(task.getCreatedAt()));
+        dto.setStartedAt(formatUtc(task.getStartedAt()));
+        dto.setFinishedAt(formatUtc(task.getFinishedAt()));
+        return dto;
+    }
+
+    private List<OpenTaskSubDto> filterSubs(List<OpenTaskSubDO> subs, int phase) {
+        if (CollectionUtils.isEmpty(subs)) {
+            return Collections.emptyList();
+        }
+        return subs.stream()
+                .filter(s -> s.getScanPhase() != null && s.getScanPhase() == phase)
+                .map(this::toSubDto)
+                .collect(Collectors.toList());
+    }
+
+    private OpenTaskSubDto toSubDto(OpenTaskSubDO sub) {
+        OpenTaskSubDto dto = new OpenTaskSubDto();
+        dto.setSubId(sub.getSubId());
+        dto.setScanPhase(sub.getScanPhase());
+        dto.setScannerType(sub.getScannerType());
+        dto.setScannerLabel(resolveScannerLabel(sub.getScannerType()));
+        dto.setCenterTaskType(sub.getCenterTaskType());
+        dto.setCenterPlanId(sub.getCenterPlanId());
+        dto.setSurveyId(sub.getSurveyId());
+        dto.setStatus(sub.getStatus());
+        dto.setProgress(sub.getProgress());
+        dto.setErrorMessage(sub.getErrorMessage());
+        dto.setCreatedAt(formatUtc(sub.getCreatedAt()));
+        dto.setUpdatedAt(formatUtc(sub.getUpdatedAt()));
+        return dto;
+    }
+
+    private static String resolveScannerLabel(String scannerType) {
+        if ("1".equals(scannerType)) {
+            return "绿盟 RSAS";
+        }
+        if ("7".equals(scannerType)) {
+            return "Nessus";
+        }
+        return scannerType != null ? "scanner-" + scannerType : "-";
+    }
+
+    private static String extractHosts(OpenTaskDO task) {
+        if (!StringUtils.hasText(task.getTargetsJson())) {
+            return null;
+        }
+        JSONObject json = JSON.parseObject(task.getTargetsJson());
+        return json != null ? json.getString("hosts") : null;
+    }
+
+    private static Map<String, Long> buildStatCounts(List<OpenVulnInstanceDO> instances) {
+        if (CollectionUtils.isEmpty(instances)) {
+            return Collections.emptyMap();
+        }
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (OpenVulnInstanceDO row : instances) {
+            String key = row.getVulInfoStat() != null ? String.valueOf(row.getVulInfoStat()) : "unknown";
+            counts.merge(key, 1L, Long::sum);
+        }
+        return counts;
+    }
+
+    private static List<OpenTaskInstanceBriefDto> buildInstanceBriefs(List<OpenVulnInstanceDO> instances, int limit) {
+        if (CollectionUtils.isEmpty(instances)) {
+            return Collections.emptyList();
+        }
+        List<OpenTaskInstanceBriefDto> result = new ArrayList<>();
+        int max = Math.min(limit, instances.size());
+        for (int i = 0; i < max; i++) {
+            OpenVulnInstanceDO row = instances.get(i);
+            InstanceItemResult item = InstanceItemConverter.fromSnapshot(row);
+            OpenTaskInstanceBriefDto brief = new OpenTaskInstanceBriefDto();
+            brief.setVulInfoId(row.getVulInfoId());
+            brief.setVulInfoStat(row.getVulInfoStat());
+            if (item != null) {
+                brief.setAddress(item.getVulNetAddr());
+                brief.setPort(item.getVulPort() != null ? String.valueOf(item.getVulPort()) : null);
+                brief.setVulnName(item.getVulName());
+                brief.setLevel(item.getVulLevel() != null ? String.valueOf(item.getVulLevel()) : null);
+            }
+            result.add(brief);
+        }
+        return result;
+    }
+
+    private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenTaskDO task) {
+        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listByResource(
+                task.getPartnerId(), OpenApiOperations.RESOURCE_TYPE_TASK, task.getTaskId(), 20);
+        if (CollectionUtils.isEmpty(rows)) {
+            return Collections.emptyList();
+        }
+        return rows.stream()
+                .map(adminGovernanceAppConvertor::toWebhookDeliveryLogDto)
+                .collect(Collectors.toList());
+    }
+
+    private List<OpenTaskTimelineEventDto> buildTimeline(OpenTaskDO task,
+                                                         List<OpenTaskSubDO> subs,
+                                                         List<OpenVulnInstanceDO> instances) {
+        List<OpenTaskTimelineEventDto> events = new ArrayList<>();
+        events.add(timeline("Partner 创建任务", task.getCreatedAt(), "done"));
+        if (task.getStartedAt() != null || "RUNNING".equals(task.getStatus())
+                || "FINISHED".equals(task.getStatus()) || "FAILED".equals(task.getStatus())) {
+            events.add(timeline("引擎下发 / 编排启动", firstNonNull(task.getStartedAt(), task.getCreatedAt()), "done"));
+        }
+        boolean surveyDone = subs != null && subs.stream()
+                .anyMatch(s -> s.getScanPhase() != null && s.getScanPhase() == TaskCenterSubSupport.PHASE_SURVEY
+                        && TaskCenterSubSupport.STATUS_FINISHED.equals(s.getStatus()));
+        if (surveyDone || !CollectionUtils.isEmpty(instances)) {
+            events.add(timeline("排查阶段完成 · 实例入库 " + (instances != null ? instances.size() : 0) + " 条",
+                    task.getUpdatedAt(), Boolean.TRUE.equals(task.getAutoVerify()) ? "done" : "active"));
+        }
+        if (Boolean.TRUE.equals(task.getAutoVerify()) && Boolean.TRUE.equals(task.getCrossScan())) {
+            boolean verifyRunning = subs != null && subs.stream()
+                    .anyMatch(s -> s.getScanPhase() != null && s.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY
+                            && TaskCenterSubSupport.STATUS_RUNNING.equals(s.getStatus()));
+            boolean verifyDone = subs != null && subs.stream()
+                    .anyMatch(s -> s.getScanPhase() != null && s.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY)
+                    && subs.stream()
+                    .filter(s -> s.getScanPhase() != null && s.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY)
+                    .allMatch(s -> TaskCenterSubSupport.STATUS_FINISHED.equals(s.getStatus())
+                            || TaskCenterSubSupport.STATUS_FAILED.equals(s.getStatus()));
+            if (verifyDone) {
+                events.add(timeline("验证阶段完成 · mergeVerifyResults", task.getFinishedAt(), "done"));
+            } else if (verifyRunning || Integer.valueOf(TaskCenterSubSupport.PHASE_VERIFY).equals(task.getTaskPhase())) {
+                events.add(timeline("验证阶段进行中（双扫交叉）", null, "active"));
+            } else {
+                events.add(timeline("待触发验证阶段（autoVerify）", null, "pending"));
+            }
+        }
+        if ("FINISHED".equals(task.getStatus())) {
+            events.add(timeline("TASK_COMPLETED + EXPORT_READY 回调", task.getFinishedAt(), "done"));
+        } else if ("FAILED".equals(task.getStatus())) {
+            events.add(timeline("TASK_FAILED 回调", task.getFinishedAt(), "done"));
+        } else if (Boolean.TRUE.equals(task.getAutoVerify())) {
+            events.add(timeline("推迟回调：验证全部完成后统一触发", null, "pending"));
+        } else {
+            events.add(timeline("待任务完成后回调 Partner", null, "pending"));
+        }
+        return events;
+    }
+
+    private static OpenTaskTimelineEventDto timeline(String label, Date at, String state) {
+        OpenTaskTimelineEventDto event = new OpenTaskTimelineEventDto();
+        event.setLabel(label);
+        event.setAt(formatUtcStatic(at));
+        event.setState(state);
+        return event;
+    }
+
+    private static Date firstNonNull(Date a, Date b) {
+        return a != null ? a : b;
+    }
+
+    private String formatUtc(Date date) {
+        return formatUtcStatic(date);
+    }
+
+    private static String formatUtcStatic(Date date) {
+        if (date == null) {
+            return null;
+        }
+        synchronized (ISO_UTC) {
+            return ISO_UTC.format(date);
+        }
+    }
+}

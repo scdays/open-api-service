@@ -24,6 +24,8 @@ public class OpenVerifyFixJobItemPO extends BasePO {
     private Integer previousStat;
     private Integer resultStat;
     private String itemStatus;
+    private Boolean rescanMatched;
+    private String rescanSubId;
     private Date createdAt;
     private Date updatedAt;
 }

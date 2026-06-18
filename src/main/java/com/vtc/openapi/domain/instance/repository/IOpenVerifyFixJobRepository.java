@@ -24,4 +24,10 @@ public interface IOpenVerifyFixJobRepository {
     List<OpenVerifyFixJobItemDO> listItemsByJobId(String jobId);
 
     OpenVerifyFixJobItemDO findLatestPendingItemByPartnerAndVulInfoId(String partnerId, String vulInfoId);
+
+    List<OpenVerifyFixJobDO> listActiveVtcJobs(int limit);
+
+    List<OpenVerifyFixJobDO> listDispatchFailedJobs(int limit);
+
+    OpenVerifyFixJobDO findByCenterSubId(String centerSubId);
 }

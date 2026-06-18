@@ -14,6 +14,8 @@ import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
 import com.vtc.openapi.infra.config.OpenApiProperties;
 import com.vtc.openapi.infra.export.ExportDownloadUrlBuilder;
 import com.vtc.openapi.infra.export.ExportFileStorageAdapter;
@@ -21,6 +23,7 @@ import com.vtc.openapi.infra.export.TaskExportJsonSerializer;
 import com.vtc.openapi.infra.export.TaskExportXmlSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +53,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
     private final ExportDownloadUrlBuilder downloadUrlBuilder;
     private final IWebhookPublishService webhookPublishService;
     private final OpenApiProperties properties;
+    private final TaskCenterScanResultQueryService scanResultQueryService;
 
     public ExportAssemblyDomainServiceImpl(IOpenTaskRepository openTaskRepository,
                                            IOpenVulnInstanceRepository vulnInstanceRepository,
@@ -60,7 +64,8 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
                                            ExportFileStorageAdapter fileStorage,
                                            ExportDownloadUrlBuilder downloadUrlBuilder,
                                            IWebhookPublishService webhookPublishService,
-                                           OpenApiProperties properties) {
+                                           OpenApiProperties properties,
+                                           @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService) {
         this.openTaskRepository = openTaskRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.exportRepository = exportRepository;
@@ -71,6 +76,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
         this.downloadUrlBuilder = downloadUrlBuilder;
         this.webhookPublishService = webhookPublishService;
         this.properties = properties;
+        this.scanResultQueryService = scanResultQueryService;
     }
 
     @Override
@@ -169,8 +175,16 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
         exportRepository.saveExport(row);
 
         try {
+            List<Map<String, Object>> liveProbeResults = null;
+            List<Map<String, Object>> portScanResults = null;
+            if (isTaskCenterMode() && scanResultQueryService != null) {
+                int scanPhase = resolveScanPhase(exportStage);
+                liveProbeResults = emptyToNull(scanResultQueryService.listLiveExportRows(task.getTaskId(), scanPhase));
+                portScanResults = emptyToNull(scanResultQueryService.listPortExportRows(task.getTaskId(), scanPhase));
+            }
             Map<String, Object> document = assembler.assemble(
-                    task, exportStage, format, instances, exportId, generatedAt, expiresAt);
+                    task, exportStage, format, instances, liveProbeResults, portScanResults,
+                    exportId, generatedAt, expiresAt);
             byte[] bytes = "json".equals(format)
                     ? jsonSerializer.serialize(document)
                     : xmlSerializer.serialize(document);
@@ -209,6 +223,22 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
             }
             log.warn("export file generation failed: taskId={} format={}: {}", task.getTaskId(), format, ex.getMessage());
         }
+    }
+
+    private boolean isTaskCenterMode() {
+        return properties.getEngine() != null
+                && "task-center".equalsIgnoreCase(properties.getEngine().getAdapterMode());
+    }
+
+    private static int resolveScanPhase(String exportStage) {
+        if (ExportStage.VERIFY_SCAN.equals(exportStage) || ExportStage.VERIFY_FIX_SCAN.equals(exportStage)) {
+            return TaskCenterSubSupport.PHASE_VERIFY;
+        }
+        return TaskCenterSubSupport.PHASE_SURVEY;
+    }
+
+    private static List<Map<String, Object>> emptyToNull(List<Map<String, Object>> rows) {
+        return CollectionUtils.isEmpty(rows) ? null : rows;
     }
 
     private static Date addDays(Date base, int days) {

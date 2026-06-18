@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @ConfigurationProperties(prefix = "open-api")
 public class OpenApiProperties {
@@ -14,6 +15,7 @@ public class OpenApiProperties {
     private final FileSharing fileSharing = new FileSharing();
     private final PartnerGateway partnerGateway = new PartnerGateway();
     private final Webhook webhook = new Webhook();
+    private final TaskCenter taskCenter = new TaskCenter();
 
     public Svmp getSvmp() {
         return svmp;
@@ -51,11 +53,15 @@ public class OpenApiProperties {
         return webhook;
     }
 
+    public TaskCenter getTaskCenter() {
+        return taskCenter;
+    }
+
     /**
-     * 引擎适配模式：mock（联调/fixture）或 vul-pass（生产）。
+     * 引擎适配模式：mock | task-center | vul-pass。
      */
     public static class Engine {
-        /** mock | vul-pass */
+        /** mock | task-center | vul-pass */
         private String adapterMode = "vul-pass";
         private final Mock mock = new Mock();
 
@@ -67,6 +73,7 @@ public class OpenApiProperties {
             this.adapterMode = adapterMode;
         }
 
+        // @NestedConfigurationProperty
         public Mock getMock() {
             return mock;
         }
@@ -408,6 +415,120 @@ public class OpenApiProperties {
 
         public void setTestReceiverPath(String testReceiverPath) {
             this.testReceiverPath = testReceiverPath;
+        }
+    }
+
+    public static class TaskCenter {
+        /** 已废弃：Feign 走 Nacos 服务发现，不再使用固定 base-url */
+        @Deprecated
+        private String baseUrl = "";
+        private long pollIntervalMs = 30000L;
+        private boolean pollEnabled = true;
+        private final Kafka kafka = new Kafka();
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public long getPollIntervalMs() {
+            return pollIntervalMs;
+        }
+
+        public void setPollIntervalMs(long pollIntervalMs) {
+            this.pollIntervalMs = pollIntervalMs;
+        }
+
+        public boolean isPollEnabled() {
+            return pollEnabled;
+        }
+
+        public void setPollEnabled(boolean pollEnabled) {
+            this.pollEnabled = pollEnabled;
+        }
+
+        public Kafka getKafka() {
+            return kafka;
+        }
+
+        public static class Kafka {
+            /** 默认关闭；无 Kafka 环境仅靠 VTC 轮询回收，避免连接 localhost:9092 */
+            private boolean enabled = false;
+            /** 是否从 Redis 缓冲队列异步消费（推荐 true，对齐 vuln-model） */
+            private boolean queueConsumeEnabled = true;
+            private String groupId = "open-api-task-center";
+            private String topicTaskFinish = "task_finish_topic";
+            private String topicDownloadReportFinish = "download_report_finish_topic";
+            private long queuePollIntervalMs = 2000L;
+            private int queueBatchSize = 5;
+            private int maxRetry = 3;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public boolean isQueueConsumeEnabled() {
+                return queueConsumeEnabled;
+            }
+
+            public void setQueueConsumeEnabled(boolean queueConsumeEnabled) {
+                this.queueConsumeEnabled = queueConsumeEnabled;
+            }
+
+            public String getGroupId() {
+                return groupId;
+            }
+
+            public void setGroupId(String groupId) {
+                this.groupId = groupId;
+            }
+
+            public String getTopicTaskFinish() {
+                return topicTaskFinish;
+            }
+
+            public void setTopicTaskFinish(String topicTaskFinish) {
+                this.topicTaskFinish = topicTaskFinish;
+            }
+
+            public String getTopicDownloadReportFinish() {
+                return topicDownloadReportFinish;
+            }
+
+            public void setTopicDownloadReportFinish(String topicDownloadReportFinish) {
+                this.topicDownloadReportFinish = topicDownloadReportFinish;
+            }
+
+            public long getQueuePollIntervalMs() {
+                return queuePollIntervalMs;
+            }
+
+            public void setQueuePollIntervalMs(long queuePollIntervalMs) {
+                this.queuePollIntervalMs = queuePollIntervalMs;
+            }
+
+            public int getQueueBatchSize() {
+                return queueBatchSize;
+            }
+
+            public void setQueueBatchSize(int queueBatchSize) {
+                this.queueBatchSize = queueBatchSize;
+            }
+
+            public int getMaxRetry() {
+                return maxRetry;
+            }
+
+            public void setMaxRetry(int maxRetry) {
+                this.maxRetry = maxRetry;
+            }
         }
     }
 }

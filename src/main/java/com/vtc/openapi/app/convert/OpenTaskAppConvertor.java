@@ -34,6 +34,7 @@ public class OpenTaskAppConvertor {
         command.setSrcMethod(request.getSrcMethod());
         command.setVulIDs(request.getVulIDs());
         command.setSecResourceHashes(request.getSecResourceHashes());
+        command.setAutoVerify(request.getAutoVerify());
         command.setOptions(buildExtensionOptions(command));
         return command;
     }

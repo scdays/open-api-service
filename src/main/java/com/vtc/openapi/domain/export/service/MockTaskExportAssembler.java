@@ -8,6 +8,7 @@ import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.text.SimpleDateFormat;
@@ -36,6 +37,14 @@ public class MockTaskExportAssembler {
     public Map<String, Object> assemble(OpenTaskDO task, String exportStage, String format,
                                         List<OpenVulnInstanceDO> instances, String exportId,
                                         Date generatedAt, Date expiresAt) {
+        return assemble(task, exportStage, format, instances, null, null, exportId, generatedAt, expiresAt);
+    }
+
+    public Map<String, Object> assemble(OpenTaskDO task, String exportStage, String format,
+                                        List<OpenVulnInstanceDO> instances,
+                                        List<Map<String, Object>> liveProbeResults,
+                                        List<Map<String, Object>> portScanResults,
+                                        String exportId, Date generatedAt, Date expiresAt) {
         Map<String, Object> root = new LinkedHashMap<>();
         Map<String, Object> taskExport = new LinkedHashMap<>();
 
@@ -58,8 +67,12 @@ public class MockTaskExportAssembler {
         taskExport.put("task", buildTaskNode(task));
         taskExport.put("targets", targets.asList());
 
-        List<Map<String, Object>> liveResults = buildLiveProbeResults(parsed, targets, dataType);
-        List<Map<String, Object>> portResults = buildPortScanResults(parsed, targets, dataType);
+        List<Map<String, Object>> liveResults = !CollectionUtils.isEmpty(liveProbeResults)
+                ? liveProbeResults
+                : buildLiveProbeResults(parsed, targets, dataType);
+        List<Map<String, Object>> portResults = !CollectionUtils.isEmpty(portScanResults)
+                ? portScanResults
+                : buildPortScanResults(parsed, targets, dataType);
         List<Map<String, Object>> vulnerabilities = buildVulnerabilities(parsed, targets);
 
         if (shouldIncludeLiveProbe(dataType, exportStage)) {

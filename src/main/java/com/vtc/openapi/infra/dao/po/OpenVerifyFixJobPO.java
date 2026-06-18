@@ -24,6 +24,12 @@ public class OpenVerifyFixJobPO extends BasePO {
     private Integer itemCount;
     private String errorMessage;
     private Boolean rescanImported;
+    private String centerSubId;
+    private String centerPlanId;
+    private String surveyId;
+    private String scannerType;
+    private String inputIps;
+    private Integer progress;
     private Date finishedAt;
     private Date createdAt;
     private Date updatedAt;

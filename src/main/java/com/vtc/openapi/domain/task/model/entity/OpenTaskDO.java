@@ -55,4 +55,15 @@ public class OpenTaskDO extends BaseDO {
     private Date createdAt;
 
     private Date updatedAt;
+
+    /** 编排阶段 1=排查 2=验证 */
+    private Integer taskPhase;
+
+    private Boolean autoVerify;
+
+    /** UNION / INTERSECT */
+    private String verifyMergeStrategy;
+
+    /** scanTemplateId=1001 双扫描器交叉 */
+    private Boolean crossScan;
 }
