@@ -133,6 +133,16 @@ public class OpenVulnInstanceRepositoryImpl
     }
 
     @Override
+    public int deleteByPartnerAndVulInfoIds(String partnerId, List<String> vulInfoIds) {
+        if (!StringUtils.hasText(partnerId) || CollectionUtils.isEmpty(vulInfoIds)) {
+            return 0;
+        }
+        return baseMapper.delete(new LambdaQueryWrapper<OpenVulnInstancePO>()
+                .eq(OpenVulnInstancePO::getPartnerId, partnerId.trim())
+                .in(OpenVulnInstancePO::getVulInfoId, vulInfoIds));
+    }
+
+    @Override
     public List<OpenVulnInstanceDO> listByPartner(String partnerId, String taskId, Integer vulInfoStat, int limit) {
         if (!StringUtils.hasText(partnerId)) {
             return new ArrayList<>();

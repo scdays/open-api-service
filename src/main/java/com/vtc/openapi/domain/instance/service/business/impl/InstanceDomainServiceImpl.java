@@ -4,6 +4,7 @@ import com.vtc.openapi.domain.instance.model.command.RemediateInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.SearchInstanceCommand;
 import com.vtc.openapi.domain.instance.model.audit.OpenVulnInstanceAudit;
 import com.vtc.openapi.domain.instance.model.audit.OpenVulnInstanceAuditContext;
+import com.vtc.openapi.domain.operationcase.context.OperationCaseContext;
 import com.vtc.openapi.domain.instance.model.command.VerifyFixInstanceCommand;
 import com.vtc.openapi.domain.instance.model.command.VerifyInstanceCommand;
 import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
@@ -101,7 +102,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
         int targetStat = resolveVerifyTarget(command.getVerifyResult());
         InstanceStateResult result = OpenVulnInstanceAuditContext.callWith(
-                OpenVulnInstanceAudit.partnerVerify(command.getTransferTime()),
+                withOperationCase(OpenVulnInstanceAudit.partnerVerify(command.getTransferTime())),
                 () -> executeStateChange(
                         current, targetStat, command.getSrcMethod(), null, command.getTransferTime()));
         scanFollowUpService.scheduleVerifyScan(partnerId, current.getVulInfoId());
@@ -123,7 +124,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
         validateRemediateTicket(command);
 
         return OpenVulnInstanceAuditContext.callWith(
-                OpenVulnInstanceAudit.partnerRemediate(command.getTransferTime()),
+                withOperationCase(OpenVulnInstanceAudit.partnerRemediate(command.getTransferTime())),
                 () -> executeRemediateStateChange(current, targetStat, command));
     }
 
@@ -147,7 +148,7 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
 
         int targetStat = resolveVerifyFixTarget(command.getVerifyResult());
         return OpenVulnInstanceAuditContext.callWith(
-                OpenVulnInstanceAudit.verifyFixComplete(command.getBatchId()),
+                withOperationCase(OpenVulnInstanceAudit.verifyFixComplete(command.getBatchId())),
                 () -> executeStateChange(
                         current, targetStat, null, null, command.getTransferTime()));
     }
@@ -340,5 +341,13 @@ public class InstanceDomainServiceImpl implements IInstanceDomainService {
             return transferTime.trim();
         }
         return String.valueOf(System.currentTimeMillis() / 1000);
+    }
+
+    private static OpenVulnInstanceAudit withOperationCase(OpenVulnInstanceAudit audit) {
+        String caseId = OperationCaseContext.getCaseId();
+        if (StringUtils.hasText(caseId)) {
+            return audit.caseId(caseId);
+        }
+        return audit;
     }
 }

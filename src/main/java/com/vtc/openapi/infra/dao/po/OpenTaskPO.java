@@ -66,4 +66,6 @@ public class OpenTaskPO extends BasePO {
     private String verifyMergeStrategy;
 
     private Boolean crossScan;
+
+    private String caseId;
 }

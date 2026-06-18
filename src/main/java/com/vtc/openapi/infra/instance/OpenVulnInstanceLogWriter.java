@@ -53,6 +53,7 @@ public class OpenVulnInstanceLogWriter {
         row.setVerifyMergeStrategy(audit.getVerifyMergeStrategy());
         row.setScannerHitCount(audit.getScannerHitCount());
         row.setTransferTime(resolveTransferTime(audit.getTransferTime()));
+        row.setCaseId(audit.getCaseId());
         row.setCreatedAt(new Date());
         logRepository.insertBatch(java.util.Collections.singletonList(row));
     }

@@ -16,6 +16,8 @@ import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.instance.repository.IInstanceRepository;
 import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
 import com.vtc.openapi.domain.instance.service.business.MockVerifyFixRescanMatcher;
+import com.vtc.openapi.domain.operationcase.context.OperationCaseContext;
+import com.vtc.openapi.domain.operationcase.service.business.IOperationCaseDomainService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
@@ -63,6 +65,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
     private final MockVerifyFixRescanMatcher rescanMatcher;
     private final MockVerifyFixRescanReportLoader rescanReportLoader;
     private final TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher;
+    private final IOperationCaseDomainService operationCaseDomainService;
 
     public VerifyFixJobDomainServiceImpl(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                          IOpenVulnInstanceRepository vulnInstanceRepository,
@@ -71,7 +74,8 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
                                          IWebhookPublishService webhookPublishService,
                                          MockVerifyFixRescanMatcher rescanMatcher,
                                          @Autowired(required = false) MockVerifyFixRescanReportLoader rescanReportLoader,
-                                         @Autowired(required = false) TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher) {
+                                         @Autowired(required = false) TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher,
+                                         IOperationCaseDomainService operationCaseDomainService) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.instanceRepository = instanceRepository;
@@ -80,6 +84,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         this.rescanMatcher = rescanMatcher;
         this.rescanReportLoader = rescanReportLoader;
         this.verifyFixPostAcceptDispatcher = verifyFixPostAcceptDispatcher;
+        this.operationCaseDomainService = operationCaseDomainService;
     }
 
     @Override
@@ -140,8 +145,15 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         job.setRescanImported(false);
         job.setCreatedAt(now);
         job.setUpdatedAt(now);
+        String caseId = OperationCaseContext.getCaseId();
+        if (StringUtils.hasText(caseId)) {
+            job.setCaseId(caseId);
+        }
         verifyFixJobRepository.saveJob(job);
         verifyFixJobRepository.saveItems(itemRows);
+        if (StringUtils.hasText(caseId)) {
+            operationCaseDomainService.bindVerifyFixJob(caseId, jobId, batchId);
+        }
 
         if (verifyFixPostAcceptDispatcher != null) {
             verifyFixPostAcceptDispatcher.scheduleRescanDispatch(jobId);
@@ -221,6 +233,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         String webhookStatus = anyFailed ? STATUS_FAILED : STATUS_FINISHED;
         webhookPublishService.publishVerifyFixCompleted(
                 job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
+        operationCaseDomainService.onVerifyFixJobTerminal(job);
         log.info("verify-fix job completed: jobId={} mode={} items={}", jobId, mode, webhookItems.size());
     }
 
@@ -286,6 +299,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         String webhookStatus = anyFailed ? STATUS_FAILED : STATUS_FINISHED;
         webhookPublishService.publishVerifyFixCompleted(
                 job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
+        operationCaseDomainService.onVerifyFixJobTerminal(job);
         log.info("verify-fix vtc compare job completed: jobId={} items={}", jobId, webhookItems.size());
     }
 
@@ -358,6 +372,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         String status = jobFailed ? STATUS_FAILED : STATUS_FINISHED;
         webhookPublishService.publishVerifyFixCompleted(
                 job.getPartnerId(), jobId, job.getBatchId(), webhookItems, status);
+        operationCaseDomainService.onVerifyFixJobTerminal(job);
     }
 
     @Override
@@ -461,8 +476,11 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         OpenVulnInstanceDO instance = vulnInstanceRepository.findByPartnerAndVulInfoId(
                 job.getPartnerId(), vulInfoId);
         if (instance != null && resultStat != null && !jobFailed) {
-            OpenVulnInstanceAuditContext.runWith(
-                    OpenVulnInstanceAudit.verifyFixComplete(job.getJobId()),
+            OpenVulnInstanceAudit audit = OpenVulnInstanceAudit.verifyFixComplete(job.getJobId());
+            if (StringUtils.hasText(job.getCaseId())) {
+                audit.caseId(job.getCaseId());
+            }
+            OpenVulnInstanceAuditContext.runWith(audit,
                     () -> vulnInstanceRepository.updateState(
                             instance.getId(), job.getPartnerId(), resultStat, null, null));
         }
@@ -526,8 +544,12 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         OpenVulnInstanceDO instance = vulnInstanceRepository.findByPartnerAndVulInfoId(
                 item.getPartnerId(), item.getVulInfoId());
         if (instance != null && resultStat != STAT_VERIFY_FAILED) {
-            OpenVulnInstanceAuditContext.runWith(
-                    OpenVulnInstanceAudit.verifyFixComplete(item.getJobId()),
+            OpenVulnInstanceAudit audit = OpenVulnInstanceAudit.verifyFixComplete(item.getJobId());
+            OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(item.getJobId());
+            if (job != null && StringUtils.hasText(job.getCaseId())) {
+                audit.caseId(job.getCaseId());
+            }
+            OpenVulnInstanceAuditContext.runWith(audit,
                     () -> vulnInstanceRepository.updateState(
                             instance.getId(), item.getPartnerId(), resultStat, null, null));
         }
@@ -546,6 +568,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         job.setErrorMessage(error);
         job.setUpdatedAt(new Date());
         verifyFixJobRepository.updateJob(job);
+        operationCaseDomainService.onVerifyFixJobTerminal(job);
         log.warn("verify-fix job failed: jobId={} reason={}", job.getJobId(), error);
     }
 

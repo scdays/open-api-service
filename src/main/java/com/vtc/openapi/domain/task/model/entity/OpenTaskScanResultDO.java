@@ -12,6 +12,11 @@ public class OpenTaskScanResultDO extends BaseDO {
 
     public static final String TYPE_LIVE_PROBE = "LIVE_PROBE";
     public static final String TYPE_PORT_SCAN = "PORT_SCAN";
+    /** VTC vulnScanResultList 单行（原始 JSON） */
+    public static final String TYPE_VULN_SCAN = "VULN_SCAN";
+    /** VTC vulnDatabaseList 整包（单条 meta 行） */
+    public static final String TYPE_VULN_DATABASE = "VULN_DATABASE";
+    public static final String VULN_DATABASE_META_KEY = "@vulnDatabaseList";
 
     private Long id;
     private String taskId;

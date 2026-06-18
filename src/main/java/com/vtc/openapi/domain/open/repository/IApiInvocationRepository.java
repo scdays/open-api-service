@@ -18,6 +18,12 @@ public interface IApiInvocationRepository {
 
     void updateFinish(ApiInvocationDO patch);
 
+    void updateCaseId(String invocationId, String caseId);
+
+    List<ApiInvocationDO> listByCaseId(String caseId, int limit);
+
+    List<ApiInvocationDO> listCaseOperationsWithoutCaseId(String partnerId, List<String> operationIds, int limit);
+
     PageInfo<ApiInvocationDO> pageInvocations(InvocationAdminQuery query);
 
     List<ApiInvocationDO> listRecentByPartnerAndOperations(String partnerId, List<String> operationIds,

@@ -27,6 +27,8 @@ public interface IOpenVulnInstanceRepository extends IDatabaseRepository<OpenVul
 
     int deleteByPartnerAndTaskId(String partnerId, String taskId);
 
+    int deleteByPartnerAndVulInfoIds(String partnerId, List<String> vulInfoIds);
+
     void updateState(Long id, String partnerId, int vulInfoStat, String method, String remedDesc);
 
     void updateRemediateState(Long id, String partnerId, int vulInfoStat, RemediateInstanceCommand command);

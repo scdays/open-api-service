@@ -11,6 +11,9 @@ public class OpenTaskAdminDto {
     @ApiModelProperty("平台任务 ID")
     private String taskId;
 
+    @ApiModelProperty("运营案件 ID")
+    private String caseId;
+
     @ApiModelProperty("接入方任务 ID")
     private String extTaskId;
 

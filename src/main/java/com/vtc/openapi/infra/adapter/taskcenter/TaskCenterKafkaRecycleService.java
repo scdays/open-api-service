@@ -25,20 +25,20 @@ public class TaskCenterKafkaRecycleService {
 
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final IOpenTaskRepository openTaskRepository;
-    private final TaskCenterRecycleService recycleService;
     private final TaskCenterVerifyFixProgressService verifyFixProgressService;
-    private final TaskCenterSurveyPersistService surveyPersistService;
+    private final TaskCenterSurveyRefetchService surveyRefetchService;
+    private final TaskCenterRecycleService recycleService;
 
     public TaskCenterKafkaRecycleService(IOpenTaskSubRepository openTaskSubRepository,
                                          IOpenTaskRepository openTaskRepository,
-                                         TaskCenterRecycleService recycleService,
                                          TaskCenterVerifyFixProgressService verifyFixProgressService,
-                                         TaskCenterSurveyPersistService surveyPersistService) {
+                                         TaskCenterSurveyRefetchService surveyRefetchService,
+                                         TaskCenterRecycleService recycleService) {
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
-        this.recycleService = recycleService;
         this.verifyFixProgressService = verifyFixProgressService;
-        this.surveyPersistService = surveyPersistService;
+        this.surveyRefetchService = surveyRefetchService;
+        this.recycleService = recycleService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -65,28 +65,31 @@ public class TaskCenterKafkaRecycleService {
     }
 
     private void onOpenTaskSubFinished(OpenTaskSubDO sub, TaskFinishKafkaEvent event) {
-        if (TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())
+        boolean alreadyFinished = TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())
                 && StringUtils.hasText(sub.getSurveyId())
-                && sub.getSurveyId().equals(event.getSurveyId())) {
+                && sub.getSurveyId().equals(event.getSurveyId());
+        if (!alreadyFinished) {
+            if (StringUtils.hasText(event.getSurveyId())) {
+                sub.setSurveyId(event.getSurveyId());
+            }
+            if (StringUtils.hasText(event.getTaskId()) && !StringUtils.hasText(sub.getCenterPlanId())) {
+                sub.setCenterPlanId(event.getTaskId());
+            }
+            sub.setStatus(TaskCenterSubSupport.STATUS_FINISHED);
+            sub.setProgress(100);
+            sub.setUpdatedAt(new Date());
+            openTaskSubRepository.updateSub(sub);
+        }
+        if (sub.getScanPhase() != null && sub.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY) {
+            OpenTaskDO task = openTaskRepository.findByTaskId(sub.getTaskId());
+            if (task != null) {
+                recycleService.tryAdvanceTask(task);
+            }
+            log.info("task-center kafka verify sub finished taskId={} subId={}", sub.getTaskId(), sub.getSubId());
             return;
         }
-        if (StringUtils.hasText(event.getSurveyId())) {
-            sub.setSurveyId(event.getSurveyId());
-        }
-        if (StringUtils.hasText(event.getTaskId()) && !StringUtils.hasText(sub.getCenterPlanId())) {
-            sub.setCenterPlanId(event.getTaskId());
-        }
-        sub.setStatus(TaskCenterSubSupport.STATUS_FINISHED);
-        sub.setProgress(100);
-        sub.setUpdatedAt(new Date());
-        openTaskSubRepository.updateSub(sub);
-        surveyPersistService.persistSubSurveyResults(sub);
+        surveyRefetchService.captureOnSubFinished(sub);
         log.info("task-center kafka sub finished taskId={} subId={} surveyId={}",
                 sub.getTaskId(), sub.getSubId(), sub.getSurveyId());
-
-        OpenTaskDO task = openTaskRepository.findByTaskId(sub.getTaskId());
-        if (task != null) {
-            recycleService.tryAdvanceTask(task);
-        }
     }
 }

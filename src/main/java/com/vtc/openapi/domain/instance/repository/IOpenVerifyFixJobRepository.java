@@ -30,4 +30,8 @@ public interface IOpenVerifyFixJobRepository {
     List<OpenVerifyFixJobDO> listDispatchFailedJobs(int limit);
 
     OpenVerifyFixJobDO findByCenterSubId(String centerSubId);
+
+    void updateCaseId(String jobId, String caseId);
+
+    List<OpenVerifyFixJobDO> listWithoutCaseId(int limit);
 }

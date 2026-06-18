@@ -43,4 +43,8 @@ databaseChangeLog(logicalFilePath: 'open_task_scan_result.groovy') {
             column(name: 'result_type')
         }
     }
+
+    changeSet(id: '2026-06-18-extend-open_task_scan_result-vuln-types', author: 'open-api') {
+        sql("ALTER TABLE open_task_scan_result MODIFY COLUMN result_type VARCHAR(16) NOT NULL COMMENT 'LIVE_PROBE / PORT_SCAN / VULN_SCAN / VULN_DATABASE'")
+    }
 }

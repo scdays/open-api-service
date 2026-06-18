@@ -35,6 +35,9 @@ public class OpenTaskSurveyResultsDto {
     @ApiModelProperty("存活 IP 失败集合")
     private List<String> failIps;
 
+    @ApiModelProperty("存活探测明细（§5.6.5 liveProbeResults 行）")
+    private List<Map<String, Object>> liveProbeResults;
+
     @ApiModelProperty("端口扫描结果")
     private List<Map<String, Object>> portScanResults;
 

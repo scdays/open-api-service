@@ -16,6 +16,7 @@ public class OpenVulnInstanceAudit {
     private Integer scanPhase;
     private String verifyMergeStrategy;
     private Integer scannerHitCount;
+    private String caseId;
 
     private OpenVulnInstanceAudit(String changeReason, String transferTime) {
         this.changeReason = changeReason;
@@ -49,6 +50,19 @@ public class OpenVulnInstanceAudit {
         return audit;
     }
 
+    /** 交叉扫描：基于排查阶段双扫结果合并，不再二次下发 VTC 任务。 */
+    public static OpenVulnInstanceAudit crossScanMerge(String subId,
+                                                       String verifyMergeStrategy,
+                                                       Integer scannerHitCount) {
+        OpenVulnInstanceAudit audit = new OpenVulnInstanceAudit(
+                OpenVulnInstanceLogDO.REASON_CROSS_SCAN_MERGE, null);
+        audit.subId = subId;
+        audit.scanPhase = 1;
+        audit.verifyMergeStrategy = verifyMergeStrategy;
+        audit.scannerHitCount = scannerHitCount;
+        return audit;
+    }
+
     public OpenVulnInstanceAudit taskId(String taskId) {
         this.taskId = taskId;
         return this;
@@ -61,6 +75,11 @@ public class OpenVulnInstanceAudit {
 
     public OpenVulnInstanceAudit scanPhase(Integer scanPhase) {
         this.scanPhase = scanPhase;
+        return this;
+    }
+
+    public OpenVulnInstanceAudit caseId(String caseId) {
+        this.caseId = caseId;
         return this;
     }
 }

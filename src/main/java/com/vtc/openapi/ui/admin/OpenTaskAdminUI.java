@@ -5,6 +5,7 @@ import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
 import io.swagger.annotations.Api;
@@ -57,6 +58,14 @@ public class OpenTaskAdminUI extends BaseUI {
             @RequestParam(value = "scanPhase", defaultValue = "1") Integer scanPhase,
             @RequestParam(value = "subId", required = false) String subId) {
         return openTaskAdminAppService.getSurveyResults(taskId, scanPhase, subId);
+    }
+
+    @ApiOperation("重新从 VTC 获取排查子任务扫描结果（清除旧数据后落库并 replay 漏洞生命周期）")
+    @PostMapping("/{taskId}/survey-refetch")
+    public ApiResponse<OpenTaskSurveyRefetchResultDto> refetchSurveyResults(
+            @PathVariable("taskId") String taskId,
+            @RequestParam("subId") String subId) {
+        return openTaskAdminAppService.refetchSurveyResults(taskId, subId);
     }
 
     @ApiOperation("手动重试子任务 VTC 下发（排查/验证阶段 FAILED 子任务）")

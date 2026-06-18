@@ -100,6 +100,7 @@ public class AdminGovernanceAppConvertor {
         dto.setRequestPath(row.getRequestPath());
         dto.setResourceType(row.getResourceType());
         dto.setResourceId(row.getResourceId());
+        dto.setCaseId(row.getCaseId());
         dto.setErrorMessage(row.getErrorMessage());
         dto.setStartedAt(row.getStartedAt());
         dto.setFinishedAt(row.getFinishedAt());

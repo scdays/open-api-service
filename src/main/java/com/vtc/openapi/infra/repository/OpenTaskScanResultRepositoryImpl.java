@@ -72,4 +72,13 @@ public class OpenTaskScanResultRepositoryImpl implements IOpenTaskScanResultRepo
         }
         return ConvertHelper.convertList(mapper.selectList(wrapper), OpenTaskScanResultDO.class);
     }
+
+    @Override
+    public int deleteBySubId(String subId) {
+        if (!StringUtils.hasText(subId)) {
+            return 0;
+        }
+        return mapper.delete(new LambdaQueryWrapper<OpenTaskScanResultPO>()
+                .eq(OpenTaskScanResultPO::getSubId, subId.trim()));
+    }
 }

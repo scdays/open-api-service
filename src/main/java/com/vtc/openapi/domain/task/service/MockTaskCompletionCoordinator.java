@@ -7,6 +7,7 @@ import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.event.TaskFinishedNotificationEvent;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
+import com.vtc.openapi.domain.operationcase.service.business.IOperationCaseDomainService;
 import com.vtc.openapi.domain.webhook.model.WebhookEventType;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import org.slf4j.Logger;
@@ -36,17 +37,20 @@ public class MockTaskCompletionCoordinator {
     private final IApiInvocationRepository apiInvocationRepository;
     private final IWebhookPublishService webhookPublishService;
     private final IExportAssemblyDomainService exportAssemblyDomainService;
+    private final IOperationCaseDomainService operationCaseDomainService;
 
     public MockTaskCompletionCoordinator(ApplicationEventPublisher eventPublisher,
                                          IOpenTaskRepository openTaskRepository,
                                          IApiInvocationRepository apiInvocationRepository,
                                          IWebhookPublishService webhookPublishService,
-                                         IExportAssemblyDomainService exportAssemblyDomainService) {
+                                         IExportAssemblyDomainService exportAssemblyDomainService,
+                                         IOperationCaseDomainService operationCaseDomainService) {
         this.eventPublisher = eventPublisher;
         this.openTaskRepository = openTaskRepository;
         this.apiInvocationRepository = apiInvocationRepository;
         this.webhookPublishService = webhookPublishService;
         this.exportAssemblyDomainService = exportAssemblyDomainService;
+        this.operationCaseDomainService = operationCaseDomainService;
     }
 
     public void scheduleNotify(String taskId) {
@@ -75,6 +79,7 @@ public class MockTaskCompletionCoordinator {
                 log.debug("skip duplicate TASK_COMPLETED webhook: taskId={}", task.getTaskId());
             }
             exportAssemblyDomainService.assembleForTaskCompleted(task);
+            operationCaseDomainService.onTaskScanTerminal(task);
         }
     }
 

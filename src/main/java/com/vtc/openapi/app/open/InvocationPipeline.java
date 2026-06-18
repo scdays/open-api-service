@@ -5,8 +5,10 @@ import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.partner.context.PartnerContext;
 import com.vtc.openapi.domain.open.service.business.IApiCatalogDomainService;
 import com.vtc.openapi.domain.open.model.InvocationContext;
+import com.vtc.openapi.domain.operationcase.context.OperationCaseContext;
 import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
 import com.vtc.openapi.infra.filter.CachedBodyHttpServletRequest;
+import com.vtc.openapi.infra.interceptor.IdempotencyInterceptor;
 import com.vtc.openapi.infra.interceptor.IdempotencyInterceptor;
 import com.vtc.openapi.infra.redis.IdempotencyStore;
 import com.vtc.openapi.ui.dto.ApiResponse;
@@ -44,6 +46,7 @@ public class InvocationPipeline {
         apiCatalogDomainService.requirePublished(operationId);
         InvocationContext ctx = buildContext(operationId);
         invocationDomainService.start(ctx);
+        OperationCaseContext.setCaseId(ctx.getCaseId());
 
         ApiResponse<T> response = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误", null);
         try {
@@ -61,6 +64,7 @@ public class InvocationPipeline {
             response.setRequestId(ctx.getRequestId());
             invocationDomainService.finish(ctx, response);
             cacheIdempotentResponse(ctx, response);
+            OperationCaseContext.clear();
         }
         return response;
     }
@@ -98,6 +102,12 @@ public class InvocationPipeline {
         String requestBody = CachedBodyHttpServletRequest.extractBody(request);
         if (StringUtils.hasText(requestBody)) {
             ctx.setRequestBodyJson(requestBody.trim());
+        }
+        if (request != null) {
+            Object idempotencyKey = request.getAttribute(IdempotencyInterceptor.ATTR_IDEMPOTENT_KEY);
+            if (idempotencyKey instanceof String && StringUtils.hasText((String) idempotencyKey)) {
+                ctx.setIdempotencyKey(((String) idempotencyKey).trim());
+            }
         }
         return ctx;
     }

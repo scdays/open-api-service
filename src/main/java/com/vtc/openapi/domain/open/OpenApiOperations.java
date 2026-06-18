@@ -36,6 +36,13 @@ public final class OpenApiOperations {
 
     public static final String RESOURCE_TYPE_EXPORT = "EXPORT";
 
+    /** 运营案件统一句柄（api_invocation.resource_type） */
+    public static final String RESOURCE_TYPE_CASE = "CASE";
+
+    public static final String PRIMARY_RESOURCE_TASK = "TASK";
+    public static final String PRIMARY_RESOURCE_INSTANCE = "INSTANCE";
+    public static final String PRIMARY_RESOURCE_VERIFY_FIX_JOB = "VERIFY_FIX_JOB";
+
     private OpenApiOperations() {
     }
 }

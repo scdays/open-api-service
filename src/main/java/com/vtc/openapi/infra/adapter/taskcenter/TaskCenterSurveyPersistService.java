@@ -17,7 +17,7 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * 子任务完成后从 VTC 拉取存活/端口结果并落库（对齐 TaskExport §5.6.5）。
+ * 子任务完成后从 VTC 拉取存活/端口/漏洞结果并落库（Kafka 或轮询回收触发，仅此时访问 VTC）。
  */
 @Service
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "task-center")
@@ -59,7 +59,7 @@ public class TaskCenterSurveyPersistService {
             return;
         }
         scanResultRepository.upsertBatch(rows);
-        log.info("task-center survey persist ok taskId={} subId={} live+port rows={}",
+        log.info("task-center survey persist ok taskId={} subId={} rows={}",
                 sub.getTaskId(), sub.getSubId(), rows.size());
     }
 }

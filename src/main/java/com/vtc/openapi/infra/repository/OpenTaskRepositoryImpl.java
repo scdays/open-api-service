@@ -143,4 +143,24 @@ public class OpenTaskRepositoryImpl
                 .eq(OpenTaskPO::getId, id)
                 .set(OpenTaskPO::getErrorMessage, null));
     }
+
+    @Override
+    public void updateCaseId(String taskId, String caseId) {
+        if (!StringUtils.hasText(taskId)) {
+            return;
+        }
+        baseMapper.update(null, new LambdaUpdateWrapper<OpenTaskPO>()
+                .eq(OpenTaskPO::getTaskId, taskId.trim())
+                .set(OpenTaskPO::getCaseId, StringUtils.hasText(caseId) ? caseId.trim() : null));
+    }
+
+    @Override
+    public List<OpenTaskDO> listWithoutCaseId(int limit) {
+        int cap = limit > 0 ? Math.min(limit, 500) : 200;
+        List<OpenTaskPO> rows = baseMapper.selectList(new LambdaQueryWrapper<OpenTaskPO>()
+                .and(w -> w.isNull(OpenTaskPO::getCaseId).or().eq(OpenTaskPO::getCaseId, ""))
+                .orderByDesc(OpenTaskPO::getCreatedAt)
+                .last("LIMIT " + cap));
+        return ConvertHelper.convertList(rows, OpenTaskDO.class);
+    }
 }

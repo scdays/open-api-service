@@ -60,4 +60,11 @@ databaseChangeLog(logicalFilePath: 'open_task_sub.groovy') {
             column(name: 'report_download_path', type: 'VARCHAR(512)', remarks: 'VTC 报告 FTP 下载路径')
         }
     }
+
+    changeSet(id: '2026-06-18-open_task_sub-instances-ingested', author: 'open-api') {
+        addColumn(tableName: 'open_task_sub') {
+            column(name: 'instances_ingested', type: 'BOOLEAN', defaultValueBoolean: false,
+                    remarks: '该子任务排查漏洞实例是否已 ingest')
+        }
+    }
 }

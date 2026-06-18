@@ -8,6 +8,8 @@ import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.OpenApiOperations;
 import com.vtc.openapi.domain.open.model.InvocationContext;
+import com.vtc.openapi.domain.operationcase.context.OperationCaseContext;
+import com.vtc.openapi.domain.operationcase.service.business.IOperationCaseDomainService;
 import com.vtc.openapi.domain.partner.context.PartnerContext;
 import com.vtc.openapi.domain.task.gateway.IScanEngineGateway;
 import com.vtc.openapi.domain.task.model.command.CreateOpenTaskCommand;
@@ -65,19 +67,22 @@ public class OpenTaskDomainServiceImpl
     private final MockTaskCompletionCoordinator taskCompletionCoordinator;
     private final TaskCenterPostAcceptDispatcher taskCenterPostAcceptDispatcher;
     private final OpenApiProperties openApiProperties;
+    private final IOperationCaseDomainService operationCaseDomainService;
 
     public OpenTaskDomainServiceImpl(IScanEngineGateway scanEngineGateway,
                                      IInstanceIngestDomainService instanceIngestDomainService,
                                      IWebhookPublishService webhookPublishService,
                                      @Autowired(required = false) MockTaskCompletionCoordinator taskCompletionCoordinator,
                                      @Autowired(required = false) TaskCenterPostAcceptDispatcher taskCenterPostAcceptDispatcher,
-                                     OpenApiProperties openApiProperties) {
+                                     OpenApiProperties openApiProperties,
+                                     IOperationCaseDomainService operationCaseDomainService) {
         this.scanEngineGateway = scanEngineGateway;
         this.instanceIngestDomainService = instanceIngestDomainService;
         this.webhookPublishService = webhookPublishService;
         this.taskCompletionCoordinator = taskCompletionCoordinator;
         this.taskCenterPostAcceptDispatcher = taskCenterPostAcceptDispatcher;
         this.openApiProperties = openApiProperties;
+        this.operationCaseDomainService = operationCaseDomainService;
     }
 
     @Override
@@ -126,6 +131,10 @@ public class OpenTaskDomainServiceImpl
         }
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
+        String caseId = OperationCaseContext.getCaseId();
+        if (StringUtils.hasText(caseId)) {
+            task.setCaseId(caseId);
+        }
 
         PartnerTaskMapDO map = new PartnerTaskMapDO();
         map.setPartnerId(partnerId);
@@ -147,6 +156,9 @@ public class OpenTaskDomainServiceImpl
 
         ctx.setResourceType(OpenApiOperations.RESOURCE_TYPE_TASK);
         ctx.setResourceId(platformTaskId);
+        if (StringUtils.hasText(caseId)) {
+            operationCaseDomainService.bindTaskScan(caseId, platformTaskId);
+        }
         if (taskCenterPostAcceptDispatcher != null) {
             taskCenterPostAcceptDispatcher.scheduleSurveyDispatch(platformTaskId);
         }

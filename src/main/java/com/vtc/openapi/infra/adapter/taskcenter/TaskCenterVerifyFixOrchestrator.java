@@ -9,6 +9,7 @@ import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
+import com.vtc.openapi.domain.operationcase.service.business.IOperationCaseDomainService;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import com.vtc.openapi.infra.feign.IVulnTaskCenterScanClient;
 import com.vtc.openapi.infra.feign.dto.taskcenter.SocOutsideScanRequest;
@@ -41,13 +42,16 @@ public class TaskCenterVerifyFixOrchestrator {
     private final IOpenVerifyFixJobRepository verifyFixJobRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
     private final IVulnTaskCenterScanClient scanClient;
+    private final IOperationCaseDomainService operationCaseDomainService;
 
     public TaskCenterVerifyFixOrchestrator(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                            IOpenVulnInstanceRepository vulnInstanceRepository,
-                                           IVulnTaskCenterScanClient scanClient) {
+                                           IVulnTaskCenterScanClient scanClient,
+                                           IOperationCaseDomainService operationCaseDomainService) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.scanClient = scanClient;
+        this.operationCaseDomainService = operationCaseDomainService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -61,6 +65,27 @@ public class TaskCenterVerifyFixOrchestrator {
                 log.warn("verify-fix retry dispatch failed jobId={}: {}", job.getJobId(), ex.getMessage());
             }
         }
+    }
+
+    /**
+     * 运营案件工作台：对指定 job 重试 VTC 复扫下发。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean retryDispatchForJob(String jobId) {
+        if (!StringUtils.hasText(jobId)) {
+            return false;
+        }
+        OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(jobId.trim());
+        if (job == null) {
+            return false;
+        }
+        if (!IVerifyFixJobDomainService.STATUS_DISPATCH_FAILED.equals(job.getStatus())
+                && StringUtils.hasText(job.getCenterPlanId())) {
+            return false;
+        }
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(job.getJobId());
+        dispatchRescan(job, items);
+        return true;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -111,6 +136,7 @@ public class TaskCenterVerifyFixOrchestrator {
             job.setErrorMessage(null);
             job.setUpdatedAt(now);
             verifyFixJobRepository.updateJob(job);
+            operationCaseDomainService.onVerifyFixJobDispatched(job);
             log.info("verify-fix rescan dispatched jobId={} subId={} planId={} hosts={}",
                     job.getJobId(), subId, planId, hosts);
         } catch (FeignException ex) {
@@ -137,6 +163,7 @@ public class TaskCenterVerifyFixOrchestrator {
         job.setErrorMessage(TaskCenterTaskOrchestrator.truncateError(message));
         job.setUpdatedAt(new Date());
         verifyFixJobRepository.updateJob(job);
+        operationCaseDomainService.onVerifyFixJobTerminal(job);
         log.warn("verify-fix rescan dispatch failed jobId={} reason={}", job.getJobId(), job.getErrorMessage());
     }
 

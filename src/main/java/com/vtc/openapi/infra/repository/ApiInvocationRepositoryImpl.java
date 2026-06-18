@@ -57,10 +57,64 @@ public class ApiInvocationRepositoryImpl implements IApiInvocationRepository {
         row.setLatencyMs(patch.getLatencyMs());
         row.setResourceType(patch.getResourceType());
         row.setResourceId(patch.getResourceId());
+        row.setCaseId(patch.getCaseId());
         row.setFinishedAt(patch.getFinishedAt());
         row.setErrorMessage(patch.getErrorMessage());
         row.setResponseBodyJson(patch.getResponseBodyJson());
         apiInvocationMapper.updateById(row);
+    }
+
+    @Override
+    public void updateCaseId(String invocationId, String caseId) {
+        if (!StringUtils.hasText(invocationId) || !StringUtils.hasText(caseId)) {
+            return;
+        }
+        ApiInvocationPO row = new ApiInvocationPO();
+        row.setInvocationId(invocationId);
+        row.setCaseId(caseId);
+        apiInvocationMapper.updateById(row);
+    }
+
+    @Override
+    public List<ApiInvocationDO> listByCaseId(String caseId, int limit) {
+        if (!StringUtils.hasText(caseId)) {
+            return Collections.emptyList();
+        }
+        int capped = limit > 0 ? Math.min(limit, 100) : 20;
+        LambdaQueryWrapper<ApiInvocationPO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ApiInvocationPO::getCaseId, caseId);
+        wrapper.orderByDesc(ApiInvocationPO::getStartedAt);
+        wrapper.last("LIMIT " + capped);
+        List<ApiInvocationPO> rows = apiInvocationMapper.selectList(wrapper);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return rows.stream()
+                .map(po -> ConvertHelper.convert(po, ApiInvocationDO.class))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ApiInvocationDO> listCaseOperationsWithoutCaseId(String partnerId,
+                                                                 List<String> operationIds,
+                                                                 int limit) {
+        if (operationIds == null || operationIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int capped = limit > 0 ? Math.min(limit, 500) : 200;
+        LambdaQueryWrapper<ApiInvocationPO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(ApiInvocationPO::getOperationId, operationIds);
+        wrapper.and(w -> w.isNull(ApiInvocationPO::getCaseId).or().eq(ApiInvocationPO::getCaseId, ""));
+        if (StringUtils.hasText(partnerId)) {
+            wrapper.eq(ApiInvocationPO::getPartnerId, partnerId.trim());
+        }
+        wrapper.orderByDesc(ApiInvocationPO::getStartedAt);
+        wrapper.last("LIMIT " + capped);
+        List<ApiInvocationPO> rows = apiInvocationMapper.selectList(wrapper);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ConvertHelper.convertList(rows, ApiInvocationDO.class);
     }
 
     @Override

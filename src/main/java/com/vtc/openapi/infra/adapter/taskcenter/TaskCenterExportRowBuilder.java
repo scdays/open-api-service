@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +50,8 @@ public class TaskCenterExportRowBuilder {
         }
         rows.addAll(buildLiveRows(task, sub, bundle, taskHosts, detectedAt));
         rows.addAll(buildPortRows(task, sub, bundle, detectedAt));
+        rows.addAll(buildVulnRows(task, sub, bundle));
+        rows.addAll(buildVulnDatabaseRows(task, sub, bundle));
         return rows;
     }
 
@@ -94,6 +97,48 @@ public class TaskCenterExportRowBuilder {
         return rows;
     }
 
+    private List<OpenTaskScanResultDO> buildVulnRows(OpenTaskDO task,
+                                                    OpenTaskSubDO sub,
+                                                    TaskCenterSurveyBundle bundle) {
+        List<OpenTaskScanResultDO> rows = new ArrayList<>();
+        if (bundle == null || CollectionUtils.isEmpty(bundle.getVulnScanResultList())) {
+            return rows;
+        }
+        for (Map<String, Object> vuln : bundle.getVulnScanResultList()) {
+            if (vuln == null) {
+                continue;
+            }
+            String resultKey = resolveVulnResultKey(vuln);
+            OpenTaskScanResultDO row = baseRow(task, sub, OpenTaskScanResultDO.TYPE_VULN_SCAN, resultKey);
+            row.setPayloadJson(JSON.toJSONString(vuln));
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private List<OpenTaskScanResultDO> buildVulnDatabaseRows(OpenTaskDO task,
+                                                             OpenTaskSubDO sub,
+                                                             TaskCenterSurveyBundle bundle) {
+        if (bundle == null || CollectionUtils.isEmpty(bundle.getVulnDatabaseList())) {
+            return Collections.emptyList();
+        }
+        OpenTaskScanResultDO row = baseRow(
+                task, sub, OpenTaskScanResultDO.TYPE_VULN_DATABASE, OpenTaskScanResultDO.VULN_DATABASE_META_KEY);
+        row.setPayloadJson(JSON.toJSONString(bundle.getVulnDatabaseList()));
+        return Collections.singletonList(row);
+    }
+
+    private static String resolveVulnResultKey(Map<String, Object> vuln) {
+        String id = stringVal(vuln.get("id"));
+        if (StringUtils.hasText(id)) {
+            return id;
+        }
+        String ip = stringVal(vuln.get("ip"));
+        String port = stringVal(vuln.get("port"));
+        String vulId = stringVal(vuln.get("vulId"));
+        return (ip != null ? ip : "") + "|" + (port != null ? port : "") + "|" + (vulId != null ? vulId : "");
+    }
+
     @SuppressWarnings("unchecked")
     private List<OpenTaskScanResultDO> buildPortRows(OpenTaskDO task,
                                                      OpenTaskSubDO sub,
@@ -113,6 +158,7 @@ public class TaskCenterExportRowBuilder {
             if (!StringUtils.hasText(address)) {
                 continue;
             }
+            String osName = stringVal(hostRow.get("osName"));
             Object portArrayObj = hostRow.get("portInfoArray");
             if (!(portArrayObj instanceof List)) {
                 continue;
@@ -141,6 +187,9 @@ public class TaskCenterExportRowBuilder {
                 payload.put("banner", stringVal(portInfo.get("banner")));
                 payload.put("version", stringVal(portInfo.get("version")));
                 payload.put("detectedAt", detected);
+                if (StringUtils.hasText(osName)) {
+                    payload.put("osName", osName);
+                }
 
                 OpenTaskScanResultDO row = baseRow(task, sub, OpenTaskScanResultDO.TYPE_PORT_SCAN, resultKey);
                 row.setPayloadJson(JSON.toJSONString(payload));

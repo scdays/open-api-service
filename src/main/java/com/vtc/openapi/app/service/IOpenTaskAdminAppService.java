@@ -3,6 +3,7 @@ package com.vtc.openapi.app.service;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
 
@@ -17,4 +18,6 @@ public interface IOpenTaskAdminAppService {
     ApiResponse<OpenTaskSurveyResultsDto> getSurveyResults(String taskId, Integer scanPhase, String subId);
 
     ApiResponse<OpenTaskDispatchRetryResultDto> retrySurveyDispatch(String taskId, Integer scanPhase, String subId);
+
+    ApiResponse<OpenTaskSurveyRefetchResultDto> refetchSurveyResults(String taskId, String subId);
 }

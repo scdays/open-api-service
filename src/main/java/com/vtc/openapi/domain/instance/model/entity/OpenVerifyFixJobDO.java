@@ -14,6 +14,7 @@ public class OpenVerifyFixJobDO extends BaseDO {
 
     private String jobId;
     private String partnerId;
+    private String caseId;
     private String batchId;
     private String status;
     private Integer itemCount;

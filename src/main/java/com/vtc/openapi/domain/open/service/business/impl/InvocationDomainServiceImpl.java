@@ -3,6 +3,7 @@ package com.vtc.openapi.domain.open.service.business.impl;
 import com.botany.spore.core.page.PageInfo;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
+import com.vtc.openapi.domain.open.OpenApiOperations;
 import com.vtc.openapi.domain.open.model.InvocationContext;
 import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
 import com.vtc.openapi.domain.open.model.query.InvocationAdminQuery;
@@ -12,6 +13,7 @@ import com.vtc.openapi.domain.open.model.result.InvocationDailyTrendStat;
 import com.vtc.openapi.domain.open.model.result.PartnerInvocationStatsResult;
 import com.vtc.openapi.domain.open.model.result.PartnerQuotaStatResult;
 import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
+import com.vtc.openapi.domain.operationcase.service.business.IOperationCaseDomainService;
 import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
 import com.vtc.openapi.ui.dto.ApiResponse;
@@ -38,11 +40,14 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
 
     private final IApiInvocationRepository apiInvocationRepository;
     private final IPartnerDomainService partnerDomainService;
+    private final IOperationCaseDomainService operationCaseDomainService;
 
     public InvocationDomainServiceImpl(IApiInvocationRepository apiInvocationRepository,
-                                       IPartnerDomainService partnerDomainService) {
+                                       IPartnerDomainService partnerDomainService,
+                                       IOperationCaseDomainService operationCaseDomainService) {
         this.apiInvocationRepository = apiInvocationRepository;
         this.partnerDomainService = partnerDomainService;
+        this.operationCaseDomainService = operationCaseDomainService;
     }
 
     @Override
@@ -63,11 +68,15 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
             row.setRequestBodyJson(ctx.getRequestBodyJson());
         }
         apiInvocationRepository.insert(row);
+        operationCaseDomainService.openAccepted(ctx);
     }
 
     @Override
     public void finish(InvocationContext ctx, int responseCode, String errorMessage) {
-        finishInternal(ctx, responseCode, errorMessage, null);
+        ApiResponse<Object> response = new ApiResponse<>();
+        response.setCode(responseCode);
+        response.setMessage(errorMessage);
+        finishInternal(ctx, response, null);
     }
 
     @Override
@@ -76,13 +85,17 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
             finish(ctx, OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误");
             return;
         }
-        finishInternal(ctx, response.getCode(), response.getMessage(), serializeResponseBody(response));
+        finishInternal(ctx, response, serializeResponseBody(response));
     }
 
-    private void finishInternal(InvocationContext ctx, int responseCode, String errorMessage, String responseBodyJson) {
+    private void finishInternal(InvocationContext ctx, ApiResponse<?> response, String responseBodyJson) {
         if (!StringUtils.hasText(ctx.getInvocationId())) {
             return;
         }
+        operationCaseDomainService.completeOnInvocationFinish(ctx, response);
+
+        int responseCode = response.getCode();
+        String errorMessage = response.getMessage();
         int latencyMs = (int) Math.min(Integer.MAX_VALUE,
                 System.currentTimeMillis() - ctx.getStartedAtMillis());
 
@@ -91,8 +104,14 @@ public class InvocationDomainServiceImpl implements IInvocationDomainService {
         row.setResponseCode(responseCode);
         row.setHttpStatus(200);
         row.setLatencyMs(latencyMs);
-        row.setResourceType(ctx.getResourceType());
-        row.setResourceId(ctx.getResourceId());
+        if (StringUtils.hasText(ctx.getCaseId())) {
+            row.setResourceType(OpenApiOperations.RESOURCE_TYPE_CASE);
+            row.setResourceId(ctx.getCaseId());
+            row.setCaseId(ctx.getCaseId());
+        } else {
+            row.setResourceType(ctx.getResourceType());
+            row.setResourceId(ctx.getResourceId());
+        }
         row.setFinishedAt(new Date());
         row.setResponseBodyJson(responseBodyJson);
         if (responseCode != 0 && StringUtils.hasText(errorMessage)) {

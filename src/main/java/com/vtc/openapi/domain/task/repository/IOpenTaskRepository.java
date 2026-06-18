@@ -7,6 +7,8 @@ import com.vtc.openapi.domain.task.model.entity.PartnerTaskMapDO;
 import com.vtc.openapi.domain.task.model.query.OpenTaskAdminQuery;
 import com.vtc.openapi.domain.task.model.query.OpenTaskListQuery;
 
+import java.util.List;
+
 public interface IOpenTaskRepository extends IDatabaseRepository<OpenTaskDO> {
 
     OpenTaskDO findByTaskId(String taskId);
@@ -26,4 +28,8 @@ public interface IOpenTaskRepository extends IDatabaseRepository<OpenTaskDO> {
 
     /** 清空任务级失败原因（MyBatis-Plus updateById 无法将列更新为 null） */
     void clearErrorMessage(Long id);
+
+    void updateCaseId(String taskId, String caseId);
+
+    java.util.List<OpenTaskDO> listWithoutCaseId(int limit);
 }

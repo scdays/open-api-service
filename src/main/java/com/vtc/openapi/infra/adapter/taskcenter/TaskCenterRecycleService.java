@@ -11,6 +11,7 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
+import com.vtc.openapi.domain.operationcase.service.business.IOperationCaseDomainService;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import com.vtc.openapi.infra.feign.dto.taskcenter.TaskCenterSurveyBundle;
 import com.vtc.openapi.infra.instance.OpenVulnInstanceLogWriter;
@@ -38,34 +39,37 @@ public class TaskCenterRecycleService {
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
-    private final TaskCenterSurveyFetchService surveyFetchService;
+    private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskCenterSurveyResultsAdapter resultsAdapter;
     private final TaskCenterVerifyMergeService verifyMergeService;
     private final TaskCenterVerifyStatusResolver verifyStatusResolver;
     private final TaskCenterTaskOrchestrator orchestrator;
     private final TaskCenterTaskCompletionCoordinator completionCoordinator;
     private final OpenVulnInstanceLogWriter instanceLogWriter;
+    private final IOperationCaseDomainService operationCaseDomainService;
 
     public TaskCenterRecycleService(IOpenTaskRepository openTaskRepository,
                                     IOpenTaskSubRepository openTaskSubRepository,
                                     IOpenVulnInstanceRepository vulnInstanceRepository,
-                                    TaskCenterSurveyFetchService surveyFetchService,
+                                    TaskCenterScanResultQueryService scanResultQueryService,
                                     TaskCenterSurveyResultsAdapter resultsAdapter,
                                     TaskCenterVerifyMergeService verifyMergeService,
                                     TaskCenterVerifyStatusResolver verifyStatusResolver,
                                     TaskCenterTaskOrchestrator orchestrator,
                                     TaskCenterTaskCompletionCoordinator completionCoordinator,
-                                    OpenVulnInstanceLogWriter instanceLogWriter) {
+                                    OpenVulnInstanceLogWriter instanceLogWriter,
+                                    IOperationCaseDomainService operationCaseDomainService) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
-        this.surveyFetchService = surveyFetchService;
+        this.scanResultQueryService = scanResultQueryService;
         this.resultsAdapter = resultsAdapter;
         this.verifyMergeService = verifyMergeService;
         this.verifyStatusResolver = verifyStatusResolver;
         this.orchestrator = orchestrator;
         this.completionCoordinator = completionCoordinator;
         this.instanceLogWriter = instanceLogWriter;
+        this.operationCaseDomainService = operationCaseDomainService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -84,6 +88,7 @@ public class TaskCenterRecycleService {
             return;
         }
         if (!allTerminal(subs)) {
+            ingestFinishedSurveySubs(task, subs);
             updateTaskProgress(task, subs);
             return;
         }
@@ -98,24 +103,90 @@ public class TaskCenterRecycleService {
         }
     }
 
-    private void onSurveyPhaseComplete(OpenTaskDO task, List<OpenTaskSubDO> subs) {
-        List<List<JSONObject>> perScanner = loadVulnResultsPerSub(subs);
-        List<JSONObject> merged = Boolean.TRUE.equals(task.getCrossScan())
-                ? verifyMergeService.mergeUnion(perScanner)
-                : flatten(perScanner);
-        if ("vuln".equals(subs.get(0).getCenterTaskType()) && !merged.isEmpty()) {
-            ingestInstances(task, merged, 1, subs.get(0).getSubId(), TaskCenterSubSupport.PHASE_SURVEY);
-        }
-        boolean autoVerify = task.getAutoVerify() == null || Boolean.TRUE.equals(task.getAutoVerify());
-        if (autoVerify && Boolean.TRUE.equals(task.getCrossScan()) && "vuln".equals(subs.get(0).getCenterTaskType())) {
-            orchestrator.dispatchVerifyPhase(task);
+    /**
+     * 单个子任务（单扫描器）排查完成后：落库结果已就绪时立即 ingest 漏洞实例与跃迁日志。
+     * 交叉扫描不再等待全部扫描器完成。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void ingestSurveySubIfNeeded(OpenTaskDO task, OpenTaskSubDO sub) {
+        if (task == null || sub == null) {
             return;
+        }
+        if (sub.getScanPhase() == null || sub.getScanPhase() != TaskCenterSubSupport.PHASE_SURVEY) {
+            return;
+        }
+        if (!TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
+            return;
+        }
+        if (Boolean.TRUE.equals(sub.getInstancesIngested())) {
+            return;
+        }
+        if (!"vuln".equals(sub.getCenterTaskType())) {
+            markSubInstancesIngested(sub);
+            syncTaskInstancesIngestedFlag(task);
+            return;
+        }
+        if (!scanResultQueryService.hasPersistedResults(sub.getSubId())) {
+            log.info("survey sub ingest deferred: no persisted scan results taskId={} subId={}",
+                    task.getTaskId(), sub.getSubId());
+            return;
+        }
+        TaskCenterSurveyBundle bundle = scanResultQueryService.loadSurveyBundleBySub(sub.getSubId());
+        List<JSONObject> rows = resultsAdapter.toVulnInstances(bundle);
+        if (CollectionUtils.isEmpty(rows)) {
+            markSubInstancesIngested(sub);
+            syncTaskInstancesIngestedFlag(task);
+            log.info("survey sub ingest skipped empty vulns taskId={} subId={}", task.getTaskId(), sub.getSubId());
+            return;
+        }
+        List<OpenVulnInstanceDO> persistRows = buildPersistRows(task, sub, rows, 1);
+        vulnInstanceRepository.batchInsert(persistRows);
+        instanceLogWriter.writeIngestBatch(task, persistRows, sub.getSubId(), TaskCenterSubSupport.PHASE_SURVEY);
+        markSubInstancesIngested(sub);
+        syncTaskInstancesIngestedFlag(task);
+        log.info("survey sub ingest finished taskId={} subId={} scanner={} count={}",
+                task.getTaskId(), sub.getSubId(), sub.getScannerType(), persistRows.size());
+    }
+
+    private void ingestFinishedSurveySubs(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+        if (task == null || CollectionUtils.isEmpty(subs)) {
+            return;
+        }
+        int phase = task.getTaskPhase() != null ? task.getTaskPhase() : TaskCenterSubSupport.PHASE_SURVEY;
+        if (phase != TaskCenterSubSupport.PHASE_SURVEY) {
+            return;
+        }
+        for (OpenTaskSubDO sub : subs) {
+            if (sub != null && TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
+                ingestSurveySubIfNeeded(task, sub);
+            }
+        }
+    }
+
+    private void onSurveyPhaseComplete(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+        for (OpenTaskSubDO sub : subs) {
+            ingestSurveySubIfNeeded(task, sub);
+        }
+        if (Boolean.TRUE.equals(task.getCrossScan()) && "vuln".equals(subs.get(0).getCenterTaskType())) {
+            applyCrossScannerMerge(task, subs, TaskCenterSubSupport.PHASE_SURVEY);
         }
         markTaskFinished(task);
         completionCoordinator.scheduleNotify(task.getTaskId());
     }
 
+    /**
+     * 历史任务兼容：曾下发过 scan_phase=2 验证子任务的任务仍走此路径。
+     */
     private void onVerifyPhaseComplete(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+        applyCrossScannerMerge(task, subs, TaskCenterSubSupport.PHASE_VERIFY);
+        markTaskFinished(task);
+        completionCoordinator.scheduleNotify(task.getTaskId());
+    }
+
+    /**
+     * 多扫描器交叉合并：直接读取各子任务已落库的排查结果，不二次下发 VTC。
+     */
+    private void applyCrossScannerMerge(OpenTaskDO task, List<OpenTaskSubDO> subs, int auditScanPhase) {
         List<List<JSONObject>> perScanner = loadVulnResultsPerSub(subs);
         int totalScanners = subs.size();
         Map<String, Integer> hits = verifyMergeService.countScannerHits(perScanner);
@@ -130,7 +201,7 @@ public class TaskCenterRecycleService {
         }
 
         String subId = subs.get(0).getSubId();
-        applyVerifyTransitions(task, existing, hits, totalScanners, strategy, subId);
+        applyMergeTransitions(task, existing, hits, totalScanners, strategy, subId, auditScanPhase);
 
         List<JSONObject> merged = TaskCenterVerifyStatusResolver.STRATEGY_UNION.equalsIgnoreCase(strategy)
                 ? verifyMergeService.mergeUnion(perScanner)
@@ -146,36 +217,37 @@ public class TaskCenterRecycleService {
             }
         }
         if (!newRows.isEmpty()) {
-            ingestInstances(task, newRows, 1, subId, TaskCenterSubSupport.PHASE_VERIFY);
+            ingestCrossMergeNewInstances(task, newRows, subId, auditScanPhase);
         }
 
-        markTaskFinished(task);
-        completionCoordinator.scheduleNotify(task.getTaskId());
-        log.info("task-center verify complete taskId={} strategy={} updated={} new={}",
-                task.getTaskId(), strategy, existing.size(), newRows.size());
+        log.info("task-center cross-scan merge taskId={} auditPhase={} strategy={} existing={} new={}",
+                task.getTaskId(), auditScanPhase, strategy, existing.size(), newRows.size());
     }
 
-    private void applyVerifyTransitions(OpenTaskDO task,
-                                        List<OpenVulnInstanceDO> instances,
-                                        Map<String, Integer> scannerHits,
-                                        int totalScanners,
-                                        String strategy,
-                                        String subId) {
+    private void applyMergeTransitions(OpenTaskDO task,
+                                       List<OpenVulnInstanceDO> instances,
+                                       Map<String, Integer> scannerHits,
+                                       int totalScanners,
+                                       String strategy,
+                                       String subId,
+                                       int auditScanPhase) {
         if (CollectionUtils.isEmpty(instances)) {
             return;
         }
         for (OpenVulnInstanceDO inst : instances) {
             JSONObject snap = snapshotOf(inst);
             String key = verifyMergeService.dedupKey(snap);
-            int hits = scannerHits.getOrDefault(key, 0);
-            int newStat = verifyStatusResolver.resolveVerifyStat(hits, totalScanners, strategy);
+            int hitCount = scannerHits.getOrDefault(key, 0);
+            int newStat = verifyStatusResolver.resolveVerifyStat(hitCount, totalScanners, strategy);
             Integer prevStat = inst.getVulInfoStat();
             if (prevStat != null && prevStat == newStat) {
                 continue;
             }
+            OpenVulnInstanceAudit audit = auditScanPhase == TaskCenterSubSupport.PHASE_SURVEY
+                    ? OpenVulnInstanceAudit.crossScanMerge(subId, strategy, hitCount)
+                    : OpenVulnInstanceAudit.verifyPhase(subId, strategy, hitCount);
             OpenVulnInstanceAuditContext.runWith(
-                    OpenVulnInstanceAudit.verifyPhase(subId, strategy, hits)
-                            .taskId(task.getTaskId()),
+                    audit.taskId(task.getTaskId()),
                     () -> vulnInstanceRepository.updateState(inst.getId(), task.getPartnerId(), newStat, null, null));
         }
     }
@@ -183,11 +255,12 @@ public class TaskCenterRecycleService {
     private List<List<JSONObject>> loadVulnResultsPerSub(List<OpenTaskSubDO> subs) {
         List<List<JSONObject>> perScanner = new ArrayList<>();
         for (OpenTaskSubDO sub : subs) {
-            if (!StringUtils.hasText(sub.getSurveyId())) {
+            if (sub == null || !StringUtils.hasText(sub.getSubId())
+                    || !scanResultQueryService.hasPersistedResults(sub.getSubId())) {
                 perScanner.add(new ArrayList<>());
                 continue;
             }
-            TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(sub.getSurveyId());
+            TaskCenterSurveyBundle bundle = scanResultQueryService.loadSurveyBundleBySub(sub.getSubId());
             perScanner.add(resultsAdapter.toVulnInstances(bundle));
         }
         return perScanner;
@@ -196,38 +269,57 @@ public class TaskCenterRecycleService {
     private void ingestInstances(OpenTaskDO task, List<JSONObject> rows, int defaultStat,
                                  String subId, int scanPhase) {
         if (scanPhase == TaskCenterSubSupport.PHASE_SURVEY) {
-            ingestSurveyInstances(task, rows, defaultStat, subId, scanPhase);
+            OpenTaskSubDO sub = openTaskSubRepository.findBySubId(subId);
+            if (sub != null) {
+                ingestSurveySubIfNeeded(task, sub);
+            }
         } else {
             ingestVerifyNewInstances(task, rows, defaultStat, subId, scanPhase);
         }
     }
 
-    private void ingestSurveyInstances(OpenTaskDO task, List<JSONObject> rows, int defaultStat,
-                                       String subId, int scanPhase) {
-        if (Boolean.TRUE.equals(task.getInstancesIngested())) {
+    private void markSubInstancesIngested(OpenTaskSubDO sub) {
+        sub.setInstancesIngested(true);
+        sub.setUpdatedAt(new Date());
+        openTaskSubRepository.updateSub(sub);
+    }
+
+    private void syncTaskInstancesIngestedFlag(OpenTaskDO task) {
+        List<OpenTaskSubDO> subs = openTaskSubRepository.listByTaskIdAndPhase(
+                task.getTaskId(), TaskCenterSubSupport.PHASE_SURVEY);
+        if (CollectionUtils.isEmpty(subs)) {
             return;
         }
-        if (vulnInstanceRepository.existsByPartnerAndTaskId(task.getPartnerId(), task.getTaskId())) {
+        boolean allIngested = true;
+        for (OpenTaskSubDO sub : subs) {
+            if (sub == null || !TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
+                allIngested = false;
+                break;
+            }
+            if ("vuln".equals(sub.getCenterTaskType()) && !Boolean.TRUE.equals(sub.getInstancesIngested())) {
+                allIngested = false;
+                break;
+            }
+        }
+        if (allIngested) {
             task.setInstancesIngested(true);
+            task.setIngestError(null);
             task.setUpdatedAt(new Date());
             openTaskRepository.updateById(task);
-            return;
         }
-        List<OpenVulnInstanceDO> persistRows = buildPersistRows(task, rows, defaultStat);
-        if (!persistRows.isEmpty()) {
-            vulnInstanceRepository.batchInsert(persistRows);
-            instanceLogWriter.writeIngestBatch(task, persistRows, subId, scanPhase);
+    }
+
+    private void ingestSurveyInstances(OpenTaskDO task, List<JSONObject> rows, int defaultStat,
+                                       String subId, int scanPhase) {
+        OpenTaskSubDO sub = openTaskSubRepository.findBySubId(subId);
+        if (sub != null) {
+            ingestSurveySubIfNeeded(task, sub);
         }
-        task.setInstancesIngested(true);
-        task.setIngestError(null);
-        task.setUpdatedAt(new Date());
-        openTaskRepository.updateById(task);
-        log.info("task-center survey ingest finished taskId={} count={}", task.getTaskId(), persistRows.size());
     }
 
     private void ingestVerifyNewInstances(OpenTaskDO task, List<JSONObject> rows, int defaultStat,
                                           String subId, int scanPhase) {
-        List<OpenVulnInstanceDO> persistRows = buildPersistRows(task, rows, defaultStat);
+        List<OpenVulnInstanceDO> persistRows = buildPersistRows(task, null, rows, defaultStat);
         if (persistRows.isEmpty()) {
             return;
         }
@@ -237,7 +329,27 @@ public class TaskCenterRecycleService {
         log.info("task-center verify ingest new instances taskId={} count={}", task.getTaskId(), persistRows.size());
     }
 
-    private List<OpenVulnInstanceDO> buildPersistRows(OpenTaskDO task, List<JSONObject> rows, int defaultStat) {
+    private void ingestCrossMergeNewInstances(OpenTaskDO task, List<JSONObject> rows, String subId, int scanPhase) {
+        List<OpenVulnInstanceDO> persistRows = buildPersistRows(task, null, rows, 1);
+        if (persistRows.isEmpty()) {
+            return;
+        }
+        for (OpenVulnInstanceDO row : persistRows) {
+            if (row.getVulInfoStat() == null) {
+                row.setVulInfoStat(1);
+            }
+        }
+        vulnInstanceRepository.batchInsert(persistRows);
+        String reason = scanPhase == TaskCenterSubSupport.PHASE_SURVEY
+                ? OpenVulnInstanceLogDO.REASON_CROSS_SCAN_MERGE
+                : OpenVulnInstanceLogDO.REASON_VERIFY_PHASE;
+        instanceLogWriter.writeIngestBatch(task, persistRows, subId, scanPhase, reason);
+        log.info("task-center cross-merge ingest new instances taskId={} scanPhase={} count={}",
+                task.getTaskId(), scanPhase, persistRows.size());
+    }
+
+    private List<OpenVulnInstanceDO> buildPersistRows(OpenTaskDO task, OpenTaskSubDO sub,
+                                                    List<JSONObject> rows, int defaultStat) {
         Date now = new Date();
         List<OpenVulnInstanceDO> persistRows = new ArrayList<>();
         int seq = vulnInstanceRepository.listByPartnerAndTask(task.getPartnerId(), task.getTaskId(), null).size();
@@ -247,7 +359,13 @@ public class TaskCenterRecycleService {
             if (snap.getInteger("vulInfoStat") == null) {
                 snap.put("vulInfoStat", defaultStat);
             }
-            String vulInfoId = buildVulInfoId(task.getTaskId(), snap, seq);
+            if (sub != null) {
+                snap.put("openSubId", sub.getSubId());
+                if (StringUtils.hasText(sub.getScannerType())) {
+                    snap.put("scannerType", sub.getScannerType());
+                }
+            }
+            String vulInfoId = buildVulInfoId(task.getTaskId(), sub, snap, seq);
             snap.put("vulInfoID", vulInfoId);
             snap.put("vulInfoId", vulInfoId);
 
@@ -287,6 +405,7 @@ public class TaskCenterRecycleService {
         task.setFinishedAt(new Date());
         task.setUpdatedAt(new Date());
         openTaskRepository.updateById(task);
+        operationCaseDomainService.onTaskScanTerminal(task);
     }
 
     private void markTaskFailed(OpenTaskDO task, String error) {
@@ -295,6 +414,7 @@ public class TaskCenterRecycleService {
         task.setFinishedAt(new Date());
         task.setUpdatedAt(new Date());
         openTaskRepository.updateById(task);
+        operationCaseDomainService.onTaskScanTerminal(task);
     }
 
     private void updateTaskProgress(OpenTaskDO task, List<OpenTaskSubDO> subs) {
@@ -344,12 +464,17 @@ public class TaskCenterRecycleService {
         return all;
     }
 
-    private static String buildVulInfoId(String taskId, JSONObject snap, int seq) {
+    private static String buildVulInfoId(String taskId, OpenTaskSubDO sub, JSONObject snap, int seq) {
         String vulId = snap.getString("vulId");
         String ip = snap.getString("vulNetAddr");
         String port = snap.get("vulPort") != null ? snap.get("vulPort").toString() : "0";
         String suffix = String.format("%04d", seq);
+        String scanner = sub != null && StringUtils.hasText(sub.getScannerType())
+                ? sub.getScannerType() : null;
         if (StringUtils.hasText(vulId)) {
+            if (StringUtils.hasText(scanner)) {
+                return "VI-" + taskId.replace("TASK-", "") + "-" + scanner + "-" + vulId + "-" + port + "-" + suffix;
+            }
             return "VI-" + taskId.replace("TASK-", "") + "-" + vulId + "-" + port + "-" + suffix;
         }
         return "VI-" + taskId.replace("TASK-", "") + "-" + (ip != null ? ip : "x") + "-" + suffix;

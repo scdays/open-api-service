@@ -11,4 +11,6 @@ public interface IOpenTaskScanResultRepository {
     List<OpenTaskScanResultDO> listByTaskAndType(String taskId, int scanPhase, String resultType);
 
     List<OpenTaskScanResultDO> listBySubId(String subId, String resultType);
+
+    int deleteBySubId(String subId);
 }

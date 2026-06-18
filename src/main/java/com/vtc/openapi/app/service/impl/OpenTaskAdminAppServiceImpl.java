@@ -21,17 +21,17 @@ import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterDispatchRetryResult;
-import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSurveyFetchService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSurveyRefetchService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterTaskOrchestrator;
 import com.vtc.openapi.infra.config.OpenApiProperties;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
-import com.vtc.openapi.infra.feign.dto.taskcenter.TaskCenterSurveyBundle;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceBriefDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskTimelineEventDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
@@ -71,9 +71,9 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     private final IApiInvocationRepository apiInvocationRepository;
     private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final OpenApiProperties openApiProperties;
-    private final TaskCenterSurveyFetchService surveyFetchService;
     private final TaskCenterTaskOrchestrator taskCenterOrchestrator;
     private final TaskCenterScanResultQueryService scanResultQueryService;
+    private final TaskCenterSurveyRefetchService surveyRefetchService;
 
     public OpenTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
@@ -81,18 +81,18 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
                                        IApiInvocationRepository apiInvocationRepository,
                                        AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                        OpenApiProperties openApiProperties,
-                                       @Autowired(required = false) TaskCenterSurveyFetchService surveyFetchService,
                                        @Autowired(required = false) TaskCenterTaskOrchestrator taskCenterOrchestrator,
-                                       @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService) {
+                                       @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
+                                       @Autowired(required = false) TaskCenterSurveyRefetchService surveyRefetchService) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.apiInvocationRepository = apiInvocationRepository;
         this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.openApiProperties = openApiProperties;
-        this.surveyFetchService = surveyFetchService;
         this.taskCenterOrchestrator = taskCenterOrchestrator;
         this.scanResultQueryService = scanResultQueryService;
+        this.surveyRefetchService = surveyRefetchService;
     }
 
     @Override
@@ -179,47 +179,43 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
             dto.setHint("surveyId 尚未生成，扫描进行中");
             return ApiResponse.ok(dto);
         }
-        if (surveyFetchService == null && scanResultQueryService == null) {
+        if (scanResultQueryService == null) {
             dto.setSource("mock");
-            dto.setHint("当前为 mock 模式，无 VTC 实时结果；请查看「漏洞实例」Tab 或导入 XML");
+            dto.setHint("当前为 mock 模式，无 VTC 扫描结果；请查看「漏洞实例」Tab 或导入 XML");
             return ApiResponse.ok(dto);
         }
-        if (scanResultQueryService != null && scanResultQueryService.hasPersistedResults(sub.getSubId())) {
-            List<Map<String, Object>> liveRows = scanResultQueryService.listLiveExportRowsBySub(sub.getSubId());
-            List<Map<String, Object>> portRows = scanResultQueryService.listPortExportRowsBySub(sub.getSubId());
-            dto.setSource("persisted");
-            dto.setSuccessIps(scanResultQueryService.listSuccessIpsFromLiveRows(liveRows));
-            dto.setFailIps(scanResultQueryService.listFailIpsFromLiveRows(liveRows));
-            dto.setPortScanResults(scanResultQueryService.toVtcPortScanRows(portRows));
-            fillVulnSurveyFromVtc(dto, sub.getSurveyId());
-            return ApiResponse.ok(dto);
-        }
-        if (surveyFetchService == null) {
+        if (!scanResultQueryService.hasPersistedResults(sub.getSubId())) {
             dto.setSource("pending");
-            dto.setHint("扫描结果尚未落库，请稍后刷新");
+            dto.setHint("扫描结果尚未落库，请等待任务完成通知（Kafka）后刷新");
             return ApiResponse.ok(dto);
         }
-        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(sub.getSurveyId());
-        dto.setSource("task-center");
-        dto.setSuccessIps(new ArrayList<>(bundle.getSuccessIps()));
-        dto.setFailIps(new ArrayList<>(bundle.getFailIps()));
-        dto.setPortScanResults(bundle.getPortScanRows());
-        dto.setVulnerabilities(bundle.getVulnScanResultList());
-        dto.setVulnDatabaseList(bundle.getVulnDatabaseList());
+        List<Map<String, Object>> liveRows = scanResultQueryService.listLiveExportRowsBySub(sub.getSubId());
+        List<Map<String, Object>> portRows = scanResultQueryService.listPortExportRowsBySub(sub.getSubId());
+        dto.setSource("persisted");
+        dto.setSuccessIps(scanResultQueryService.listSuccessIpsFromLiveRows(liveRows));
+        dto.setFailIps(scanResultQueryService.listFailIpsFromLiveRows(liveRows));
+        dto.setLiveProbeResults(liveRows);
+        dto.setPortScanResults(scanResultQueryService.toVtcPortScanRows(portRows));
+        dto.setVulnerabilities(scanResultQueryService.listVulnScanRowsBySub(sub.getSubId()));
+        dto.setVulnDatabaseList(scanResultQueryService.listVulnDatabaseListBySub(sub.getSubId()));
         return ApiResponse.ok(dto);
     }
 
-    private void fillVulnSurveyFromVtc(OpenTaskSurveyResultsDto dto, String surveyId) {
-        if (surveyFetchService == null || !StringUtils.hasText(surveyId)) {
-            dto.setHint("存活/端口来自落库；漏洞结果请查看「漏洞实例」Tab");
-            return;
+    @Override
+    public ApiResponse<OpenTaskSurveyRefetchResultDto> refetchSurveyResults(String taskId, String subId) {
+        if (!StringUtils.hasText(taskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId 不能为空");
         }
-        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(surveyId);
-        dto.setVulnerabilities(bundle.getVulnScanResultList());
-        dto.setVulnDatabaseList(bundle.getVulnDatabaseList());
-        if (!bundle.isSuccessIpsQueryOk() || !bundle.isFailIpsQueryOk()) {
-            dto.setHint("存活/端口来自落库（VTC 双查容错合并）；漏洞自 VTC 实时拉取");
+        if (!StringUtils.hasText(subId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "subId 不能为空");
         }
+        if (!"task-center".equalsIgnoreCase(openApiProperties.getEngine().getAdapterMode())) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "仅 task-center 模式支持重新获取扫描结果");
+        }
+        if (surveyRefetchService == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "task-center 扫描结果回收未启用");
+        }
+        return ApiResponse.ok(surveyRefetchService.refetchSurveySub(taskId.trim(), subId.trim()));
     }
 
     @Override
@@ -296,6 +292,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     private OpenTaskAdminDto toAdminDto(OpenTaskDO task, List<OpenTaskSubDO> subs) {
         OpenTaskAdminDto dto = new OpenTaskAdminDto();
         dto.setTaskId(task.getTaskId());
+        dto.setCaseId(task.getCaseId());
         dto.setExtTaskId(task.getExtTaskId());
         dto.setPartnerId(task.getPartnerId());
         dto.setTaskName(task.getTaskName());
@@ -421,10 +418,19 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
                 .anyMatch(s -> s.getScanPhase() != null && s.getScanPhase() == TaskCenterSubSupport.PHASE_SURVEY
                         && TaskCenterSubSupport.STATUS_FINISHED.equals(s.getStatus()));
         if (surveyDone || !CollectionUtils.isEmpty(instances)) {
-            events.add(timeline("排查阶段完成 · 实例入库 " + (instances != null ? instances.size() : 0) + " 条",
-                    task.getUpdatedAt(), Boolean.TRUE.equals(task.getAutoVerify()) ? "done" : "active"));
+            String mergeHint = Boolean.TRUE.equals(task.getCrossScan())
+                    ? " · 双扫交叉合并"
+                    : "";
+            events.add(timeline("排查阶段完成 · 实例入库 " + (instances != null ? instances.size() : 0) + " 条" + mergeHint,
+                    task.getUpdatedAt(), "FINISHED".equals(task.getStatus()) ? "done" : "active"));
         }
-        if (Boolean.TRUE.equals(task.getAutoVerify()) && Boolean.TRUE.equals(task.getCrossScan())) {
+        if (Boolean.TRUE.equals(task.getCrossScan())) {
+            if ("FINISHED".equals(task.getStatus())) {
+                events.add(timeline("交叉合并完成（基于排查双扫结果，无二次下发）", task.getFinishedAt(), "done"));
+            } else if (surveyDone) {
+                events.add(timeline("交叉合并处理中", null, "active"));
+            }
+        } else if (Boolean.TRUE.equals(task.getAutoVerify())) {
             boolean verifyRunning = subs != null && subs.stream()
                     .anyMatch(s -> s.getScanPhase() != null && s.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY
                             && TaskCenterSubSupport.STATUS_RUNNING.equals(s.getStatus()));
@@ -437,7 +443,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
             if (verifyDone) {
                 events.add(timeline("验证阶段完成 · mergeVerifyResults", task.getFinishedAt(), "done"));
             } else if (verifyRunning || Integer.valueOf(TaskCenterSubSupport.PHASE_VERIFY).equals(task.getTaskPhase())) {
-                events.add(timeline("验证阶段进行中（双扫交叉）", null, "active"));
+                events.add(timeline("验证阶段进行中", null, "active"));
             } else {
                 events.add(timeline("待触发验证阶段（autoVerify）", null, "pending"));
             }
@@ -446,7 +452,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
             events.add(timeline("TASK_COMPLETED + EXPORT_READY 回调", task.getFinishedAt(), "done"));
         } else if ("FAILED".equals(task.getStatus())) {
             events.add(timeline("TASK_FAILED 回调", task.getFinishedAt(), "done"));
-        } else if (Boolean.TRUE.equals(task.getAutoVerify())) {
+        } else if (Boolean.TRUE.equals(task.getAutoVerify()) && !Boolean.TRUE.equals(task.getCrossScan())) {
             events.add(timeline("推迟回调：验证全部完成后统一触发", null, "pending"));
         } else {
             events.add(timeline("待任务完成后回调 Partner", null, "pending"));

@@ -16,6 +16,8 @@ public class InvocationContext {
     private String resourceType;
     private String resourceId;
     private String requestBodyJson;
+    private String caseId;
+    private String idempotencyKey;
 
     public InvocationContext(String partnerId, String requestId, String operationId,
                              String httpMethod, String requestPath, String clientIp) {
@@ -86,5 +88,21 @@ public class InvocationContext {
 
     public void setRequestBodyJson(String requestBodyJson) {
         this.requestBodyJson = requestBodyJson;
+    }
+
+    public String getCaseId() {
+        return caseId;
+    }
+
+    public void setCaseId(String caseId) {
+        this.caseId = caseId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
     }
 }

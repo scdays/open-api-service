@@ -49,6 +49,9 @@ public class InvocationDTO extends BaseDTO {
     @ApiModelProperty("资源 ID")
     private String resourceId;
 
+    @ApiModelProperty("运营案件 ID")
+    private String caseId;
+
     @ApiModelProperty("错误摘要")
     private String errorMessage;
 

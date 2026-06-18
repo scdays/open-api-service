@@ -25,18 +25,18 @@ public class TaskCenterSubProgressService {
     private final IOpenTaskRepository openTaskRepository;
     private final TaskCenterSurveyResolver surveyResolver;
     private final TaskCenterRecycleService recycleService;
-    private final TaskCenterSurveyPersistService surveyPersistService;
+    private final TaskCenterSurveyRefetchService surveyRefetchService;
 
     public TaskCenterSubProgressService(IOpenTaskSubRepository openTaskSubRepository,
                                         IOpenTaskRepository openTaskRepository,
                                         TaskCenterSurveyResolver surveyResolver,
                                         TaskCenterRecycleService recycleService,
-                                        TaskCenterSurveyPersistService surveyPersistService) {
+                                        TaskCenterSurveyRefetchService surveyRefetchService) {
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
         this.surveyResolver = surveyResolver;
         this.recycleService = recycleService;
-        this.surveyPersistService = surveyPersistService;
+        this.surveyRefetchService = surveyRefetchService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -92,7 +92,14 @@ public class TaskCenterSubProgressService {
             sub.setUpdatedAt(new Date());
             openTaskSubRepository.updateSub(sub);
             if (TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
-                surveyPersistService.persistSubSurveyResults(sub);
+                if (sub.getScanPhase() != null && sub.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY) {
+                    OpenTaskDO task = openTaskRepository.findByTaskId(sub.getTaskId());
+                    if (task != null) {
+                        recycleService.tryAdvanceTask(task);
+                    }
+                } else {
+                    surveyRefetchService.captureOnSubFinished(sub);
+                }
             }
         }
     }

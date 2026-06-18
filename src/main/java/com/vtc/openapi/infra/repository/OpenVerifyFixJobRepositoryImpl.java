@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
@@ -161,5 +162,25 @@ public class OpenVerifyFixJobRepositoryImpl implements IOpenVerifyFixJobReposito
                 .orderByDesc(OpenVerifyFixJobPO::getId)
                 .last("LIMIT 1"));
         return ConvertHelper.convert(po, OpenVerifyFixJobDO.class);
+    }
+
+    @Override
+    public void updateCaseId(String jobId, String caseId) {
+        if (!StringUtils.hasText(jobId)) {
+            return;
+        }
+        jobMapper.update(null, new LambdaUpdateWrapper<OpenVerifyFixJobPO>()
+                .eq(OpenVerifyFixJobPO::getJobId, jobId.trim())
+                .set(OpenVerifyFixJobPO::getCaseId, StringUtils.hasText(caseId) ? caseId.trim() : null));
+    }
+
+    @Override
+    public List<OpenVerifyFixJobDO> listWithoutCaseId(int limit) {
+        int cap = limit > 0 ? Math.min(limit, 500) : 200;
+        LambdaQueryWrapper<OpenVerifyFixJobPO> wrapper = new LambdaQueryWrapper<OpenVerifyFixJobPO>()
+                .and(w -> w.isNull(OpenVerifyFixJobPO::getCaseId).or().eq(OpenVerifyFixJobPO::getCaseId, ""))
+                .orderByDesc(OpenVerifyFixJobPO::getCreatedAt)
+                .last("LIMIT " + cap);
+        return ConvertHelper.convertList(jobMapper.selectList(wrapper), OpenVerifyFixJobDO.class);
     }
 }

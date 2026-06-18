@@ -28,5 +28,6 @@ public class OpenVulnInstanceLogPO extends BasePO {
     private String verifyMergeStrategy;
     private Integer scannerHitCount;
     private String transferTime;
+    private String caseId;
     private Date createdAt;
 }

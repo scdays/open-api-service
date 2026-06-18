@@ -66,4 +66,7 @@ public class OpenTaskDO extends BaseDO {
 
     /** scanTemplateId=1001 双扫描器交叉 */
     private Boolean crossScan;
+
+    /** TASK_SCAN 运营案件互指 */
+    private String caseId;
 }

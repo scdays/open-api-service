@@ -41,6 +41,8 @@ public class ApiInvocationPO extends BasePO {
 
     private String resourceId;
 
+    private String caseId;
+
     @TableField(select = false)
     private String responseBodyJson;
 

@@ -41,6 +41,9 @@ public class OpenVulnInstanceStateLogDto {
     @ApiModelProperty("识别时间戳")
     private String transferTime;
 
+    @ApiModelProperty("运营案件 ID")
+    private String caseId;
+
     @ApiModelProperty("记录时间")
     private String createdAt;
 }

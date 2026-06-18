@@ -63,6 +63,7 @@ public class OpenVulnInstanceAdminAppServiceImpl implements IOpenVulnInstanceAdm
         dto.setVerifyMergeStrategy(row.getVerifyMergeStrategy());
         dto.setScannerHitCount(row.getScannerHitCount());
         dto.setTransferTime(row.getTransferTime());
+        dto.setCaseId(row.getCaseId());
         if (row.getCreatedAt() != null) {
             dto.setCreatedAt(ISO_UTC.format(row.getCreatedAt()));
         }
