@@ -425,6 +425,7 @@ public class OpenApiProperties {
         private long pollIntervalMs = 30000L;
         private boolean pollEnabled = true;
         private final Kafka kafka = new Kafka();
+        private final ReportArchive reportArchive = new ReportArchive();
 
         public String getBaseUrl() {
             return baseUrl;
@@ -452,6 +453,23 @@ public class OpenApiProperties {
 
         public Kafka getKafka() {
             return kafka;
+        }
+
+        public ReportArchive getReportArchive() {
+            return reportArchive;
+        }
+
+        public static class ReportArchive {
+            /** 子任务完成时从 SFTP 拉取原始报告并上传文件服务 */
+            private boolean enabled = true;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
         }
 
         public static class Kafka {

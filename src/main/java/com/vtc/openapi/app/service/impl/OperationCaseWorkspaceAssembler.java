@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.convert.VerifyFixJobAdminConvertor;
+import com.vtc.openapi.app.support.OpenTaskSubAdminMapper;
 import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
@@ -20,6 +21,8 @@ import com.vtc.openapi.domain.operationcase.model.OperationCaseTypes;
 import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseDO;
 import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseTargetDO;
 import com.vtc.openapi.domain.operationcase.repository.IOpenOperationCaseRepository;
+import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
+import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
 import com.vtc.openapi.ui.dto.admin.OperationCaseBatchPayloadDto;
 import com.vtc.openapi.ui.dto.admin.OperationCaseBatchTargetDto;
@@ -27,6 +30,8 @@ import com.vtc.openapi.ui.dto.admin.OperationCaseInstancePayloadDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
 import com.vtc.openapi.ui.dto.admin.OperationCaseTaskScanPayloadDto;
 import com.vtc.openapi.ui.dto.admin.OperationCaseVerifyFixPayloadDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
+import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
 import com.vtc.openapi.ui.dto.admin.OpenVulnInstanceStateLogDto;
 import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
 import org.springframework.stereotype.Component;
@@ -56,6 +61,9 @@ public class OperationCaseWorkspaceAssembler {
     private final VerifyFixJobAdminConvertor verifyFixJobAdminConvertor;
     private final IOpenTaskAdminAppService openTaskAdminAppService;
     private final IOpenOperationCaseRepository operationCaseRepository;
+    private final IOpenTaskSubRepository openTaskSubRepository;
+    private final OpenTaskSubAdminMapper openTaskSubAdminMapper;
+    private final VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler;
 
     public OperationCaseWorkspaceAssembler(IOpenVulnInstanceRepository vulnInstanceRepository,
                                            IOpenVulnInstanceLogRepository vulnInstanceLogRepository,
@@ -64,7 +72,10 @@ public class OperationCaseWorkspaceAssembler {
                                            AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                            VerifyFixJobAdminConvertor verifyFixJobAdminConvertor,
                                            IOpenTaskAdminAppService openTaskAdminAppService,
-                                           IOpenOperationCaseRepository operationCaseRepository) {
+                                           IOpenOperationCaseRepository operationCaseRepository,
+                                           IOpenTaskSubRepository openTaskSubRepository,
+                                           OpenTaskSubAdminMapper openTaskSubAdminMapper,
+                                           VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler) {
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.vulnInstanceLogRepository = vulnInstanceLogRepository;
         this.verifyFixJobDomainService = verifyFixJobDomainService;
@@ -73,6 +84,9 @@ public class OperationCaseWorkspaceAssembler {
         this.verifyFixJobAdminConvertor = verifyFixJobAdminConvertor;
         this.openTaskAdminAppService = openTaskAdminAppService;
         this.operationCaseRepository = operationCaseRepository;
+        this.openTaskSubRepository = openTaskSubRepository;
+        this.openTaskSubAdminMapper = openTaskSubAdminMapper;
+        this.verifyFixWorkspaceAssembler = verifyFixWorkspaceAssembler;
     }
 
     public Object buildPayload(OpenOperationCaseDO row, List<ApiInvocationDO> invocations) {
@@ -154,6 +168,18 @@ public class OperationCaseWorkspaceAssembler {
         payload.setScannerType(job.getScannerType());
         payload.setInputIps(job.getInputIps());
         payload.setProgress(job.getProgress());
+        List<OpenTaskSubDO> subs = openTaskSubRepository.listByVerifyFixJobId(jobId);
+        List<OpenTaskSubDto> subDtos = new ArrayList<>();
+        for (OpenTaskSubDO sub : subs) {
+            subDtos.add(openTaskSubAdminMapper.toDto(sub));
+        }
+        payload.setRescanSubs(subDtos);
+        try {
+            VerifyFixWorkspaceDto workspace = verifyFixWorkspaceAssembler.build(jobId);
+            payload.setVerifyFixWorkspace(workspace);
+        } catch (Exception ignored) {
+            // job 可能尚未就绪，保留基础载荷
+        }
         return payload;
     }
 

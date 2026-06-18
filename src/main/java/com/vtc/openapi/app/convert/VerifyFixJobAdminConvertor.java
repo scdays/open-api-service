@@ -35,8 +35,10 @@ public class VerifyFixJobAdminConvertor {
         dto.setJobId(job.getJobId());
         dto.setPartnerId(job.getPartnerId());
         dto.setBatchId(job.getBatchId());
+        dto.setCaseId(job.getCaseId());
         dto.setStatus(job.getStatus());
         dto.setItemCount(job.getItemCount());
+        dto.setProgress(job.getProgress());
         dto.setRescanImported(job.getRescanImported());
         dto.setErrorMessage(job.getErrorMessage());
         dto.setFinishedAt(formatUtc(job.getFinishedAt()));
@@ -50,6 +52,9 @@ public class VerifyFixJobAdminConvertor {
                 row.setPreviousStat(item.getPreviousStat());
                 row.setResultStat(item.getResultStat());
                 row.setItemStatus(item.getItemStatus());
+                row.setSourceSubId(item.getSourceSubId());
+                row.setScannerType(item.getScannerType());
+                row.setRescanSubId(item.getRescanSubId());
                 dto.getItems().add(row);
             }
         }

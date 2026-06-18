@@ -113,9 +113,6 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
             return;
         }
         assembleInternal(task, ExportStage.VERIFY_FIX_SCAN, verifyFixJobId);
-        if (!CollectionUtils.isEmpty(items)) {
-            webhookPublishService.publishVerifyFixCompleted(partnerId, verifyFixJobId, null, items);
-        }
     }
 
     private OpenTaskDO requireTask(String partnerId, String taskId) {
@@ -231,7 +228,10 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
     }
 
     private static int resolveScanPhase(String exportStage) {
-        if (ExportStage.VERIFY_SCAN.equals(exportStage) || ExportStage.VERIFY_FIX_SCAN.equals(exportStage)) {
+        if (ExportStage.VERIFY_FIX_SCAN.equals(exportStage)) {
+            return TaskCenterSubSupport.PHASE_VERIFY_FIX;
+        }
+        if (ExportStage.VERIFY_SCAN.equals(exportStage)) {
             return TaskCenterSubSupport.PHASE_VERIFY;
         }
         return TaskCenterSubSupport.PHASE_SURVEY;

@@ -25,18 +25,18 @@ public class TaskCenterSubProgressService {
     private final IOpenTaskRepository openTaskRepository;
     private final TaskCenterSurveyResolver surveyResolver;
     private final TaskCenterRecycleService recycleService;
-    private final TaskCenterSurveyRefetchService surveyRefetchService;
+    private final TaskCenterSubRecycleCoordinator subRecycleCoordinator;
 
     public TaskCenterSubProgressService(IOpenTaskSubRepository openTaskSubRepository,
                                         IOpenTaskRepository openTaskRepository,
                                         TaskCenterSurveyResolver surveyResolver,
                                         TaskCenterRecycleService recycleService,
-                                        TaskCenterSurveyRefetchService surveyRefetchService) {
+                                        TaskCenterSubRecycleCoordinator subRecycleCoordinator) {
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
         this.surveyResolver = surveyResolver;
         this.recycleService = recycleService;
-        this.surveyRefetchService = surveyRefetchService;
+        this.subRecycleCoordinator = subRecycleCoordinator;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -63,6 +63,9 @@ public class TaskCenterSubProgressService {
     private void refreshSub(OpenTaskSubDO sub) {
         if (sub == null || TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())
                 || TaskCenterSubSupport.STATUS_FAILED.equals(sub.getStatus())) {
+            return;
+        }
+        if (sub.getScanPhase() != null && sub.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY_FIX) {
             return;
         }
         if (!StringUtils.hasText(sub.getCenterPlanId())) {
@@ -98,7 +101,7 @@ public class TaskCenterSubProgressService {
                         recycleService.tryAdvanceTask(task);
                     }
                 } else {
-                    surveyRefetchService.captureOnSubFinished(sub);
+                    subRecycleCoordinator.tryRecycleSub(sub.getSubId());
                 }
             }
         }
@@ -114,5 +117,6 @@ public class TaskCenterSubProgressService {
                 recycleService.tryAdvanceTask(task);
             }
         }
+        subRecycleCoordinator.retryPendingRecycle();
     }
 }

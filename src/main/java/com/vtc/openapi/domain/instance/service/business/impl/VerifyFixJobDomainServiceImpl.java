@@ -1,6 +1,7 @@
 package com.vtc.openapi.domain.instance.service.business.impl;
 
 import com.alibaba.fastjson.JSONObject;
+import com.vtc.openapi.domain.export.service.business.IExportAssemblyDomainService;
 import com.vtc.openapi.domain.export.service.business.VerifyFixItem;
 import com.vtc.openapi.domain.instance.model.command.VerifyFixInstanceCommand;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
@@ -66,6 +67,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
     private final MockVerifyFixRescanReportLoader rescanReportLoader;
     private final TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher;
     private final IOperationCaseDomainService operationCaseDomainService;
+    private final IExportAssemblyDomainService exportAssemblyDomainService;
 
     public VerifyFixJobDomainServiceImpl(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                          IOpenVulnInstanceRepository vulnInstanceRepository,
@@ -75,7 +77,8 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
                                          MockVerifyFixRescanMatcher rescanMatcher,
                                          @Autowired(required = false) MockVerifyFixRescanReportLoader rescanReportLoader,
                                          @Autowired(required = false) TaskCenterVerifyFixPostAcceptDispatcher verifyFixPostAcceptDispatcher,
-                                         IOperationCaseDomainService operationCaseDomainService) {
+                                         IOperationCaseDomainService operationCaseDomainService,
+                                         @Autowired(required = false) IExportAssemblyDomainService exportAssemblyDomainService) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.instanceRepository = instanceRepository;
@@ -85,6 +88,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         this.rescanReportLoader = rescanReportLoader;
         this.verifyFixPostAcceptDispatcher = verifyFixPostAcceptDispatcher;
         this.operationCaseDomainService = operationCaseDomainService;
+        this.exportAssemblyDomainService = exportAssemblyDomainService;
     }
 
     @Override
@@ -234,6 +238,7 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         webhookPublishService.publishVerifyFixCompleted(
                 job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
         operationCaseDomainService.onVerifyFixJobTerminal(job);
+        triggerVerifyFixExports(job, jobId, webhookItems);
         log.info("verify-fix job completed: jobId={} mode={} items={}", jobId, mode, webhookItems.size());
     }
 
@@ -273,34 +278,127 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         job.setUpdatedAt(new Date());
         verifyFixJobRepository.updateJob(job);
 
-        List<VerifyFixItem> webhookItems = new ArrayList<>();
-        boolean anyFailed = false;
         for (OpenVerifyFixJobItemDO item : items) {
-            int resultStat = resolveResultStat(item, VerifyFixCompleteMode.COMPARE_RESCAN, keys);
-            if (resultStat == STAT_VERIFY_FAILED) {
+            if (ITEM_DONE.equals(item.getItemStatus()) || ITEM_FAILED.equals(item.getItemStatus())) {
+                continue;
+            }
+            applyCompareResult(item, keys);
+        }
+        job.setRescanImported(true);
+        job.setProgress(100);
+        job.setUpdatedAt(new Date());
+        verifyFixJobRepository.updateJob(job);
+        tryFinalizeVerifyFixJob(jobId);
+        log.info("verify-fix vtc compare job completed: jobId={} items={}", jobId, items.size());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeFromRescanCompareForSub(String jobId, String rescanSubId, Set<String> rescanFingerprintKeys) {
+        if (!StringUtils.hasText(jobId) || !StringUtils.hasText(rescanSubId)) {
+            return;
+        }
+        OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(jobId);
+        if (job == null) {
+            return;
+        }
+        if (STATUS_FINISHED.equals(job.getStatus()) || STATUS_FAILED.equals(job.getStatus())) {
+            return;
+        }
+        Set<String> keys = rescanFingerprintKeys != null ? rescanFingerprintKeys : Collections.emptySet();
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(jobId);
+        boolean any = false;
+        for (OpenVerifyFixJobItemDO item : items) {
+            if (!rescanSubId.equals(item.getRescanSubId())) {
+                continue;
+            }
+            if (ITEM_DONE.equals(item.getItemStatus()) || ITEM_FAILED.equals(item.getItemStatus())) {
+                continue;
+            }
+            applyCompareResult(item, keys);
+            any = true;
+        }
+        if (!any) {
+            return;
+        }
+        job.setRescanImported(true);
+        job.setUpdatedAt(new Date());
+        verifyFixJobRepository.updateJob(job);
+        tryFinalizeVerifyFixJob(jobId);
+        log.info("verify-fix sub compare jobId={} subId={}", jobId, rescanSubId);
+    }
+
+    private void applyCompareResult(OpenVerifyFixJobItemDO item, Set<String> rescanKeys) {
+        int resultStat = resolveResultStat(item, VerifyFixCompleteMode.COMPARE_RESCAN, rescanKeys);
+        applyItemResultWithRescanFlag(item, resultStat, rescanKeys);
+    }
+
+    private void tryFinalizeVerifyFixJob(String jobId) {
+        OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(jobId);
+        if (job == null) {
+            return;
+        }
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(jobId);
+        if (CollectionUtils.isEmpty(items)) {
+            return;
+        }
+        boolean allTerminal = true;
+        boolean anyFailed = false;
+        List<VerifyFixItem> webhookItems = new ArrayList<>();
+        for (OpenVerifyFixJobItemDO item : items) {
+            if (!ITEM_DONE.equals(item.getItemStatus()) && !ITEM_FAILED.equals(item.getItemStatus())) {
+                allTerminal = false;
+                break;
+            }
+            if (ITEM_FAILED.equals(item.getItemStatus())
+                    || (item.getResultStat() != null && item.getResultStat() == STAT_VERIFY_FAILED)) {
                 anyFailed = true;
             }
-            applyItemResultWithRescanFlag(item, resultStat, keys);
-            VerifyFixItem webhookItem = new VerifyFixItem();
-            webhookItem.setVulInfoId(item.getVulInfoId());
-            webhookItem.setVulInfoStat(resultStat);
-            webhookItem.setPreviousVulInfoStat(item.getPreviousStat());
-            webhookItems.add(webhookItem);
+            if (item.getResultStat() != null) {
+                VerifyFixItem webhookItem = new VerifyFixItem();
+                webhookItem.setVulInfoId(item.getVulInfoId());
+                webhookItem.setVulInfoStat(item.getResultStat());
+                webhookItem.setPreviousVulInfoStat(item.getPreviousStat());
+                webhookItems.add(webhookItem);
+            }
         }
-
+        if (!allTerminal) {
+            return;
+        }
         Date now = new Date();
         job.setStatus(anyFailed ? STATUS_FAILED : STATUS_FINISHED);
         job.setFinishedAt(now);
         job.setUpdatedAt(now);
+        job.setProgress(100);
         job.setErrorMessage(anyFailed ? "部分实例核验失败" : null);
-        job.setRescanImported(true);
         verifyFixJobRepository.updateJob(job);
 
         String webhookStatus = anyFailed ? STATUS_FAILED : STATUS_FINISHED;
         webhookPublishService.publishVerifyFixCompleted(
                 job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
         operationCaseDomainService.onVerifyFixJobTerminal(job);
-        log.info("verify-fix vtc compare job completed: jobId={} items={}", jobId, webhookItems.size());
+        triggerVerifyFixExports(job, jobId, webhookItems);
+    }
+
+    private void triggerVerifyFixExports(OpenVerifyFixJobDO job, String jobId, List<VerifyFixItem> webhookItems) {
+        if (exportAssemblyDomainService == null || job == null || !StringUtils.hasText(job.getPartnerId())) {
+            return;
+        }
+        Set<String> taskIds = new LinkedHashSet<>();
+        List<OpenVerifyFixJobItemDO> allItems = verifyFixJobRepository.listItemsByJobId(jobId);
+        for (OpenVerifyFixJobItemDO item : allItems) {
+            if (item != null && StringUtils.hasText(item.getTaskId())) {
+                taskIds.add(item.getTaskId());
+            }
+        }
+        for (String taskId : taskIds) {
+            try {
+                exportAssemblyDomainService.assembleForVerifyFixScan(
+                        job.getPartnerId(), taskId, jobId, webhookItems);
+            } catch (Exception ex) {
+                log.warn("verify-fix export assembly failed jobId={} taskId={}: {}", jobId, taskId, ex.getMessage());
+            }
+        }
     }
 
     /**

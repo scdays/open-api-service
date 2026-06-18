@@ -22,9 +22,12 @@ public class TaskCenterReportRecycleService {
     private static final Logger log = LoggerFactory.getLogger(TaskCenterReportRecycleService.class);
 
     private final IOpenTaskSubRepository openTaskSubRepository;
+    private final TaskCenterSubRecycleCoordinator subRecycleCoordinator;
 
-    public TaskCenterReportRecycleService(IOpenTaskSubRepository openTaskSubRepository) {
+    public TaskCenterReportRecycleService(IOpenTaskSubRepository openTaskSubRepository,
+                                          TaskCenterSubRecycleCoordinator subRecycleCoordinator) {
         this.openTaskSubRepository = openTaskSubRepository;
+        this.subRecycleCoordinator = subRecycleCoordinator;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -33,7 +36,7 @@ public class TaskCenterReportRecycleService {
             return;
         }
         String openSubId = TaskCenterSocKeys.parseOpenSubId(event.getExtTaskId());
-        if (!StringUtils.hasText(openSubId) || openSubId.startsWith("VFS-")) {
+        if (!StringUtils.hasText(openSubId)) {
             log.debug("task-center kafka report skipped extTaskId={}", event.getExtTaskId());
             return;
         }
@@ -50,5 +53,6 @@ public class TaskCenterReportRecycleService {
         sub.setUpdatedAt(new Date());
         openTaskSubRepository.updateSub(sub);
         log.info("task-center kafka report path saved subId={} path={}", sub.getSubId(), sub.getReportDownloadPath());
+        subRecycleCoordinator.tryRecycleSub(sub.getSubId());
     }
 }

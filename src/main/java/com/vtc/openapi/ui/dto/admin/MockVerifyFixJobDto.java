@@ -15,8 +15,11 @@ public class MockVerifyFixJobDto {
     private String jobId;
     private String partnerId;
     private String batchId;
+    private String caseId;
     private String status;
     private Integer itemCount;
+    private Integer progress;
+    private Integer rescanSubCount;
     private Boolean rescanImported;
     private String errorMessage;
     private String finishedAt;

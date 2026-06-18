@@ -21,6 +21,9 @@ public class OpenVerifyFixJobItemDO extends BaseDO {
     private String itemStatus;
     private Boolean rescanMatched;
     private String rescanSubId;
+    /** 从 open_vuln_instance_log 选举的源 sub_id */
+    private String sourceSubId;
+    private String scannerType;
     private Date createdAt;
     private Date updatedAt;
 }

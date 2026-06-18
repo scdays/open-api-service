@@ -47,9 +47,15 @@ public interface IVerifyFixJobDomainService {
     void importRescanXmlAndComplete(String jobId, byte[] xmlBytes);
 
     /**
-     * task-center 复扫结果指纹比对完成（VTC 回收后调用）。
+     * task-center 复扫结果指纹比对完成（VTC 回收后调用，全 job 一次比对）。
      */
     void completeFromRescanCompare(String jobId, java.util.Set<String> rescanFingerprintKeys);
+
+    /**
+     * 单条 open_task_sub(phase=3) 回收后，仅比对归属该 sub 的实例。
+     */
+    void completeFromRescanCompareForSub(String jobId, String rescanSubId,
+                                         java.util.Set<String> rescanFingerprintKeys);
 
     /**
      * vul-pass 内部回调：更新状态并仅推送 Webhook。

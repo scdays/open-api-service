@@ -6,6 +6,7 @@ import com.botany.spore.ddd.infra.repository.DatabaseRepositoryImpl;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
 import com.vtc.openapi.infra.dao.OpenTaskSubMapper;
 import com.vtc.openapi.infra.dao.po.OpenTaskSubPO;
 import org.springframework.stereotype.Repository;
@@ -49,6 +50,45 @@ public class OpenTaskSubRepositoryImpl
         OpenTaskSubPO po = baseMapper.selectOne(new LambdaQueryWrapper<OpenTaskSubPO>()
                 .eq(OpenTaskSubPO::getSubId, subId));
         return ConvertHelper.convert(po, OpenTaskSubDO.class);
+    }
+
+    @Override
+    public List<OpenTaskSubDO> listByVerifyFixJobId(String verifyFixJobId) {
+        if (!StringUtils.hasText(verifyFixJobId)) {
+            return java.util.Collections.emptyList();
+        }
+        List<OpenTaskSubPO> rows = baseMapper.selectList(new LambdaQueryWrapper<OpenTaskSubPO>()
+                .eq(OpenTaskSubPO::getVerifyFixJobId, verifyFixJobId.trim())
+                .eq(OpenTaskSubPO::getScanPhase, TaskCenterSubSupport.PHASE_VERIFY_FIX)
+                .orderByAsc(OpenTaskSubPO::getId));
+        return ConvertHelper.convertList(rows, OpenTaskSubDO.class);
+    }
+
+    @Override
+    public List<OpenTaskSubDO> listRunningVerifyFixSubs(int limit) {
+        int cap = limit > 0 ? Math.min(limit, 200) : 50;
+        List<OpenTaskSubPO> rows = baseMapper.selectList(new LambdaQueryWrapper<OpenTaskSubPO>()
+                .eq(OpenTaskSubPO::getScanPhase, TaskCenterSubSupport.PHASE_VERIFY_FIX)
+                .in(OpenTaskSubPO::getStatus, "PENDING", "RUNNING")
+                .isNotNull(OpenTaskSubPO::getCenterPlanId)
+                .orderByAsc(OpenTaskSubPO::getUpdatedAt)
+                .last("LIMIT " + cap));
+        return ConvertHelper.convertList(rows, OpenTaskSubDO.class);
+    }
+
+    @Override
+    public List<OpenTaskSubDO> listFinishedAwaitingReportArchive(int limit) {
+        int cap = limit > 0 ? Math.min(limit, 200) : 50;
+        List<OpenTaskSubPO> rows = baseMapper.selectList(new LambdaQueryWrapper<OpenTaskSubPO>()
+                .eq(OpenTaskSubPO::getStatus, TaskCenterSubSupport.STATUS_FINISHED)
+                .isNotNull(OpenTaskSubPO::getSurveyId)
+                .isNull(OpenTaskSubPO::getReportFileField)
+                .and(w -> w.eq(OpenTaskSubPO::getCenterTaskType, "vuln")
+                        .or()
+                        .isNull(OpenTaskSubPO::getCenterTaskType))
+                .orderByAsc(OpenTaskSubPO::getUpdatedAt)
+                .last("LIMIT " + cap));
+        return ConvertHelper.convertList(rows, OpenTaskSubDO.class);
     }
 
     @Override

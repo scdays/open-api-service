@@ -67,4 +67,20 @@ databaseChangeLog(logicalFilePath: 'open_task_sub.groovy') {
                     remarks: '该子任务排查漏洞实例是否已 ingest')
         }
     }
+
+    changeSet(id: '2026-06-19-open_task_sub-verify-fix-job', author: 'open-api') {
+        addColumn(tableName: 'open_task_sub') {
+            column(name: 'verify_fix_job_id', type: 'VARCHAR(32)', remarks: '修复核验 jobId（scan_phase=3）')
+        }
+        createIndex(tableName: 'open_task_sub', indexName: 'idx_open_task_sub_verify_fix_job', unique: false) {
+            column(name: 'verify_fix_job_id')
+            column(name: 'scan_phase')
+        }
+    }
+
+    changeSet(id: '2026-06-19-open_task_sub-report-file-field', author: 'open-api') {
+        addColumn(tableName: 'open_task_sub') {
+            column(name: 'report_file_field', type: 'VARCHAR(256)', remarks: '原始扫描报告归档至文件服务后的 fileKey')
+        }
+    }
 }

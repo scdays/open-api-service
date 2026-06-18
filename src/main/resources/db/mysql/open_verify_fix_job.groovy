@@ -81,4 +81,11 @@ databaseChangeLog(logicalFilePath: 'open_verify_fix_job.groovy') {
             column(name: 'center_plan_id')
         }
     }
+
+    changeSet(id: '2026-06-19-open_verify_fix_job_item-scanner', author: 'open-api') {
+        addColumn(tableName: 'open_verify_fix_job_item') {
+            column(name: 'source_sub_id', type: 'VARCHAR(64)', remarks: '选举来源 open_task_sub.sub_id（log 溯源）')
+            column(name: 'scanner_type', type: 'VARCHAR(8)', remarks: '选举扫描器类型')
+        }
+    }
 }

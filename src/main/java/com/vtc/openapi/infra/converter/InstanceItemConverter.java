@@ -24,7 +24,9 @@ public final class InstanceItemConverter {
         item.setVulInfoId(row.getVulInfoId());
         if (StringUtils.hasText(row.getSnapshotJson())) {
             JSONObject snap = JSON.parseObject(row.getSnapshotJson());
-            mapJsonFields(item, snap);
+            if (snap != null) {
+                mapJsonFields(item, snap);
+            }
         }
         if (row.getVulInfoStat() != null) {
             item.setVulInfoStat(row.getVulInfoStat());
@@ -46,6 +48,9 @@ public final class InstanceItemConverter {
     }
 
     public static void mapJsonFields(InstanceItemResult item, JSONObject src) {
+        if (item == null || src == null) {
+            return;
+        }
         item.setVulInfoId(firstOf(src.getString("vulInfoID"), src.getString("vulInfoId")));
         item.setVulId(firstOf(src.getString("vulID"), src.getString("vulId")));
         item.setVulInfoStat(src.getInteger("vulInfoStat"));

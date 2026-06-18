@@ -4,6 +4,8 @@ import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @ApiModel("修复核验案件载荷")
 public class OperationCaseVerifyFixPayloadDto {
@@ -28,4 +30,10 @@ public class OperationCaseVerifyFixPayloadDto {
 
     @ApiModelProperty("进度 0-100")
     private Integer progress;
+
+    @ApiModelProperty("复扫子任务（open_task_sub phase=3）")
+    private List<OpenTaskSubDto> rescanSubs;
+
+    @ApiModelProperty("修复核验工作台投影")
+    private VerifyFixWorkspaceDto verifyFixWorkspace;
 }

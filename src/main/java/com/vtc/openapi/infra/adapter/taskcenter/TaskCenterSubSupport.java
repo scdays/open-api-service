@@ -4,6 +4,8 @@ public final class TaskCenterSubSupport {
 
     public static final int PHASE_SURVEY = 1;
     public static final int PHASE_VERIFY = 2;
+    /** 修复核验复扫（不经排查/验证编排） */
+    public static final int PHASE_VERIFY_FIX = 3;
 
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_RUNNING = "RUNNING";

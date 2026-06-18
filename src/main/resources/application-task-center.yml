@@ -4,6 +4,8 @@ open-api:
   task-center:
     poll-interval-ms: 30000
     poll-enabled: true
+    report-archive:
+      enabled: true
     kafka:
       enabled: true
       queue-consume-enabled: true

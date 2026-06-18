@@ -14,4 +14,10 @@ public class MockVerifyFixJobItemDto {
     private Integer previousStat;
     private Integer resultStat;
     private String itemStatus;
+    @ApiModelProperty("选举来源 sub_id")
+    private String sourceSubId;
+    @ApiModelProperty("选举扫描器")
+    private String scannerType;
+    @ApiModelProperty("复扫 sub_id（open_task_sub）")
+    private String rescanSubId;
 }

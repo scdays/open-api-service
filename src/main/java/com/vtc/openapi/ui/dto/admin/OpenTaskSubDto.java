@@ -14,7 +14,10 @@ public class OpenTaskSubDto {
     @ApiModelProperty("子任务 ID")
     private String subId;
 
-    @ApiModelProperty("扫描阶段 1=排查 2=验证")
+    @ApiModelProperty("所属 open_task")
+    private String taskId;
+
+    @ApiModelProperty("扫描阶段 1=排查 2=验证 3=修复核验")
     private Integer scanPhase;
 
     @ApiModelProperty("扫描器类型 1=绿盟 7=Nessus")
@@ -46,4 +49,13 @@ public class OpenTaskSubDto {
 
     @ApiModelProperty("更新时间")
     private String updatedAt;
+
+    @ApiModelProperty("VTC 报告 FTP 路径")
+    private String reportDownloadPath;
+
+    @ApiModelProperty("原始报告归档 fileKey（文件服务）")
+    private String reportFileField;
+
+    @ApiModelProperty("关联 verifyFixJobId（phase=3）")
+    private String verifyFixJobId;
 }

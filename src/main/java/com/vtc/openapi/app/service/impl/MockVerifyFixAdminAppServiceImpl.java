@@ -1,5 +1,6 @@
 package com.vtc.openapi.app.service.impl;
 
+import com.vtc.openapi.app.support.OpenVulnInstanceOpsQueryService;
 import com.vtc.openapi.app.service.IMockTaskAdminAppService;
 import com.vtc.openapi.app.service.IMockVerifyFixAdminAppService;
 import com.vtc.openapi.app.support.VerifyFixInvocationCandidateResolver;
@@ -62,19 +63,22 @@ public class MockVerifyFixAdminAppServiceImpl implements IMockVerifyFixAdminAppS
     private final IMockTaskAdminAppService mockTaskAdminAppService;
     private final IApiInvocationRepository apiInvocationRepository;
     private final IOpenVerifyFixJobRepository verifyFixJobRepository;
+    private final OpenVulnInstanceOpsQueryService opsQueryService;
 
     public MockVerifyFixAdminAppServiceImpl(IVerifyFixJobDomainService verifyFixJobDomainService,
                                             IOpenTaskRepository openTaskRepository,
                                             IOpenVulnInstanceRepository vulnInstanceRepository,
                                             IMockTaskAdminAppService mockTaskAdminAppService,
                                             IApiInvocationRepository apiInvocationRepository,
-                                            IOpenVerifyFixJobRepository verifyFixJobRepository) {
+                                            IOpenVerifyFixJobRepository verifyFixJobRepository,
+                                            OpenVulnInstanceOpsQueryService opsQueryService) {
         this.verifyFixJobDomainService = verifyFixJobDomainService;
         this.openTaskRepository = openTaskRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.mockTaskAdminAppService = mockTaskAdminAppService;
         this.apiInvocationRepository = apiInvocationRepository;
         this.verifyFixJobRepository = verifyFixJobRepository;
+        this.opsQueryService = opsQueryService;
     }
 
     @Override
@@ -171,33 +175,7 @@ public class MockVerifyFixAdminAppServiceImpl implements IMockVerifyFixAdminAppS
     @Override
     public ApiResponse<List<MockVulnInstanceOpsRowDto>> listInstancesForOps(String partnerId, String taskId,
                                                                            Integer vulInfoStat, int limit) {
-        if (!StringUtils.hasText(partnerId)) {
-            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId 不能为空");
-        }
-        int capped = Math.max(1, Math.min(limit, 500));
-        String normalizedTaskId = StringUtils.hasText(taskId) ? taskId.trim() : null;
-        List<OpenVulnInstanceDO> rows = vulnInstanceRepository.listByPartner(
-                partnerId.trim(), normalizedTaskId, vulInfoStat, capped);
-        List<MockVulnInstanceOpsRowDto> result = new ArrayList<>();
-        for (OpenVulnInstanceDO row : rows) {
-            MockVulnInstanceOpsRowDto dto = new MockVulnInstanceOpsRowDto();
-            dto.setVulInfoId(row.getVulInfoId());
-            dto.setVulInfoStat(row.getVulInfoStat());
-            dto.setTaskId(row.getTaskId());
-            InstanceItemResult item = InstanceItemConverter.fromSnapshot(row);
-            if (item != null) {
-                dto.setVulName(item.getVulName());
-                dto.setVulNetAddr(item.getVulNetAddr());
-                dto.setVulPort(item.getVulPort());
-            }
-            OpenVerifyFixJobItemDO pending = verifyFixJobRepository
-                    .findLatestPendingItemByPartnerAndVulInfoId(partnerId.trim(), row.getVulInfoId());
-            if (pending != null && StringUtils.hasText(pending.getJobId())) {
-                dto.setPendingVerifyFixJobId(pending.getJobId());
-            }
-            result.add(dto);
-        }
-        return ApiResponse.ok(result);
+        return ApiResponse.ok(opsQueryService.listForOps(partnerId, taskId, vulInfoStat, limit));
     }
 
     @Override
