@@ -28,6 +28,8 @@ public class OpenExportDO extends BaseDO {
     private String downloadUrl;
     private String errorMessage;
     private String verifyFixJobId;
+    /** 原始报告归档关联子任务 ID；外发记录为 null */
+    private String subId;
     private Date generatedAt;
     private Date createdAt;
     private Date updatedAt;

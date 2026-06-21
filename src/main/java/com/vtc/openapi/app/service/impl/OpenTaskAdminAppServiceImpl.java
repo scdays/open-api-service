@@ -18,6 +18,7 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.model.query.OpenTaskAdminQuery;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterReportArchiveService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterDispatchRetryResult;
@@ -30,6 +31,7 @@ import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceBriefDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskReportRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
@@ -43,14 +45,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 @Service
@@ -58,12 +60,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
 
     private static final Logger log = LoggerFactory.getLogger(OpenTaskAdminAppServiceImpl.class);
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenTaskSubRepository openTaskSubRepository;
@@ -74,6 +72,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     private final TaskCenterTaskOrchestrator taskCenterOrchestrator;
     private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskCenterSurveyRefetchService surveyRefetchService;
+    private final TaskCenterReportArchiveService reportArchiveService;
 
     public OpenTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
@@ -83,7 +82,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
                                        OpenApiProperties openApiProperties,
                                        @Autowired(required = false) TaskCenterTaskOrchestrator taskCenterOrchestrator,
                                        @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
-                                       @Autowired(required = false) TaskCenterSurveyRefetchService surveyRefetchService) {
+                                       @Autowired(required = false) TaskCenterSurveyRefetchService surveyRefetchService,
+                                       @Autowired(required = false) TaskCenterReportArchiveService reportArchiveService) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
@@ -93,6 +93,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         this.taskCenterOrchestrator = taskCenterOrchestrator;
         this.scanResultQueryService = scanResultQueryService;
         this.surveyRefetchService = surveyRefetchService;
+        this.reportArchiveService = reportArchiveService;
     }
 
     @Override
@@ -219,6 +220,90 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     }
 
     @Override
+    public ApiResponse<OpenTaskReportRefetchResultDto> refetchSubReport(String taskId, String subId) {
+        if (!StringUtils.hasText(taskId) || !StringUtils.hasText(subId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId/subId 不能为空");
+        }
+        if (!"task-center".equalsIgnoreCase(openApiProperties.getEngine().getAdapterMode())) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "仅 task-center 模式支持重新获取报告");
+        }
+        if (reportArchiveService == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "task-center 报告归档未启用");
+        }
+        OpenTaskSubDO sub = openTaskSubRepository.findBySubId(subId.trim());
+        if (sub == null || !taskId.trim().equals(sub.getTaskId())) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "子任务不存在或不属于该任务");
+        }
+        OpenTaskReportRefetchResultDto result = new OpenTaskReportRefetchResultDto();
+        result.setTaskId(taskId.trim());
+        result.setSubId(sub.getSubId());
+        if (!TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
+            result.setSuccess(false);
+            result.setReportArchiveStatus(sub.getReportArchiveStatus());
+            result.setMessage("子任务未完成，无法重新获取报告");
+            return ApiResponse.ok(result);
+        }
+        if (!StringUtils.hasText(sub.getReportDownloadPath())) {
+            result.setSuccess(false);
+            result.setReportArchiveStatus(sub.getReportArchiveStatus());
+            result.setMessage("暂无报告下载路径，需等待 vuln-task-center 推送 download_report_finish");
+            return ApiResponse.ok(result);
+        }
+        boolean ok = reportArchiveService.retryArchive(sub);
+        OpenTaskSubDO latest = openTaskSubRepository.findBySubId(sub.getSubId());
+        result.setSuccess(ok);
+        result.setReportArchiveStatus(latest != null ? latest.getReportArchiveStatus() : sub.getReportArchiveStatus());
+        result.setMessage(ok ? "报告已重新归档" : "报告归档失败，请查看失败原因或稍后重试");
+        return ApiResponse.ok(result);
+    }
+
+    @Override
+    public ApiResponse<OpenTaskReportRefetchResultDto> refetchAllReports(String taskId) {
+        if (!StringUtils.hasText(taskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId 不能为空");
+        }
+        if (!"task-center".equalsIgnoreCase(openApiProperties.getEngine().getAdapterMode())) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "仅 task-center 模式支持重新获取报告");
+        }
+        if (reportArchiveService == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "task-center 报告归档未启用");
+        }
+        List<OpenTaskSubDO> subs = openTaskSubRepository.listByTaskId(taskId.trim());
+        OpenTaskReportRefetchResultDto result = new OpenTaskReportRefetchResultDto();
+        result.setTaskId(taskId.trim());
+        int attempted = 0;
+        int archived = 0;
+        List<String> failedSubIds = new ArrayList<>();
+        for (OpenTaskSubDO sub : subs) {
+            // 仅对已完成、有报告路径且未成功归档的 vuln 子任务重试
+            if (!TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
+                continue;
+            }
+            if (!StringUtils.hasText(sub.getReportDownloadPath())) {
+                continue;
+            }
+            if (TaskCenterSubSupport.REPORT_ARCHIVED.equals(sub.getReportArchiveStatus())) {
+                continue;
+            }
+            attempted++;
+            boolean ok = reportArchiveService.retryArchive(sub);
+            if (ok) {
+                archived++;
+            } else {
+                failedSubIds.add(sub.getSubId());
+            }
+        }
+        result.setAttempted(attempted);
+        result.setArchived(archived);
+        result.setFailedSubIds(failedSubIds);
+        result.setSuccess(attempted == 0 || archived > 0);
+        result.setMessage(attempted == 0
+                ? "没有需要重新获取报告的子任务"
+                : (archived + "/" + attempted + " 个子任务报告归档成功"));
+        return ApiResponse.ok(result);
+    }
+
+    @Override
     public ApiResponse<OpenTaskDispatchRetryResultDto> retrySurveyDispatch(String taskId,
                                                                            Integer scanPhase,
                                                                            String subId) {
@@ -336,6 +421,9 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         dto.setStatus(sub.getStatus());
         dto.setProgress(sub.getProgress());
         dto.setErrorMessage(sub.getErrorMessage());
+        dto.setReportDownloadPath(sub.getReportDownloadPath());
+        dto.setReportArchiveStatus(sub.getReportArchiveStatus());
+        dto.setReportArchiveError(sub.getReportArchiveError());
         dto.setCreatedAt(formatUtc(sub.getCreatedAt()));
         dto.setUpdatedAt(formatUtc(sub.getUpdatedAt()));
         return dto;
@@ -480,8 +568,6 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         if (date == null) {
             return null;
         }
-        synchronized (ISO_UTC) {
-            return ISO_UTC.format(date);
-        }
+        return ISO_UTC.format(date.toInstant());
     }
 }

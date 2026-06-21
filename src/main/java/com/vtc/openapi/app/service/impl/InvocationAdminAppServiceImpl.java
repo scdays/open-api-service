@@ -37,28 +37,27 @@ import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogPageDto;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 @Service
 public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService {
 
-    private static final SimpleDateFormat ISO_UTC;
-    private static final SimpleDateFormat SIMPLE_DATETIME;
-    private static final SimpleDateFormat SIMPLE_DATE;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-        SIMPLE_DATETIME = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        SIMPLE_DATE = new SimpleDateFormat("yyyy-MM-dd");
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter SIMPLE_DATETIME =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter SIMPLE_DATE =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
 
     private final IInvocationDomainService invocationDomainService;
     private final IPartnerDomainService partnerDomainService;
@@ -294,26 +293,21 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         if (!StringUtils.hasText(value)) {
             return null;
         }
-        ParseException parseException = null;
+        DateTimeParseException parseException = null;
         try {
-            synchronized (ISO_UTC) {
-                return ISO_UTC.parse(value);
-            }
-        } catch (ParseException ex) {
+            return Date.from(ISO_UTC.parse(value, Instant::from));
+        } catch (DateTimeParseException ex) {
             parseException = ex;
         }
         try {
-            synchronized (SIMPLE_DATETIME) {
-                return SIMPLE_DATETIME.parse(value);
-            }
-        } catch (ParseException ex) {
+            return Date.from(SIMPLE_DATETIME.parse(value, Instant::from));
+        } catch (DateTimeParseException ex) {
             parseException = ex;
         }
         try {
-            synchronized (SIMPLE_DATE) {
-                return SIMPLE_DATE.parse(value);
-            }
-        } catch (ParseException ex) {
+            return Date.from(LocalDate.from(SIMPLE_DATE.parse(value))
+                    .atStartOfDay(ZoneId.systemDefault()).toInstant());
+        } catch (DateTimeParseException ex) {
             parseException = ex;
         }
         throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR,
@@ -487,9 +481,7 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         if (value == null) {
             return "-";
         }
-        synchronized (SIMPLE_DATETIME) {
-            return SIMPLE_DATETIME.format(value);
-        }
+        return SIMPLE_DATETIME.format(value.toInstant());
     }
 
     private String nullToDash(String value) {

@@ -82,7 +82,9 @@ public class OpenTaskSubRepositoryImpl
         List<OpenTaskSubPO> rows = baseMapper.selectList(new LambdaQueryWrapper<OpenTaskSubPO>()
                 .eq(OpenTaskSubPO::getStatus, TaskCenterSubSupport.STATUS_FINISHED)
                 .isNotNull(OpenTaskSubPO::getSurveyId)
-                .isNull(OpenTaskSubPO::getReportFileField)
+                // 未成功归档（状态为空或非 ARCHIVED）的子任务继续重试
+                .and(w -> w.isNull(OpenTaskSubPO::getReportArchiveStatus)
+                        .or().ne(OpenTaskSubPO::getReportArchiveStatus, TaskCenterSubSupport.REPORT_ARCHIVED))
                 .and(w -> w.eq(OpenTaskSubPO::getCenterTaskType, "vuln")
                         .or()
                         .isNull(OpenTaskSubPO::getCenterTaskType))
@@ -105,11 +107,16 @@ public class OpenTaskSubRepositoryImpl
         }
         OpenTaskSubPO po = ConvertHelper.convert(row, OpenTaskSubPO.class);
         baseMapper.updateById(po);
-        // updateById 默认忽略 null 字段，下发成功后需显式清空 error_message
+        // updateById 默认忽略 null 字段，下发/归档成功后需显式清空 error_message 与 report_archive_error
         if (!StringUtils.hasText(row.getErrorMessage())) {
             baseMapper.update(null, new LambdaUpdateWrapper<OpenTaskSubPO>()
                     .eq(OpenTaskSubPO::getId, row.getId())
                     .set(OpenTaskSubPO::getErrorMessage, null));
+        }
+        if (!StringUtils.hasText(row.getReportArchiveError())) {
+            baseMapper.update(null, new LambdaUpdateWrapper<OpenTaskSubPO>()
+                    .eq(OpenTaskSubPO::getId, row.getId())
+                    .set(OpenTaskSubPO::getReportArchiveError, null));
         }
     }
 }

@@ -167,7 +167,9 @@ public class TaskCenterRecycleService {
         for (OpenTaskSubDO sub : subs) {
             ingestSurveySubIfNeeded(task, sub);
         }
-        if (Boolean.TRUE.equals(task.getCrossScan()) && "vuln".equals(subs.get(0).getCenterTaskType())) {
+        if (Boolean.TRUE.equals(task.getCrossScan())
+                && !subs.isEmpty()
+                && "vuln".equals(subs.get(0).getCenterTaskType())) {
             applyCrossScannerMerge(task, subs, TaskCenterSubSupport.PHASE_SURVEY);
         }
         markTaskFinished(task);
@@ -187,6 +189,9 @@ public class TaskCenterRecycleService {
      * 多扫描器交叉合并：直接读取各子任务已落库的排查结果，不二次下发 VTC。
      */
     private void applyCrossScannerMerge(OpenTaskDO task, List<OpenTaskSubDO> subs, int auditScanPhase) {
+        if (subs == null || subs.isEmpty()) {
+            return;
+        }
         List<List<JSONObject>> perScanner = loadVulnResultsPerSub(subs);
         int totalScanners = subs.size();
         Map<String, Integer> hits = verifyMergeService.countScannerHits(perScanner);

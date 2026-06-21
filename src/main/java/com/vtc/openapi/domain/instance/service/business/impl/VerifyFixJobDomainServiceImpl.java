@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -235,10 +237,12 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         verifyFixJobRepository.updateJob(job);
 
         String webhookStatus = anyFailed ? STATUS_FAILED : STATUS_FINISHED;
-        webhookPublishService.publishVerifyFixCompleted(
-                job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
         operationCaseDomainService.onVerifyFixJobTerminal(job);
-        triggerVerifyFixExports(job, jobId, webhookItems);
+        runAfterCommit(() -> {
+            webhookPublishService.publishVerifyFixCompleted(
+                    job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
+            triggerVerifyFixExports(job, jobId, webhookItems);
+        });
         log.info("verify-fix job completed: jobId={} mode={} items={}", jobId, mode, webhookItems.size());
     }
 
@@ -374,10 +378,12 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         verifyFixJobRepository.updateJob(job);
 
         String webhookStatus = anyFailed ? STATUS_FAILED : STATUS_FINISHED;
-        webhookPublishService.publishVerifyFixCompleted(
-                job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
         operationCaseDomainService.onVerifyFixJobTerminal(job);
-        triggerVerifyFixExports(job, jobId, webhookItems);
+        runAfterCommit(() -> {
+            webhookPublishService.publishVerifyFixCompleted(
+                    job.getPartnerId(), jobId, job.getBatchId(), webhookItems, webhookStatus);
+            triggerVerifyFixExports(job, jobId, webhookItems);
+        });
     }
 
     private void triggerVerifyFixExports(OpenVerifyFixJobDO job, String jobId, List<VerifyFixItem> webhookItems) {
@@ -468,9 +474,9 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         verifyFixJobRepository.updateJob(job);
 
         String status = jobFailed ? STATUS_FAILED : STATUS_FINISHED;
-        webhookPublishService.publishVerifyFixCompleted(
-                job.getPartnerId(), jobId, job.getBatchId(), webhookItems, status);
         operationCaseDomainService.onVerifyFixJobTerminal(job);
+        runAfterCommit(() -> webhookPublishService.publishVerifyFixCompleted(
+                job.getPartnerId(), jobId, job.getBatchId(), webhookItems, status));
     }
 
     @Override
@@ -588,8 +594,8 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
         item.setPreviousVulInfoStat(STAT_FIXED);
         List<VerifyFixItem> items = new ArrayList<>();
         items.add(item);
-        webhookPublishService.publishVerifyFixCompleted(
-                job.getPartnerId(), job.getJobId(), batchId, items, jobFailed ? STATUS_FAILED : STATUS_FINISHED);
+        runAfterCommit(() -> webhookPublishService.publishVerifyFixCompleted(
+                job.getPartnerId(), job.getJobId(), batchId, items, jobFailed ? STATUS_FAILED : STATUS_FINISHED));
     }
 
     private Set<String> loadRescanFingerprintKeys(String jobId, List<OpenVerifyFixJobItemDO> items) {
@@ -701,5 +707,22 @@ public class VerifyFixJobDomainServiceImpl implements IVerifyFixJobDomainService
             return transferTime.trim();
         }
         return String.valueOf(System.currentTimeMillis() / 1000);
+    }
+
+    /**
+     * 将不可逆的外部副作用（Webhook 推送、报告导出）延迟到事务提交后执行，
+     * 避免事务回滚后已发出的通知造成数据不一致。无事务上下文时直接执行。
+     */
+    private void runAfterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 }

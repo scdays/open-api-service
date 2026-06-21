@@ -26,8 +26,10 @@ public class OpenTaskSubDO extends BaseDO {
     private String errorMessage;
     /** VTC 报告 FTP 下载路径（download_report_finish_topic） */
     private String reportDownloadPath;
-    /** 原始扫描报告归档至文件服务后的 fileKey */
-    private String reportFileField;
+    /** 原始报告归档状态: WAITING_PATH/PENDING/ARCHIVED/FAILED */
+    private String reportArchiveStatus;
+    /** 原始报告归档失败原因 */
+    private String reportArchiveError;
     /** 该子任务排查漏洞实例是否已 ingest */
     private Boolean instancesIngested;
     /** scan_phase=3 时关联的 verifyFixJobId */

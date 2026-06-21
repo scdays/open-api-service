@@ -12,7 +12,9 @@ import com.vtc.openapi.infra.feign.dto.taskcenter.TaskCenterSurveyBundle;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -41,6 +43,10 @@ public class TaskCenterVerifyFixProgressService {
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
     private final TaskCenterVerifyFixOrchestrator verifyFixOrchestrator;
     private final TaskCenterReportArchiveService reportArchiveService;
+
+    @Autowired
+    @Lazy
+    private TaskCenterVerifyFixProgressService self;
 
     public TaskCenterVerifyFixProgressService(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                               IOpenTaskSubRepository openTaskSubRepository,
@@ -96,7 +102,6 @@ public class TaskCenterVerifyFixProgressService {
         return dto;
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public void pollActiveJobs() {
         try {
             verifyFixOrchestrator.retryDispatchFailed();
@@ -105,7 +110,8 @@ public class TaskCenterVerifyFixProgressService {
         }
         for (OpenTaskSubDO sub : openTaskSubRepository.listRunningVerifyFixSubs(50)) {
             try {
-                refreshVerifyFixSub(sub);
+                // 通过 self 代理调用，使每个 sub 在独立事务中处理，避免单 sub 失败回滚整批
+                self.refreshVerifyFixSub(sub);
             } catch (Exception ex) {
                 log.warn("verify-fix poll failed subId={}: {}", sub.getSubId(), ex.getMessage());
             }
@@ -259,10 +265,6 @@ public class TaskCenterVerifyFixProgressService {
     }
 
     private void completeFromSurveyId(String jobId, String surveyId) {
-        tryCompareWhenAllSubsReady(jobId);
-    }
-
-    private void completeFromSurveyId(String jobId, String surveyId, String rescanSubId) {
         tryCompareWhenAllSubsReady(jobId);
     }
 

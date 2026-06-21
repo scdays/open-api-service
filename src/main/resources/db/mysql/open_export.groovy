@@ -43,4 +43,14 @@ databaseChangeLog(logicalFilePath: 'open_export.groovy') {
             column(name: 'task_id')
         }
     }
+
+    changeSet(id: '2026-06-22-open_export-sub-id', author: 'open-api') {
+        addColumn(tableName: 'open_export') {
+            column(name: 'sub_id', type: 'VARCHAR(32)', remarks: '原始报告归档关联的 open_task_sub.sub_id；外发记录为 NULL')
+        }
+        dropUniqueConstraint(tableName: 'open_export', constraintName: 'uk_open_export_task_stage_format')
+        addUniqueConstraint(tableName: 'open_export',
+                columnNames: 'partner_id, task_id, export_stage, format, sub_id',
+                constraintName: 'uk_open_export_task_stage_format')
+    }
 }

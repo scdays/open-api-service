@@ -53,8 +53,11 @@ public class OpenTaskSubDto {
     @ApiModelProperty("VTC 报告 FTP 路径")
     private String reportDownloadPath;
 
-    @ApiModelProperty("原始报告归档 fileKey（文件服务）")
-    private String reportFileField;
+    @ApiModelProperty("原始报告归档状态: WAITING_PATH/PENDING/ARCHIVED/FAILED")
+    private String reportArchiveStatus;
+
+    @ApiModelProperty("原始报告归档失败原因")
+    private String reportArchiveError;
 
     @ApiModelProperty("关联 verifyFixJobId（phase=3）")
     private String verifyFixJobId;

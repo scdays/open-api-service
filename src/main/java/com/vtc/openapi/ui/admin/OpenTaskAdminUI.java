@@ -5,6 +5,7 @@ import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskReportRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
@@ -75,5 +76,20 @@ public class OpenTaskAdminUI extends BaseUI {
             @RequestParam(value = "scanPhase", defaultValue = "1") Integer scanPhase,
             @RequestParam(value = "subId", required = false) String subId) {
         return openTaskAdminAppService.retrySurveyDispatch(taskId, scanPhase, subId);
+    }
+
+    @ApiOperation("重新获取单个子任务的原始扫描报告（清空归档后重新下载并上传文件服务）")
+    @PostMapping("/{taskId}/subs/{subId}/report-refetch")
+    public ApiResponse<OpenTaskReportRefetchResultDto> refetchSubReport(
+            @PathVariable("taskId") String taskId,
+            @PathVariable("subId") String subId) {
+        return openTaskAdminAppService.refetchSubReport(taskId, subId);
+    }
+
+    @ApiOperation("重新获取该任务下所有未归档/失败子任务的原始扫描报告")
+    @PostMapping("/{taskId}/report-refetch-all")
+    public ApiResponse<OpenTaskReportRefetchResultDto> refetchAllReports(
+            @PathVariable("taskId") String taskId) {
+        return openTaskAdminAppService.refetchAllReports(taskId);
     }
 }

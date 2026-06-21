@@ -33,6 +33,7 @@ public class OpenExportPO extends BasePO {
     private String downloadUrl;
     private String errorMessage;
     private String verifyFixJobId;
+    private String subId;
     private Date generatedAt;
     private Date createdAt;
     private Date updatedAt;

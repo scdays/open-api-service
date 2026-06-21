@@ -50,6 +50,11 @@ public class TaskCenterReportRecycleService {
             return;
         }
         sub.setReportDownloadPath(TaskCenterTaskOrchestrator.truncateError(event.getDownloadPath()));
+        // 收到报告路径后置为待归档；若此前为失败/等待路径状态，重置为 PENDING
+        if (!TaskCenterSubSupport.REPORT_ARCHIVED.equals(sub.getReportArchiveStatus())) {
+            sub.setReportArchiveStatus(TaskCenterSubSupport.REPORT_PENDING);
+            sub.setReportArchiveError(null);
+        }
         sub.setUpdatedAt(new Date());
         openTaskSubRepository.updateSub(sub);
         log.info("task-center kafka report path saved subId={} path={}", sub.getSubId(), sub.getReportDownloadPath());

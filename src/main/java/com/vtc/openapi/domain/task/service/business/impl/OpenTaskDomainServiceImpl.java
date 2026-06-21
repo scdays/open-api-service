@@ -40,12 +40,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -54,12 +54,8 @@ public class OpenTaskDomainServiceImpl
         extends DomainServiceImpl<IOpenTaskRepository, OpenTaskDO>
         implements IOpenTaskDomainService {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final IScanEngineGateway scanEngineGateway;
     private final IInstanceIngestDomainService instanceIngestDomainService;
@@ -337,9 +333,7 @@ public class OpenTaskDomainServiceImpl
         if (date == null) {
             return null;
         }
-        synchronized (ISO_UTC) {
-            return ISO_UTC.format(date);
-        }
+        return ISO_UTC.format(date.toInstant());
     }
 
     private boolean isTaskCenterMode() {

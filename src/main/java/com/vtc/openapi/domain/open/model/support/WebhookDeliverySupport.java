@@ -70,6 +70,11 @@ public final class WebhookDeliverySupport {
                 } else {
                     binding.setResourceId(firstNonBlank(payload.getString("verifyFixJobId")));
                 }
+            } else if (WebhookEventType.ARTIFACT_READY.equals(eventType)) {
+                // 报告产物按 taskId 聚合到任务推送记录（与 TASK_COMPLETED 一致），便于在工作台按任务查看回调
+                binding.setResourceType(RESOURCE_TASK);
+                binding.setResourceId(firstNonBlank(payload.getString("taskId")));
+                binding.setSecondaryResourceId(payload.getString("artifactId"));
             }
         } catch (Exception ignored) {
             // ignore malformed payload

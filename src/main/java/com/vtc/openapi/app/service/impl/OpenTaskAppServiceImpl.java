@@ -29,10 +29,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validator;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 /**
@@ -41,12 +42,8 @@ import java.util.stream.Collectors;
 @Service
 public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final InvocationPipeline invocationPipeline;
     private final IOpenTaskDomainService openTaskDomainService;
@@ -230,10 +227,8 @@ public class OpenTaskAppServiceImpl implements IOpenTaskAppService {
             return null;
         }
         try {
-            synchronized (ISO_UTC) {
-                return ISO_UTC.parse(value);
-            }
-        } catch (ParseException e) {
+            return Date.from(ISO_UTC.parse(value, Instant::from));
+        } catch (DateTimeParseException e) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "日期格式无效，需 ISO 8601 UTC");
         }
     }

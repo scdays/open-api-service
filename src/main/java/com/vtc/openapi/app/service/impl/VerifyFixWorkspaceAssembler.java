@@ -30,7 +30,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -39,17 +40,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TimeZone;
 
 @Component
 public class VerifyFixWorkspaceAssembler {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final IOpenVerifyFixJobRepository verifyFixJobRepository;
     private final IOpenTaskSubRepository openTaskSubRepository;
@@ -284,6 +280,6 @@ public class VerifyFixWorkspaceAssembler {
     }
 
     private static String formatUtc(Date date) {
-        return date != null ? ISO_UTC.format(date) : null;
+        return date != null ? ISO_UTC.format(date.toInstant()) : null;
     }
 }

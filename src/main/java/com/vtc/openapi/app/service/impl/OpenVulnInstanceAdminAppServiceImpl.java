@@ -17,20 +17,16 @@ import com.vtc.openapi.ui.dto.admin.OpenVulnInstanceStateLogDto;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.TimeZone;
 
 @Service
 public class OpenVulnInstanceAdminAppServiceImpl implements IOpenVulnInstanceAdminAppService {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final IOpenVulnInstanceLogRepository logRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
@@ -116,7 +112,7 @@ public class OpenVulnInstanceAdminAppServiceImpl implements IOpenVulnInstanceAdm
         dto.setTransferTime(row.getTransferTime());
         dto.setCaseId(row.getCaseId());
         if (row.getCreatedAt() != null) {
-            dto.setCreatedAt(ISO_UTC.format(row.getCreatedAt()));
+            dto.setCreatedAt(ISO_UTC.format(row.getCreatedAt().toInstant()));
         }
         return dto;
     }

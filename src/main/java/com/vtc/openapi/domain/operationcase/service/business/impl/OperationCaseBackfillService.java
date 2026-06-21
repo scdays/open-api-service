@@ -19,6 +19,7 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.ui.dto.admin.OperationCaseBackfillResultDto;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
@@ -46,6 +47,7 @@ public class OperationCaseBackfillService {
         this.verifyFixJobRepository = verifyFixJobRepository;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public OperationCaseBackfillResultDto backfill(String partnerId, int limit, boolean dryRun) {
         int capped = limit > 0 ? Math.min(limit, 500) : 200;
         OperationCaseBackfillResultDto result = new OperationCaseBackfillResultDto();

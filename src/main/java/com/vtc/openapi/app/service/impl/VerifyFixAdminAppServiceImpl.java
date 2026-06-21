@@ -1,5 +1,6 @@
 package com.vtc.openapi.app.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.vtc.openapi.app.service.IVerifyFixAdminAppService;
@@ -17,6 +18,7 @@ import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixPendingInstanceDto;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterVerifyFixProgressService;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterVerifyFixOrchestrator;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,25 +41,29 @@ public class VerifyFixAdminAppServiceImpl implements IVerifyFixAdminAppService {
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
     private final VerifyFixWorkspaceAssembler workspaceAssembler;
     private final TaskCenterVerifyFixProgressService verifyFixProgressService;
+    private final TaskCenterVerifyFixOrchestrator verifyFixOrchestrator;
 
     public VerifyFixAdminAppServiceImpl(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                         IOpenVulnInstanceRepository vulnInstanceRepository,
                                         IOpenTaskSubRepository openTaskSubRepository,
                                         IVerifyFixJobDomainService verifyFixJobDomainService,
                                         VerifyFixWorkspaceAssembler workspaceAssembler,
-                                        @Autowired(required = false) TaskCenterVerifyFixProgressService verifyFixProgressService) {
+                                        @Autowired(required = false) TaskCenterVerifyFixProgressService verifyFixProgressService,
+                                        @Autowired(required = false) TaskCenterVerifyFixOrchestrator verifyFixOrchestrator) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.verifyFixJobDomainService = verifyFixJobDomainService;
         this.workspaceAssembler = workspaceAssembler;
         this.verifyFixProgressService = verifyFixProgressService;
+        this.verifyFixOrchestrator = verifyFixOrchestrator;
     }
 
     @Override
-    public ApiResponse<List<MockVerifyFixJobDto>> listJobs(String partnerId, String status, String taskId, int limit) {
+    public ApiResponse<List<MockVerifyFixJobDto>> listJobs(String partnerId, String status, String taskId,
+                                                            String jobId, int limit) {
         int cap = Math.max(1, Math.min(limit, 200));
-        List<OpenVerifyFixJobDO> rows = verifyFixJobDomainService.listRecentJobs(partnerId, status, cap);
+        List<OpenVerifyFixJobDO> rows = verifyFixJobRepository.listForAdmin(partnerId, status, jobId, cap);
         List<MockVerifyFixJobDto> dtos = new ArrayList<>();
         String taskFilter = StringUtils.hasText(taskId) ? taskId.trim() : null;
         for (OpenVerifyFixJobDO row : rows) {
@@ -92,9 +98,53 @@ public class VerifyFixAdminAppServiceImpl implements IVerifyFixAdminAppService {
         return ApiResponse.ok(verifyFixProgressService.refetchRescanSub(jobId, subId));
     }
 
+    @Override
+    public ApiResponse<Boolean> retryDispatch(String jobId) {
+        if (!StringUtils.hasText(jobId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "jobId 不能为空");
+        }
+        if (verifyFixOrchestrator == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "仅 task-center 模式支持手动重试下发");
+        }
+        OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(jobId.trim());
+        if (job == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "修复核验任务不存在");
+        }
+        // 手动重试不受自动重试 5 次上限约束；复用已有 sub 重新下发，不堆积新 sub
+        boolean ok = verifyFixOrchestrator.retryDispatchForJob(jobId.trim());
+        if (!ok) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID,
+                    "当前任务不可手动重试（已终态或无待重试子任务）");
+        }
+        // 手动重试成功后重置自动重试计数，避免残留计数影响后续自动调度
+        OpenVerifyFixJobDO latest = verifyFixJobRepository.findByJobId(jobId.trim());
+        if (latest != null && latest.getRetryCount() != null && latest.getRetryCount() > 0) {
+            latest.setRetryCount(0);
+            latest.setUpdatedAt(new java.util.Date());
+            verifyFixJobRepository.updateJob(latest);
+        }
+        return ApiResponse.ok(true);
+    }
+
+    @Override
+    public ApiResponse<Boolean> retryDispatchSub(String jobId, String subId) {
+        if (!StringUtils.hasText(jobId) || !StringUtils.hasText(subId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "jobId/subId 不能为空");
+        }
+        if (verifyFixOrchestrator == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID, "仅 task-center 模式支持手动重试下发");
+        }
+        boolean ok = verifyFixOrchestrator.retryDispatchForSub(jobId.trim(), subId.trim());
+        if (!ok) {
+            throw new OpenApiException(OpenApiConstants.CODE_STATE_INVALID,
+                    "该子任务不可重试（不存在、非本任务、已成功下发或任务已终态）");
+        }
+        return ApiResponse.ok(true);
+    }
+
     private boolean jobContainsTask(String jobId, String taskId) {
         List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(jobId);
-        if (CollectionUtils.isEmpty(items)) {
+        if (CollUtil.isEmpty(items)) {
             return false;
         }
         for (OpenVerifyFixJobItemDO item : items) {

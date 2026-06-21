@@ -79,6 +79,23 @@ public class OpenVerifyFixJobRepositoryImpl implements IOpenVerifyFixJobReposito
     }
 
     @Override
+    public List<OpenVerifyFixJobDO> listForAdmin(String partnerId, String status, String jobId, int limit) {
+        LambdaQueryWrapper<OpenVerifyFixJobPO> wrapper = new LambdaQueryWrapper<OpenVerifyFixJobPO>()
+                .orderByDesc(OpenVerifyFixJobPO::getCreatedAt);
+        if (StringUtils.hasText(partnerId)) {
+            wrapper.eq(OpenVerifyFixJobPO::getPartnerId, partnerId.trim());
+        }
+        if (StringUtils.hasText(status)) {
+            wrapper.eq(OpenVerifyFixJobPO::getStatus, status.trim());
+        }
+        if (StringUtils.hasText(jobId)) {
+            wrapper.like(OpenVerifyFixJobPO::getJobId, jobId.trim());
+        }
+        wrapper.last("LIMIT " + Math.max(1, Math.min(limit, 200)));
+        return ConvertHelper.convertList(jobMapper.selectList(wrapper), OpenVerifyFixJobDO.class);
+    }
+
+    @Override
     public void saveItems(List<OpenVerifyFixJobItemDO> items) {
         if (CollectionUtils.isEmpty(items)) {
             return;
@@ -147,6 +164,7 @@ public class OpenVerifyFixJobRepositoryImpl implements IOpenVerifyFixJobReposito
         LambdaQueryWrapper<OpenVerifyFixJobPO> wrapper = new LambdaQueryWrapper<OpenVerifyFixJobPO>()
                 .eq(OpenVerifyFixJobPO::getStatus, "DISPATCH_FAILED")
                 .isNull(OpenVerifyFixJobPO::getCenterPlanId)
+                .lt(OpenVerifyFixJobPO::getRetryCount, MAX_AUTO_DISPATCH_RETRY)
                 .orderByAsc(OpenVerifyFixJobPO::getUpdatedAt)
                 .last("LIMIT " + cap);
         return ConvertHelper.convertList(jobMapper.selectList(wrapper), OpenVerifyFixJobDO.class);

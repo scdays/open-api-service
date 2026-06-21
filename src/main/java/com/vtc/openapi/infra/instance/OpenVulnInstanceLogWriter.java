@@ -8,22 +8,18 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 @Component
 public class OpenVulnInstanceLogWriter {
 
-    private static final SimpleDateFormat TRANSFER_TIME_FMT;
-
-    static {
-        TRANSFER_TIME_FMT = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
-        TRANSFER_TIME_FMT.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter TRANSFER_TIME_FMT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss", Locale.US).withZone(ZoneOffset.UTC);
 
     private final IOpenVulnInstanceLogRepository logRepository;
 
@@ -92,6 +88,6 @@ public class OpenVulnInstanceLogWriter {
         if (StringUtils.hasText(transferTime)) {
             return transferTime.trim();
         }
-        return TRANSFER_TIME_FMT.format(new Date());
+        return TRANSFER_TIME_FMT.format(new Date().toInstant());
     }
 }

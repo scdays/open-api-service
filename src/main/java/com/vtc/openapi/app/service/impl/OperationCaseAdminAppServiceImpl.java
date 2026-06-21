@@ -29,8 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.util.CollectionUtils;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -39,7 +41,8 @@ import java.util.stream.Collectors;
 @Service
 public class OperationCaseAdminAppServiceImpl implements IOperationCaseAdminAppService {
 
-    private static final SimpleDateFormat SIMPLE_DATETIME = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter SIMPLE_DATETIME =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final IOperationCaseDomainService operationCaseDomainService;
     private final IApiInvocationRepository apiInvocationRepository;
@@ -191,8 +194,8 @@ public class OperationCaseAdminAppServiceImpl implements IOperationCaseAdminAppS
             return null;
         }
         try {
-            return SIMPLE_DATETIME.parse(text.trim());
-        } catch (ParseException ex) {
+            return Date.from(SIMPLE_DATETIME.parse(text.trim(), Instant::from));
+        } catch (DateTimeParseException ex) {
             return null;
         }
     }

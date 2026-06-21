@@ -26,6 +26,7 @@ public class OpenVerifyFixJobDO extends BaseDO {
     private String scannerType;
     private String inputIps;
     private Integer progress;
+    private Integer retryCount;
     private Date finishedAt;
     private Date createdAt;
     private Date updatedAt;

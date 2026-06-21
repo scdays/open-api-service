@@ -94,7 +94,14 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
         String payloadJson = JSON.toJSONString(envelope);
 
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            WebhookDeliveryLogPO logEntry = createLogEntry(event, callbackUrl, payloadJson, attempt);
+            WebhookDeliveryLogPO logEntry;
+            try {
+                logEntry = createLogEntry(event, callbackUrl, payloadJson, attempt);
+            } catch (Exception ex) {
+                log.error("Webhook createLogEntry 失败（投递记录无法落库）: partnerId={} eventType={}: {}",
+                        event.getPartnerId(), event.getEventType(), ex.getMessage(), ex);
+                return;
+            }
 
             try {
                 int httpStatus = deliveryAdapter.post(callbackUrl, payloadJson, webhookSecret);
@@ -107,7 +114,13 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
                 logEntry.setStatus("FAILED");
             }
 
-            deliveryLogMapper.insert(logEntry);
+            try {
+                deliveryLogMapper.insert(logEntry);
+            } catch (Exception ex) {
+                log.error("Webhook deliveryLog insert 失败: partnerId={} eventType={}: {}",
+                        event.getPartnerId(), event.getEventType(), ex.getMessage(), ex);
+                return;
+            }
 
             if ("SUCCESS".equals(logEntry.getStatus())) {
                 return;

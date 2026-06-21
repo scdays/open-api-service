@@ -4,18 +4,14 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
 import org.springframework.stereotype.Component;
 
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 @Component
 public class OpenTaskSubAdminMapper {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     public OpenTaskSubDto toDto(OpenTaskSubDO sub) {
         if (sub == null) {
@@ -34,7 +30,6 @@ public class OpenTaskSubAdminMapper {
         dto.setProgress(sub.getProgress());
         dto.setErrorMessage(sub.getErrorMessage());
         dto.setReportDownloadPath(sub.getReportDownloadPath());
-        dto.setReportFileField(sub.getReportFileField());
         dto.setVerifyFixJobId(sub.getVerifyFixJobId());
         dto.setCreatedAt(formatUtc(sub.getCreatedAt()));
         dto.setUpdatedAt(formatUtc(sub.getUpdatedAt()));
@@ -52,6 +47,6 @@ public class OpenTaskSubAdminMapper {
     }
 
     private static String formatUtc(java.util.Date date) {
-        return date != null ? ISO_UTC.format(date) : null;
+        return date != null ? ISO_UTC.format(date.toInstant()) : null;
     }
 }

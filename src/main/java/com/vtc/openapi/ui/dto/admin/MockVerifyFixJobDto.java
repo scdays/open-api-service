@@ -19,6 +19,7 @@ public class MockVerifyFixJobDto {
     private String status;
     private Integer itemCount;
     private Integer progress;
+    private Integer retryCount;
     private Integer rescanSubCount;
     private Boolean rescanImported;
     private String errorMessage;

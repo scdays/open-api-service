@@ -37,25 +37,21 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 @Service
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "mock")
 public class MockVerifyFixAdminAppServiceImpl implements IMockVerifyFixAdminAppService {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
     private final IOpenTaskRepository openTaskRepository;
@@ -329,8 +325,6 @@ public class MockVerifyFixAdminAppServiceImpl implements IMockVerifyFixAdminAppS
         if (date == null) {
             return null;
         }
-        synchronized (ISO_UTC) {
-            return ISO_UTC.format(date);
-        }
+        return ISO_UTC.format(date.toInstant());
     }
 }

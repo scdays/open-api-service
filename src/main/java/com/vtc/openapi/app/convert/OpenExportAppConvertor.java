@@ -7,21 +7,17 @@ import com.vtc.openapi.ui.dto.open.export.ExportMetadataDto;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 @Component
 public class OpenExportAppConvertor {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     public ExportMetadataDto toDto(ExportMetadataResult result) {
         if (result == null) {
@@ -61,8 +57,6 @@ public class OpenExportAppConvertor {
         if (date == null) {
             return null;
         }
-        synchronized (ISO_UTC) {
-            return ISO_UTC.format(date);
-        }
+        return ISO_UTC.format(date.toInstant());
     }
 }

@@ -32,7 +32,7 @@ public class TaskCenterVerifyStatusResolver {
      */
     public int resolveVerifyStat(int scannerHits, int totalScanners, String strategy) {
         if (totalScanners <= 1) {
-            return scannerHits > 0 ? 1 : 1;
+            return scannerHits > 0 ? 1 : 3;
         }
         if (STRATEGY_UNION.equalsIgnoreCase(strategy)) {
             if (scannerHits >= totalScanners) {

@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
@@ -61,18 +62,45 @@ public class OpenExportRepositoryImpl implements IOpenExportRepository {
     }
 
     @Override
+    public OpenExportDO findBySubAndStage(String partnerId, String subId, String exportStage) {
+        if (!StringUtils.hasText(subId) || !StringUtils.hasText(exportStage)) {
+            return null;
+        }
+        LambdaQueryWrapper<OpenExportPO> wrapper = new LambdaQueryWrapper<OpenExportPO>()
+                .eq(OpenExportPO::getSubId, subId)
+                .eq(OpenExportPO::getExportStage, exportStage);
+        if (StringUtils.hasText(partnerId)) {
+            wrapper.eq(OpenExportPO::getPartnerId, partnerId);
+        }
+        OpenExportPO po = exportMapper.selectOne(wrapper);
+        return ConvertHelper.convert(po, OpenExportDO.class);
+    }
+
+    @Override
     public void saveExport(OpenExportDO export) {
         exportMapper.insert(ConvertHelper.convert(export, OpenExportPO.class));
     }
 
     @Override
     public void updateExport(OpenExportDO export) {
-        exportMapper.updateById(ConvertHelper.convert(export, OpenExportPO.class));
+        OpenExportPO po = ConvertHelper.convert(export, OpenExportPO.class);
+        exportMapper.updateById(po);
+        // updateById 默认忽略 null，errorMessage 为空时需显式清空，避免归档恢复后旧错误残留
+        if (export.getId() != null && !StringUtils.hasText(export.getErrorMessage())) {
+            exportMapper.update(null, new LambdaUpdateWrapper<OpenExportPO>()
+                    .eq(OpenExportPO::getId, export.getId())
+                    .set(OpenExportPO::getErrorMessage, null));
+        }
     }
 
     @Override
     public void saveExportFile(OpenExportFileDO file) {
         exportFileMapper.insert(ConvertHelper.convert(file, OpenExportFilePO.class));
+    }
+
+    @Override
+    public void updateExportFile(OpenExportFileDO file) {
+        exportFileMapper.updateById(ConvertHelper.convert(file, OpenExportFilePO.class));
     }
 
     @Override

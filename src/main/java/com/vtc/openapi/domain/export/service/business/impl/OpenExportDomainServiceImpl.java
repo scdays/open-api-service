@@ -65,13 +65,34 @@ public class OpenExportDomainServiceImpl implements IOpenExportDomainService {
         byte[] bytes = fileStorage.read(file.getFileField());
         ExportDownloadResult result = new ExportDownloadResult();
         result.setContent(bytes);
-        boolean json = "json".equalsIgnoreCase(row.getFormat());
-        result.setContentType(json ? "application/json" : "application/xml");
+        String format = row.getFormat();
+        result.setContentType(resolveContentType(format));
+        String fallbackExt = StringUtils.hasText(format) ? format.toLowerCase() : "xml";
         result.setFileName(file.getFileMetadata() != null ? file.getFileMetadata()
-                : "export-" + exportId + (json ? ".json" : ".xml"));
+                : "export-" + exportId + "." + fallbackExt);
         ctx.setResourceType(OpenApiOperations.RESOURCE_TYPE_EXPORT);
         ctx.setResourceId(exportId);
         return result;
+    }
+
+    private static String resolveContentType(String format) {
+        if (format == null) {
+            return "application/octet-stream";
+        }
+        switch (format.toLowerCase()) {
+            case "json":
+                return "application/json";
+            case "xml":
+                return "application/xml";
+            case "zip":
+                return "application/zip";
+            case "xlsx":
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "pdf":
+                return "application/pdf";
+            default:
+                return "application/octet-stream";
+        }
     }
 
     @Override

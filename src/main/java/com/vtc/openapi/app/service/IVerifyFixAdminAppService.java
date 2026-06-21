@@ -10,7 +10,8 @@ import java.util.List;
 
 public interface IVerifyFixAdminAppService {
 
-    ApiResponse<List<MockVerifyFixJobDto>> listJobs(String partnerId, String status, String taskId, int limit);
+    ApiResponse<List<MockVerifyFixJobDto>> listJobs(String partnerId, String status, String taskId,
+                                                     String jobId, int limit);
 
     ApiResponse<VerifyFixWorkspaceDto> getWorkspace(String jobId);
 
@@ -18,4 +19,8 @@ public interface IVerifyFixAdminAppService {
                                                                         String jobId, int limit);
 
     ApiResponse<OpenTaskSurveyRefetchResultDto> refetchRescanSub(String jobId, String subId);
+
+    ApiResponse<Boolean> retryDispatch(String jobId);
+
+    ApiResponse<Boolean> retryDispatchSub(String jobId, String subId);
 }

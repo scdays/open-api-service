@@ -88,4 +88,12 @@ databaseChangeLog(logicalFilePath: 'open_verify_fix_job.groovy') {
             column(name: 'scanner_type', type: 'VARCHAR(8)', remarks: '选举扫描器类型')
         }
     }
+
+    changeSet(id: '2026-06-21-open_verify_fix_job-retry-count', author: 'open-api') {
+        addColumn(tableName: 'open_verify_fix_job') {
+            column(name: 'retry_count', type: 'INT', defaultValueNumeric: 0, remarks: '自动重试下发次数，达到上限后停止自动重试转人工') {
+                constraints(nullable: false)
+            }
+        }
+    }
 }

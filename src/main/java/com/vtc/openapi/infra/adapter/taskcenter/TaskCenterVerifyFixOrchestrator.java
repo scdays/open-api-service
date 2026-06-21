@@ -73,8 +73,25 @@ public class TaskCenterVerifyFixOrchestrator {
         List<OpenVerifyFixJobDO> jobs = verifyFixJobRepository.listDispatchFailedJobs(30);
         for (OpenVerifyFixJobDO job : jobs) {
             try {
-                List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(job.getJobId());
-                dispatchRescan(job, items);
+                // 复用已有可重试 sub 重新下发，避免每次新建 sub 导致 open_task_sub 堆积
+                retryDispatchForJob(job.getJobId());
+                OpenVerifyFixJobDO latest = verifyFixJobRepository.findByJobId(job.getJobId());
+                if (latest == null) {
+                    continue;
+                }
+                boolean stillFailed = IVerifyFixJobDomainService.STATUS_DISPATCH_FAILED.equals(latest.getStatus());
+                if (stillFailed) {
+                    int next = (latest.getRetryCount() == null ? 0 : latest.getRetryCount()) + 1;
+                    latest.setRetryCount(next);
+                    latest.setUpdatedAt(new Date());
+                    verifyFixJobRepository.updateJob(latest);
+                    log.warn("verify-fix auto retry failed jobId={} retryCount={}", job.getJobId(), next);
+                } else if (latest.getRetryCount() != null && latest.getRetryCount() > 0) {
+                    // 下发成功，重置计数
+                    latest.setRetryCount(0);
+                    latest.setUpdatedAt(new Date());
+                    verifyFixJobRepository.updateJob(latest);
+                }
             } catch (Exception ex) {
                 log.warn("verify-fix retry dispatch failed jobId={}: {}", job.getJobId(), ex.getMessage());
             }
@@ -96,14 +113,20 @@ public class TaskCenterVerifyFixOrchestrator {
         }
         List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(job.getJobId());
         List<OpenTaskSubDO> subs = openTaskSubRepository.listByVerifyFixJobId(job.getJobId());
-        boolean anyRetryable = subs.stream().anyMatch(this::isSubDispatchRetryable);
-        if (!anyRetryable && !subs.isEmpty()) {
-            return false;
-        }
         if (subs.isEmpty()) {
+            // 初次下发整体失败（子任务随事务回滚）：重新走完整下发
             dispatchRescan(job, items);
             return true;
         }
+        boolean anyRetryable = subs.stream().anyMatch(this::isSubDispatchRetryable);
+        if (!anyRetryable) {
+            // 全部子任务已成功下发，无可重试项
+            return false;
+        }
+        // 存在可重试子任务（status=FAILED 或无 centerPlanId）：逐个重新下发。
+        // 无论本次下发是否成功均返回 true，由前端刷新后按子任务实际状态展示——
+        // 失败的子任务会保留 errorMessage。此前以 retried>0 作为返回值，会把
+        // "已尝试但 vuln-task-center 仍失败"误报为 40002「无待重试子任务」，使重试入口形同虚设。
         int retried = 0;
         for (OpenTaskSubDO sub : subs) {
             if (!isSubDispatchRetryable(sub)) {
@@ -115,7 +138,42 @@ public class TaskCenterVerifyFixOrchestrator {
             }
         }
         finalizeJobAfterDispatch(job, items);
-        return retried > 0;
+        log.info("verify-fix manual retry dispatch jobId={} retried={}/{}", job.getJobId(), retried, subs.size());
+        return true;
+    }
+
+    /**
+     * 单子任务重试下发：仅重新下发指定的 sub，不影响该 job 下其它子任务。
+     * 用于复扫子任务表格中某一行调用 vuln-task-center 失败后的定点重试。
+     *
+     * @return true=已尝试下发（无论该 sub 本次成功与否）；false=子任务不存在/不可重试/job 已终态
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean retryDispatchForSub(String jobId, String subId) {
+        if (!StringUtils.hasText(jobId) || !StringUtils.hasText(subId)) {
+            return false;
+        }
+        OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(jobId.trim());
+        if (job == null) {
+            return false;
+        }
+        if (IVerifyFixJobDomainService.STATUS_FINISHED.equals(job.getStatus())
+                || IVerifyFixJobDomainService.STATUS_FAILED.equals(job.getStatus())) {
+            return false;
+        }
+        OpenTaskSubDO sub = openTaskSubRepository.findBySubId(subId.trim());
+        if (sub == null || !jobId.trim().equals(sub.getVerifyFixJobId())) {
+            return false;
+        }
+        if (!isSubDispatchRetryable(sub)) {
+            return false;
+        }
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(job.getJobId());
+        String hosts = collectHostsForSub(job.getPartnerId(), items, sub.getSubId());
+        boolean ok = tryDispatchSub(job, sub, hosts);
+        finalizeJobAfterDispatch(job, items);
+        log.info("verify-fix manual retry single sub jobId={} subId={} ok={}", job.getJobId(), sub.getSubId(), ok);
+        return true;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -357,9 +415,9 @@ public class TaskCenterVerifyFixOrchestrator {
         job.setCenterPlanId(first.getCenterPlanId());
         job.setScannerType(first.getScannerType());
         Set<String> allHosts = new LinkedHashSet<>();
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(job.getJobId());
         for (OpenTaskSubDO sub : subs) {
-            String hosts = collectHostsForSub(job.getPartnerId(),
-                    verifyFixJobRepository.listItemsByJobId(job.getJobId()), sub.getSubId());
+            String hosts = collectHostsForSub(job.getPartnerId(), items, sub.getSubId());
             if (StringUtils.hasText(hosts)) {
                 for (String h : hosts.split(",")) {
                     if (StringUtils.hasText(h)) {

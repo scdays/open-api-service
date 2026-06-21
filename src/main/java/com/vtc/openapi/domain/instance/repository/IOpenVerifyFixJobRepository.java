@@ -7,6 +7,9 @@ import java.util.List;
 
 public interface IOpenVerifyFixJobRepository {
 
+    /** 自动重试下发次数上限：达到后不再由定时任务自动重试，保留 DISPATCH_FAILED 转人工（手动重试不受限）。 */
+    int MAX_AUTO_DISPATCH_RETRY = 5;
+
     void saveJob(OpenVerifyFixJobDO job);
 
     void updateJob(OpenVerifyFixJobDO job);
@@ -16,6 +19,8 @@ public interface IOpenVerifyFixJobRepository {
     List<OpenVerifyFixJobDO> listByPartner(String partnerId, String status, int limit);
 
     List<OpenVerifyFixJobDO> listRecent(String status, int limit);
+
+    List<OpenVerifyFixJobDO> listForAdmin(String partnerId, String status, String jobId, int limit);
 
     void saveItems(List<OpenVerifyFixJobItemDO> items);
 

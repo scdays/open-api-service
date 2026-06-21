@@ -11,7 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -20,19 +21,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TimeZone;
 
 @Component
 public class MockTaskExportAssembler {
 
-    private static final SimpleDateFormat ISO_UTC;
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
     private static final String LIVE_PROBE_ORG = "LIVE-PROBE";
     private static final String PORT_SCAN_ORG = "PORT-SCAN";
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
 
     public Map<String, Object> assemble(OpenTaskDO task, String exportStage, String format,
                                         List<OpenVulnInstanceDO> instances, String exportId,
@@ -463,9 +459,7 @@ public class MockTaskExportAssembler {
         if (date == null) {
             return null;
         }
-        synchronized (ISO_UTC) {
-            return ISO_UTC.format(date);
-        }
+        return ISO_UTC.format(date.toInstant());
     }
 
     private enum InstanceKind {

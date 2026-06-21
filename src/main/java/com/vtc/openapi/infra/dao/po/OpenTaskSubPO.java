@@ -28,7 +28,8 @@ public class OpenTaskSubPO extends BasePO {
     private Integer progress;
     private String errorMessage;
     private String reportDownloadPath;
-    private String reportFileField;
+    private String reportArchiveStatus;
+    private String reportArchiveError;
     private Boolean instancesIngested;
     private String verifyFixJobId;
     private Date createdAt;

@@ -36,8 +36,9 @@ public class VerifyFixAdminUI {
             @RequestParam(value = "partnerId", required = false) String partnerId,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "taskId", required = false) String taskId,
+            @RequestParam(value = "jobId", required = false) String jobId,
             @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        return appService.listJobs(partnerId, status, taskId, limit);
+        return appService.listJobs(partnerId, status, taskId, jobId, limit);
     }
 
     @ApiOperation("修复核验工作台")
@@ -52,6 +53,19 @@ public class VerifyFixAdminUI {
             @PathVariable("jobId") String jobId,
             @RequestParam("subId") String subId) {
         return appService.refetchRescanSub(jobId, subId);
+    }
+
+    @ApiOperation("手动重试下发复扫（不受自动重试 5 次上限约束）")
+    @PostMapping("/jobs/{jobId}/retry-dispatch")
+    public ApiResponse<Boolean> retryDispatch(@PathVariable("jobId") String jobId) {
+        return appService.retryDispatch(jobId);
+    }
+
+    @ApiOperation("手动重试单个复扫子任务（仅重新下发指定 sub）")
+    @PostMapping("/jobs/{jobId}/subs/{subId}/retry-dispatch")
+    public ApiResponse<Boolean> retryDispatchSub(@PathVariable("jobId") String jobId,
+                                                 @PathVariable("subId") String subId) {
+        return appService.retryDispatchSub(jobId, subId);
     }
 
     @ApiOperation("待修复核验系统漏洞列表（默认按 taskId 筛选）")

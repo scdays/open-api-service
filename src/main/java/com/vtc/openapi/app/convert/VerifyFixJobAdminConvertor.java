@@ -7,19 +7,15 @@ import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobItemDto;
 import org.springframework.stereotype.Component;
 
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.TimeZone;
 
 @Component
 public class VerifyFixJobAdminConvertor {
 
-    private static final SimpleDateFormat ISO_UTC;
-
-    static {
-        ISO_UTC = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        ISO_UTC.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private static final DateTimeFormatter ISO_UTC =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
 
@@ -39,6 +35,7 @@ public class VerifyFixJobAdminConvertor {
         dto.setStatus(job.getStatus());
         dto.setItemCount(job.getItemCount());
         dto.setProgress(job.getProgress());
+        dto.setRetryCount(job.getRetryCount());
         dto.setRescanImported(job.getRescanImported());
         dto.setErrorMessage(job.getErrorMessage());
         dto.setFinishedAt(formatUtc(job.getFinishedAt()));
@@ -62,6 +59,6 @@ public class VerifyFixJobAdminConvertor {
     }
 
     private static String formatUtc(java.util.Date date) {
-        return date != null ? ISO_UTC.format(date) : null;
+        return date != null ? ISO_UTC.format(date.toInstant()) : null;
     }
 }
