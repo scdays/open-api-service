@@ -46,10 +46,22 @@ public class TaskCenterTaskCompletionCoordinator {
     }
 
     public void scheduleNotify(String taskId) {
+        scheduleTaskCompletedOnly(taskId);
+        scheduleExportAssembly(taskId);
+    }
+
+    public void scheduleTaskCompletedOnly(String taskId) {
         if (!StringUtils.hasText(taskId)) {
             return;
         }
-        eventPublisher.publishEvent(new TaskFinishedNotificationEvent(taskId.trim()));
+        eventPublisher.publishEvent(new TaskFinishedNotificationEvent(taskId.trim(), false));
+    }
+
+    public void scheduleExportAssembly(String taskId) {
+        if (!StringUtils.hasText(taskId)) {
+            return;
+        }
+        eventPublisher.publishEvent(new TaskFinishedNotificationEvent(taskId.trim(), true));
     }
 
     @Async
@@ -65,10 +77,13 @@ public class TaskCenterTaskCompletionCoordinator {
                 log.debug("skip task-center side effects: taskId={} missing or not FINISHED", taskId);
                 return;
             }
+            if (event.isExportOnly()) {
+                exportAssemblyDomainService.assembleForTaskCompleted(task);
+                return;
+            }
             if (!hasRecentTaskCompletedWebhook(task)) {
                 webhookPublishService.publishTaskCompleted(task, null);
             }
-            exportAssemblyDomainService.assembleForTaskCompleted(task);
         }
     }
 

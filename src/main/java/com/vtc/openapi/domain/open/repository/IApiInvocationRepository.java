@@ -44,6 +44,18 @@ public interface IApiInvocationRepository {
 
     List<WebhookDeliveryLogDO> listByResource(String partnerId, String resourceType, String resourceId, int limit);
 
+    /**
+     * 任务工作台：按 taskId 拉取 Partner 回调（含 EXPORT_READY，兼容历史 EXPORT/exportId 落库）。
+     */
+    List<WebhookDeliveryLogDO> listWebhookDeliveriesByTaskScope(String partnerId, String taskId, int limit);
+
+    /**
+     * 修复核验工作台：按 verifyFixJobId 拉取 Partner 回调（含 INSTANCE_VERIFY_FIX_COMPLETED / VERIFY_FIX_SCAN 外发与报告产物）。
+     */
+    List<WebhookDeliveryLogDO> listWebhookDeliveriesByVerifyFixJobScope(String partnerId, String jobId,
+                                                                        java.util.Collection<String> relatedTaskIds,
+                                                                        int limit);
+
     List<ApiInvocationDO> listInvocationsByResource(String partnerId, String resourceType, String resourceId, int limit);
 
     PageInfo<WebhookDeliveryLogDO> pageWebhookDeliveries(WebhookDeliveryLogQuery query);

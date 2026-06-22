@@ -60,6 +60,7 @@ databaseChangeLog(logicalFilePath: 'api_invocation.groovy') {
             column(name: 'case_id', type: 'VARCHAR(32)', remarks: '关联运营案件')
         }
         createIndex(tableName: 'api_invocation', indexName: 'idx_api_inv_case_id', unique: false) {
+            column(name: 'case_id')
         }
     }
 }

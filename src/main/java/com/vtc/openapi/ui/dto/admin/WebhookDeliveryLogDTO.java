@@ -58,6 +58,9 @@ public class WebhookDeliveryLogDTO extends BaseDTO {
     @ApiModelProperty("重试次数")
     private Integer retryCount;
 
+    @ApiModelProperty("同一 eventId 累计投递次数（含首次与自动/手动重试）")
+    private Integer attemptCount;
+
     @ApiModelProperty("投递状态")
     private String status;
 

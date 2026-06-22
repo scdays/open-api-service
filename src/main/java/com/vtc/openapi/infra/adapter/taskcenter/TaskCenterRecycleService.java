@@ -80,7 +80,7 @@ public class TaskCenterRecycleService {
         if (task == null || !StringUtils.hasText(task.getTaskId())) {
             return;
         }
-        if ("FINISHED".equals(task.getStatus()) || "FAILED".equals(task.getStatus())
+        if ("FAILED".equals(task.getStatus())
                 || OpenApiConstants.TASK_DISPATCH_FAILED.equals(task.getStatus())
                 || OpenApiConstants.TASK_ACCEPT_ACCEPTED.equals(task.getStatus())) {
             return;
@@ -91,21 +91,24 @@ public class TaskCenterRecycleService {
             return;
         }
         if (!allTerminal(subs)) {
-            ingestFinishedSurveySubs(task, subs);
-            updateTaskProgress(task, subs);
+            if (!"FINISHED".equals(task.getStatus())) {
+                ingestFinishedSurveySubs(task, subs);
+                updateTaskProgress(task, subs);
+            }
             return;
         }
         if (anyFailed(subs)) {
-            markTaskFailed(task, "子扫描任务失败");
+            if (!"FAILED".equals(task.getStatus())) {
+                markTaskFailed(task, "子扫描任务失败");
+            }
             return;
         }
         if (phase == TaskCenterSubSupport.PHASE_SURVEY) {
-            if (!allSurveySubsCaptureReady(subs)) {
-                log.info("task-center survey phase deferred: awaiting VTC capture taskId={}", task.getTaskId());
+            handleSurveyPhaseTerminal(task, subs);
+        } else if (phase == TaskCenterSubSupport.PHASE_VERIFY) {
+            if ("FINISHED".equals(task.getStatus())) {
                 return;
             }
-            onSurveyPhaseComplete(task, subs);
-        } else if (phase == TaskCenterSubSupport.PHASE_VERIFY) {
             onVerifyPhaseComplete(task, subs);
         }
     }
@@ -170,7 +173,30 @@ public class TaskCenterRecycleService {
         }
     }
 
-    private void onSurveyPhaseComplete(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+    /**
+     * 排查阶段全部子任务 FINISHED：立即 TASK_COMPLETED；VTC 结果落库就绪后再 EXPORT_READY。
+     */
+    private void handleSurveyPhaseTerminal(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+        boolean firstFinish = !"FINISHED".equals(task.getStatus());
+        if (firstFinish) {
+            markTaskFinished(task);
+            completionCoordinator.scheduleTaskCompletedOnly(task.getTaskId());
+        }
+        if (!allSurveySubsCaptureReady(subs)) {
+            ingestFinishedSurveySubs(task, subs);
+            log.info("task-center survey phase awaiting VTC capture taskId={}", task.getTaskId());
+            return;
+        }
+        // 任务已 FINISHED 后重入（如修复核验复扫子任务轮询误触发）：只补未 ingest 的排查子任务，
+        // 禁止重复交叉合并，避免将已处置(5)/已核验(6/7)实例误写回 stat=1 并落跃迁日志。
+        if (!firstFinish) {
+            ingestFinishedSurveySubs(task, subs);
+            return;
+        }
+        finalizeSurveyPhaseArtifacts(task, subs);
+    }
+
+    private void finalizeSurveyPhaseArtifacts(OpenTaskDO task, List<OpenTaskSubDO> subs) {
         for (OpenTaskSubDO sub : subs) {
             ingestSurveySubIfNeeded(task, sub);
         }
@@ -179,8 +205,11 @@ public class TaskCenterRecycleService {
                 && "vuln".equals(subs.get(0).getCenterTaskType())) {
             applyCrossScannerMerge(task, subs, TaskCenterSubSupport.PHASE_SURVEY);
         }
-        markTaskFinished(task);
-        completionCoordinator.scheduleNotify(task.getTaskId());
+        completionCoordinator.scheduleExportAssembly(task.getTaskId());
+    }
+
+    private void onSurveyPhaseComplete(OpenTaskDO task, List<OpenTaskSubDO> subs) {
+        handleSurveyPhaseTerminal(task, subs);
     }
 
     /**
@@ -247,11 +276,14 @@ public class TaskCenterRecycleService {
             return;
         }
         for (OpenVulnInstanceDO inst : instances) {
+            Integer prevStat = inst.getVulInfoStat();
+            if (prevStat != null && prevStat > 3) {
+                continue;
+            }
             JSONObject snap = snapshotOf(inst);
             String key = verifyMergeService.dedupKey(snap);
             int hitCount = scannerHits.getOrDefault(key, 0);
             int newStat = verifyStatusResolver.resolveVerifyStat(hitCount, totalScanners, strategy);
-            Integer prevStat = inst.getVulInfoStat();
             if (prevStat != null && prevStat == newStat) {
                 continue;
             }

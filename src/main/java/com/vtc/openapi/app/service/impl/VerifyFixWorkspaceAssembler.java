@@ -11,7 +11,6 @@ import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
 import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
-import com.vtc.openapi.domain.open.OpenApiOperations;
 import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
 import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
@@ -41,6 +40,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class VerifyFixWorkspaceAssembler {
@@ -105,7 +105,7 @@ public class VerifyFixWorkspaceAssembler {
         workspace.setItemResultCounts(buildItemResultCounts(items));
         workspace.setRelatedTasks(buildRelatedTasks(items));
         workspace.setExports(loadExports(job, items));
-        workspace.setWebhookDeliveries(loadWebhookDeliveries(job));
+        workspace.setWebhookDeliveries(loadWebhookDeliveries(job, subs, items));
         workspace.setTimeline(buildTimeline(job, subs, items));
         workspace.setConstraints(buildConstraints());
         return workspace;
@@ -216,20 +216,34 @@ public class VerifyFixWorkspaceAssembler {
         return result;
     }
 
-    private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenVerifyFixJobDO job) {
-        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listByResource(
-                job.getPartnerId(), OpenApiOperations.PRIMARY_RESOURCE_VERIFY_FIX_JOB, job.getJobId(), 30);
+    private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenVerifyFixJobDO job,
+                                                            List<OpenTaskSubDO> subs,
+                                                            List<OpenVerifyFixJobItemDO> items) {
+        Set<String> relatedTaskIds = new LinkedHashSet<>();
+        if (!CollectionUtils.isEmpty(subs)) {
+            for (OpenTaskSubDO sub : subs) {
+                if (sub != null && StringUtils.hasText(sub.getTaskId())) {
+                    relatedTaskIds.add(sub.getTaskId());
+                }
+            }
+        }
+        if (!CollectionUtils.isEmpty(items)) {
+            for (OpenVerifyFixJobItemDO item : items) {
+                if (item != null && StringUtils.hasText(item.getTaskId())) {
+                    relatedTaskIds.add(item.getTaskId());
+                }
+            }
+        }
+        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listWebhookDeliveriesByVerifyFixJobScope(
+                job.getPartnerId(), job.getJobId(), relatedTaskIds, 100);
         if (CollectionUtils.isEmpty(rows)) {
             return Collections.emptyList();
         }
-        List<WebhookDeliveryLogDTO> result = new ArrayList<>();
-        for (WebhookDeliveryLogDO row : rows) {
-            WebhookDeliveryLogDTO dto = adminGovernanceAppConvertor.toWebhookDeliveryLogDto(row);
-            dto.setExportDownloadable(
-                    exportDownloadPolicy.isDownloadable(job.getPartnerId(), dto.getExportId()));
-            result.add(dto);
-        }
-        return result;
+        return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(rows).stream()
+                .limit(20)
+                .peek(dto -> dto.setExportDownloadable(
+                        exportDownloadPolicy.isDownloadable(job.getPartnerId(), dto.getExportId())))
+                .collect(Collectors.toList());
     }
 
     private List<OpenTaskTimelineEventDto> buildTimeline(OpenVerifyFixJobDO job,
@@ -274,7 +288,7 @@ public class VerifyFixWorkspaceAssembler {
         lines.add("前置：实例 vulInfoStat 须为 5（已修复）");
         lines.add("扫描器：默认取最近一次 open_vuln_instance_log.sub_id 对应 open_task_sub.scanner_type");
         lines.add("下发：按 (taskId, scanner_type) 分组创建 open_task_sub(scan_phase=3)");
-        lines.add("回收：task_finish_topic 指纹比对；download_report_finish_topic 写入 report_download_path");
+        lines.add("跃迁日志：仅 VERIFY_FIX_COMPLETE(5→6/7) 写入 open_vuln_instance_log；复扫不落库新实例、不写 stat=1");
         return lines;
     }
 

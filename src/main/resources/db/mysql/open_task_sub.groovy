@@ -69,35 +69,11 @@ databaseChangeLog(logicalFilePath: 'open_task_sub.groovy') {
         }
     }
 
-    changeSet(id: '2026-06-19-open_task_sub-report-file-field', author: 'open-api') {
-        addColumn(tableName: 'open_task_sub') {
-            column(name: 'report_file_field', type: 'VARCHAR(256)', remarks: '原始扫描报告归档至文件服务后的 fileKey')
-        }
-    }
-
     changeSet(id: '2026-06-21-open_task_sub-report-archive-status', author: 'open-api') {
         addColumn(tableName: 'open_task_sub') {
             column(name: 'report_archive_status', type: 'VARCHAR(16)',
                     remarks: '原始报告归档状态: WAITING_PATH/PENDING/ARCHIVED/FAILED')
             column(name: 'report_archive_error', type: 'VARCHAR(512)', remarks: '原始报告归档失败原因')
         }
-    }
-
-    changeSet(id: '2026-06-21-open_task_sub-report-artifact-meta', author: 'open-api') {
-        addColumn(tableName: 'open_task_sub') {
-            column(name: 'report_file_name', type: 'VARCHAR(512)', remarks: '归档产物文件名（上传至文件服务的归档名）')
-            column(name: 'report_byte_size', type: 'BIGINT', remarks: '归档产物字节大小')
-            column(name: 'report_file_format', type: 'VARCHAR(8)', remarks: '产物格式 xml/xlsx/pdf/zip')
-            column(name: 'report_content_type', type: 'VARCHAR(64)', remarks: '产物 MIME contentType')
-        }
-    }
-
-    changeSet(id: '2026-06-22-open_task_sub-drop-report-file-meta', author: 'open-api') {
-        // 文件信息迁移至 open_export/open_export_file，删除 open_task_sub 上的报告文件元数据列
-        dropColumn(tableName: 'open_task_sub', columnName: 'report_file_field')
-        dropColumn(tableName: 'open_task_sub', columnName: 'report_file_name')
-        dropColumn(tableName: 'open_task_sub', columnName: 'report_byte_size')
-        dropColumn(tableName: 'open_task_sub', columnName: 'report_file_format')
-        dropColumn(tableName: 'open_task_sub', columnName: 'report_content_type')
     }
 }

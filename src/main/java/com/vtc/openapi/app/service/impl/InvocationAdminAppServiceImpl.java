@@ -115,7 +115,8 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
     @Override
     public ApiResponse<InvocationDetailDTO> getInvocationDetail(String invocationId) {
         ApiInvocationDO invocation = invocationDomainService.requireInvocation(invocationId);
-        List<WebhookDeliveryLogDO> relatedWebhooks = invocationDomainService.listRelatedWebhookDeliveries(invocation);
+        List<WebhookDeliveryLogDO> relatedWebhooks = collapseRelatedWebhookDeliveries(
+                invocationDomainService.listRelatedWebhookDeliveries(invocation));
         return ApiResponse.ok(toDetailDto(invocation, relatedWebhooks));
     }
 
@@ -230,8 +231,10 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         query.setSize((int) pageInfo.getSize());
 
         PageInfo<WebhookDeliveryLogDO> resultPage = invocationDomainService.pageWebhookDeliveries(query);
+        List<WebhookDeliveryLogDTO> collapsedItems =
+                adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(resultPage.getRecords());
         WebhookDeliveryLogPageDto dto = new WebhookDeliveryLogPageDto();
-        dto.setItems(adminGovernanceAppConvertor.toWebhookDeliveryLogDtoList(resultPage.getRecords()));
+        dto.setItems(collapsedItems);
         dto.setPage((int) resultPage.getCurrent());
         dto.setSize((int) resultPage.getSize());
         dto.setTotal(resultPage.getTotal());
@@ -243,6 +246,7 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         WebhookDeliveryLogDO source = enrichDeliveryMetadata(webhookDomainService.requireDeliveryLog(deliveryId));
         List<WebhookDeliveryLogDO> history = webhookDomainService.listRelatedAttempts(source);
         WebhookDeliveryLogDetailDTO dto = adminGovernanceAppConvertor.toWebhookDeliveryLogDetailDto(source);
+        dto.setAttemptCount(history == null ? 1 : history.size());
         dto.setPayloadJsonFormatted(formatJson(source.getPayloadJson()));
         dto.setRetryHistory(toRetryHistory(history));
         dto.setRelatedInvocations(toRelatedInvocations(source));
@@ -585,5 +589,14 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
             return "手动重试";
         }
         return triggerSource == null ? "-" : triggerSource;
+    }
+
+    private List<WebhookDeliveryLogDO> collapseRelatedWebhookDeliveries(List<WebhookDeliveryLogDO> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return WebhookDeliverySupport.collapseToLatestPerEvent(rows).stream()
+                .map(WebhookDeliverySupport.EventDeliverySummary::getLatest)
+                .collect(Collectors.toList());
     }
 }

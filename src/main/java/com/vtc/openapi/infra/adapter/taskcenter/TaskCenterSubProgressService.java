@@ -112,6 +112,10 @@ public class TaskCenterSubProgressService {
         List<OpenTaskSubDO> running = openTaskSubRepository.listRunning();
         for (OpenTaskSubDO sub : running) {
             refreshSub(sub);
+            // 修复核验子任务(phase=3)挂在原 open_task 下，不得误触发父任务排查 ingest/交叉合并
+            if (sub.getScanPhase() != null && sub.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY_FIX) {
+                continue;
+            }
             OpenTaskDO task = openTaskRepository.findByTaskId(sub.getTaskId());
             if (task != null) {
                 recycleService.tryAdvanceTask(task);

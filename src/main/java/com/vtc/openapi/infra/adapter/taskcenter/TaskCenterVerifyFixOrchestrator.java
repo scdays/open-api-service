@@ -232,8 +232,6 @@ public class TaskCenterVerifyFixOrchestrator {
             }
         }
 
-        expandCrossScanGroups(job, groups, items);
-
         int dispatchSuccess = 0;
         int dispatchFailed = 0;
         StringBuilder errors = new StringBuilder();
@@ -444,62 +442,6 @@ public class TaskCenterVerifyFixOrchestrator {
             return instance.getTaskId().trim();
         }
         return null;
-    }
-
-    /**
-     * 交叉扫描任务：对原排查阶段全部扫描器各下发一次复扫（与双扫排查对齐）。
-     */
-    private void expandCrossScanGroups(OpenVerifyFixJobDO job,
-                                       Map<String, DispatchGroup> groups,
-                                       List<OpenVerifyFixJobItemDO> items) {
-        Map<String, List<OpenVerifyFixJobItemDO>> itemsByTask = new LinkedHashMap<>();
-        for (OpenVerifyFixJobItemDO item : items) {
-            if (item == null || IVerifyFixJobDomainService.ITEM_DONE.equals(item.getItemStatus())) {
-                continue;
-            }
-            String taskId = resolveAnchorTaskId(item);
-            if (!StringUtils.hasText(taskId)) {
-                continue;
-            }
-            itemsByTask.computeIfAbsent(taskId, k -> new ArrayList<>()).add(item);
-        }
-        for (Map.Entry<String, List<OpenVerifyFixJobItemDO>> entry : itemsByTask.entrySet()) {
-            String taskId = entry.getKey();
-            OpenTaskDO task = openTaskRepository.findByTaskId(taskId);
-            if (task == null || !Boolean.TRUE.equals(task.getCrossScan())) {
-                continue;
-            }
-            List<OpenTaskSubDO> surveySubs = openTaskSubRepository.listByTaskIdAndPhase(
-                    taskId, TaskCenterSubSupport.PHASE_SURVEY);
-            if (CollectionUtils.isEmpty(surveySubs)) {
-                continue;
-            }
-            Set<String> hosts = new LinkedHashSet<>();
-            for (OpenVerifyFixJobItemDO item : entry.getValue()) {
-                String host = extractHost(job.getPartnerId(), item);
-                if (StringUtils.hasText(host)) {
-                    hosts.add(host.trim());
-                }
-            }
-            if (hosts.isEmpty()) {
-                continue;
-            }
-            for (OpenTaskSubDO surveySub : surveySubs) {
-                if (surveySub == null || !StringUtils.hasText(surveySub.getScannerType())) {
-                    continue;
-                }
-                String scannerType = surveySub.getScannerType().trim();
-                String groupKey = taskId + "|" + scannerType;
-                DispatchGroup group = groups.computeIfAbsent(groupKey,
-                        k -> new DispatchGroup(taskId, scannerType));
-                group.hosts.addAll(hosts);
-                for (OpenVerifyFixJobItemDO item : entry.getValue()) {
-                    if (!group.items.contains(item)) {
-                        group.items.add(item);
-                    }
-                }
-            }
-        }
     }
 
     private String extractHost(String partnerId, OpenVerifyFixJobItemDO item) {

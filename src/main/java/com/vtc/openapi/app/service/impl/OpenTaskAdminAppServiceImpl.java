@@ -487,13 +487,13 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     }
 
     private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenTaskDO task) {
-        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listByResource(
-                task.getPartnerId(), OpenApiOperations.RESOURCE_TYPE_TASK, task.getTaskId(), 20);
+        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listWebhookDeliveriesByTaskScope(
+                task.getPartnerId(), task.getTaskId(), 100);
         if (CollectionUtils.isEmpty(rows)) {
             return Collections.emptyList();
         }
-        return rows.stream()
-                .map(adminGovernanceAppConvertor::toWebhookDeliveryLogDto)
+        return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(rows).stream()
+                .limit(20)
                 .peek(dto -> dto.setExportDownloadable(
                         exportDownloadPolicy.isDownloadable(task.getPartnerId(), dto.getExportId())))
                 .collect(Collectors.toList());

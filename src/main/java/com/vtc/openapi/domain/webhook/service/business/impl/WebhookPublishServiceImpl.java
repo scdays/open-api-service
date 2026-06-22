@@ -85,6 +85,9 @@ public class WebhookPublishServiceImpl implements IWebhookPublishService {
         payload.put("dataType", export.getDataType());
         payload.put("recordCount", export.getRecordCount());
         payload.put("downloadUrl", export.getDownloadUrl());
+        if (org.springframework.util.StringUtils.hasText(export.getVerifyFixJobId())) {
+            payload.put("verifyFixJobId", export.getVerifyFixJobId());
+        }
         publish(WebhookEventType.EXPORT_READY, task.getPartnerId(), payload);
     }
 
@@ -119,6 +122,9 @@ public class WebhookPublishServiceImpl implements IWebhookPublishService {
         }
         if (org.springframework.util.StringUtils.hasText(event.getDownloadUrl())) {
             payload.put("downloadUrl", event.getDownloadUrl());
+        }
+        if (org.springframework.util.StringUtils.hasText(event.getVerifyFixJobId())) {
+            payload.put("verifyFixJobId", event.getVerifyFixJobId());
         }
         publish(WebhookEventType.ARTIFACT_READY, event.getPartnerId(), payload);
     }

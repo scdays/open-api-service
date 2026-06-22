@@ -83,6 +83,24 @@ public class AdminGovernanceAppConvertor {
         return rows.stream().map(this::toWebhookDeliveryLogDto).collect(Collectors.toList());
     }
 
+    /**
+     * 列表/工作台展示：按 eventId 聚合，只保留最新投递，并附带累计投递次数。
+     */
+    public List<WebhookDeliveryLogDTO> toCollapsedWebhookDeliveryLogDtoList(List<WebhookDeliveryLogDO> rows) {
+        if (CollectionUtils.isEmpty(rows)) {
+            return Collections.emptyList();
+        }
+        return WebhookDeliverySupport.collapseToLatestPerEvent(rows).stream()
+                .map(summary -> {
+                    WebhookDeliveryLogDTO dto = toWebhookDeliveryLogDto(summary.getLatest());
+                    if (dto != null) {
+                        dto.setAttemptCount(summary.getAttemptCount());
+                    }
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
     private void copyInvocation(ApiInvocationDO row, InvocationDTO dto) {
         dto.setInvocationId(row.getInvocationId());
         dto.setRequestId(row.getRequestId());

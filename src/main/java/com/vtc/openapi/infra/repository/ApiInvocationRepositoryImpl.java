@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
+import com.vtc.openapi.domain.export.model.ExportStage;
+import com.vtc.openapi.domain.open.OpenApiOperations;
 import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
 import com.vtc.openapi.domain.open.model.query.InvocationAdminQuery;
 import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
@@ -12,7 +14,9 @@ import com.vtc.openapi.domain.open.model.result.InvocationDailyTrendStat;
 import com.vtc.openapi.domain.open.model.result.InvocationErrorCodeStat;
 import com.vtc.openapi.domain.open.model.result.PartnerQuotaStatResult;
 import com.vtc.openapi.domain.open.model.support.InvocationDomainSupport;
+import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport;
 import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
+import com.vtc.openapi.domain.webhook.model.WebhookEventType;
 import com.vtc.openapi.infra.dao.ApiInvocationMapper;
 import com.vtc.openapi.infra.dao.WebhookDeliveryLogMapper;
 import com.vtc.openapi.infra.dao.data.InvocationDailyStatRow;
@@ -24,6 +28,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -287,6 +292,76 @@ public class ApiInvocationRepositoryImpl implements IApiInvocationRepository {
         }
         wrapper.and(w -> w.eq(WebhookDeliveryLogPO::getResourceId, trimmedResourceId)
                         .or().like(WebhookDeliveryLogPO::getResourceIdsJson, trimmedResourceId))
+                .orderByDesc(WebhookDeliveryLogPO::getCreatedAt)
+                .orderByDesc(WebhookDeliveryLogPO::getId)
+                .last("LIMIT " + limit);
+        List<WebhookDeliveryLogPO> rows = webhookDeliveryLogMapper.selectList(wrapper);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ConvertHelper.convertList(rows, WebhookDeliveryLogDO.class);
+    }
+
+    @Override
+    public List<WebhookDeliveryLogDO> listWebhookDeliveriesByTaskScope(String partnerId, String taskId, int limit) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(taskId) || limit <= 0) {
+            return Collections.emptyList();
+        }
+        String trimmedTaskId = taskId.trim();
+        String exportTaskPayloadToken = "\"taskId\":\"" + trimmedTaskId + "\"";
+        LambdaQueryWrapper<WebhookDeliveryLogPO> wrapper = new LambdaQueryWrapper<WebhookDeliveryLogPO>()
+                .eq(WebhookDeliveryLogPO::getPartnerId, partnerId)
+                .and(w -> w.nested(n -> n.eq(WebhookDeliveryLogPO::getResourceType, WebhookDeliverySupport.RESOURCE_TASK)
+                                .eq(WebhookDeliveryLogPO::getResourceId, trimmedTaskId))
+                        .or()
+                        .nested(n -> n.eq(WebhookDeliveryLogPO::getEventType, WebhookEventType.EXPORT_READY)
+                                .like(WebhookDeliveryLogPO::getPayloadJson, exportTaskPayloadToken)))
+                .orderByDesc(WebhookDeliveryLogPO::getCreatedAt)
+                .orderByDesc(WebhookDeliveryLogPO::getId)
+                .last("LIMIT " + limit);
+        List<WebhookDeliveryLogPO> rows = webhookDeliveryLogMapper.selectList(wrapper);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ConvertHelper.convertList(rows, WebhookDeliveryLogDO.class);
+    }
+
+    @Override
+    public List<WebhookDeliveryLogDO> listWebhookDeliveriesByVerifyFixJobScope(String partnerId, String jobId,
+                                                                               Collection<String> relatedTaskIds,
+                                                                               int limit) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(jobId) || limit <= 0) {
+            return Collections.emptyList();
+        }
+        String trimmedJobId = jobId.trim();
+        String verifyFixJobToken = "\"verifyFixJobId\":\"" + trimmedJobId + "\"";
+        String verifyFixScanStageToken = "\"exportStage\":\"" + ExportStage.VERIFY_FIX_SCAN + "\"";
+        LambdaQueryWrapper<WebhookDeliveryLogPO> wrapper = new LambdaQueryWrapper<WebhookDeliveryLogPO>()
+                .eq(WebhookDeliveryLogPO::getPartnerId, partnerId)
+                .and(w -> {
+                    w.nested(n -> n.eq(WebhookDeliveryLogPO::getResourceType, OpenApiOperations.PRIMARY_RESOURCE_VERIFY_FIX_JOB)
+                            .eq(WebhookDeliveryLogPO::getResourceId, trimmedJobId));
+                    w.or().nested(n -> n.eq(WebhookDeliveryLogPO::getEventType, WebhookEventType.INSTANCE_VERIFY_FIX_COMPLETED)
+                            .like(WebhookDeliveryLogPO::getPayloadJson, verifyFixJobToken));
+                    w.or().nested(n -> n.eq(WebhookDeliveryLogPO::getEventType, WebhookEventType.EXPORT_READY)
+                            .like(WebhookDeliveryLogPO::getPayloadJson, verifyFixJobToken));
+                    w.or().nested(n -> n.eq(WebhookDeliveryLogPO::getEventType, WebhookEventType.ARTIFACT_READY)
+                            .like(WebhookDeliveryLogPO::getPayloadJson, verifyFixJobToken));
+                    if (relatedTaskIds != null) {
+                        for (String taskId : relatedTaskIds) {
+                            if (!StringUtils.hasText(taskId)) {
+                                continue;
+                            }
+                            String taskToken = "\"taskId\":\"" + taskId.trim() + "\"";
+                            w.or().nested(n -> n.eq(WebhookDeliveryLogPO::getEventType, WebhookEventType.EXPORT_READY)
+                                    .like(WebhookDeliveryLogPO::getPayloadJson, verifyFixScanStageToken)
+                                    .like(WebhookDeliveryLogPO::getPayloadJson, taskToken));
+                            w.or().nested(n -> n.eq(WebhookDeliveryLogPO::getEventType, WebhookEventType.ARTIFACT_READY)
+                                    .like(WebhookDeliveryLogPO::getPayloadJson, verifyFixScanStageToken)
+                                    .like(WebhookDeliveryLogPO::getPayloadJson, taskToken));
+                        }
+                    }
+                })
                 .orderByDesc(WebhookDeliveryLogPO::getCreatedAt)
                 .orderByDesc(WebhookDeliveryLogPO::getId)
                 .last("LIMIT " + limit);

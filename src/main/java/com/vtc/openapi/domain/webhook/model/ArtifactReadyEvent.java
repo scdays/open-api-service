@@ -33,4 +33,6 @@ public class ArtifactReadyEvent {
     private Long byteSize;
     /** 预签名下载 URL */
     private String downloadUrl;
+    /** 修复核验 jobId（exportStage=VERIFY_FIX_SCAN 时用于工作台聚合） */
+    private String verifyFixJobId;
 }

@@ -1,6 +1,6 @@
 spring:
   kafka:
-    bootstrap-servers: 172.16.4.192:9092
+    bootstrap-servers: 172.16.3.32:9092
     consumer:
       group-id: open-api-task-center
       auto-offset-reset: earliest

@@ -42,6 +42,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class OperationCaseWorkspaceAssembler {
@@ -142,8 +143,10 @@ public class OperationCaseWorkspaceAssembler {
             return Collections.emptyList();
         }
         List<WebhookDeliveryLogDO> logs = apiInvocationRepository.listByResource(
-                row.getPartnerId(), resourceType, resourceId, 20);
-        return adminGovernanceAppConvertor.toWebhookDeliveryLogDtoList(logs);
+                row.getPartnerId(), resourceType, resourceId, 100);
+        return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(logs).stream()
+                .limit(20)
+                .collect(Collectors.toList());
     }
 
     private OperationCaseVerifyFixPayloadDto buildVerifyFixPayload(OpenOperationCaseDO row) {

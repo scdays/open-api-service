@@ -230,6 +230,7 @@ public class TaskCenterReportArchiveService {
         event.setArtifactId(buildArtifactId(sub.getSubId()));
         event.setTaskId(sub.getTaskId());
         event.setExtTaskId(extTaskId);
+        event.setVerifyFixJobId(sub.getVerifyFixJobId());
         event.setExportId(exportRow.getExportId());
         event.setExportStage(resolveExportStage(sub.getScanPhase()));
         event.setArtifactSource(ARTIFACT_SOURCE_SCANNER_RAW);

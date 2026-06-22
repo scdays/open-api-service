@@ -63,6 +63,10 @@ public class OpenVulnInstanceLogWriter {
         if (task == null || instances == null || instances.isEmpty()) {
             return;
         }
+        // 修复核验阶段(scan_phase=3)不得写入实例跃迁日志；该阶段仅指纹比对后写 VERIFY_FIX_COMPLETE。
+        if (scanPhase == 3) {
+            return;
+        }
         List<OpenVulnInstanceLogDO> rows = new ArrayList<>();
         for (OpenVulnInstanceDO instance : instances) {
             if (instance == null || !StringUtils.hasText(instance.getVulInfoId())) {

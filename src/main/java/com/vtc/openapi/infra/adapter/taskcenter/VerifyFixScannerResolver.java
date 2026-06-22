@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 修复核验扫描器选举：open_vuln_instance_log.sub_id → open_task_sub.scanner_type。
+ * 修复核验扫描器选举：open_vuln_instance_log（按 id 倒序取最近一条扫描跃迁）→ open_task_sub.scanner_type。
+ * <p>与 PRD / 对外契约一致：按实例最近一次排查或验证扫描所用厂商聚合下发；单厂商 1 个子任务，多厂商 N 个。</p>
  */
 @Component
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "task-center")
@@ -22,8 +23,7 @@ public class VerifyFixScannerResolver {
 
     private static final Set<String> SCAN_LOG_REASONS = new HashSet<>(Arrays.asList(
             OpenVulnInstanceLogDO.REASON_SURVEY_INGEST,
-            OpenVulnInstanceLogDO.REASON_VERIFY_PHASE,
-            OpenVulnInstanceLogDO.REASON_CROSS_SCAN_MERGE
+            OpenVulnInstanceLogDO.REASON_VERIFY_PHASE
     ));
 
     private final IOpenVulnInstanceLogRepository logRepository;

@@ -136,7 +136,7 @@ public class TaskCenterVerifyFixProgressService {
                 && StringUtils.hasText(sub.getSurveyId())
                 && sub.getSurveyId().equals(surveyId)
                 && sub.getProgress() != null && sub.getProgress() >= 100) {
-            tryCompleteAfterReportArchived(sub);
+            tryCaptureSurveyOnSubFinished(sub);
             return;
         }
         if (StringUtils.hasText(centerPlanId) && !StringUtils.hasText(sub.getCenterPlanId())) {
@@ -147,7 +147,7 @@ public class TaskCenterVerifyFixProgressService {
         sub.setProgress(100);
         sub.setUpdatedAt(new Date());
         openTaskSubRepository.updateSub(sub);
-        tryCompleteAfterReportArchived(sub);
+        tryCaptureSurveyOnSubFinished(sub);
     }
 
     /**
@@ -213,7 +213,7 @@ public class TaskCenterVerifyFixProgressService {
             changed = true;
             sub.setUpdatedAt(new Date());
             openTaskSubRepository.updateSub(sub);
-            tryCompleteAfterReportArchived(sub);
+            tryCaptureSurveyOnSubFinished(sub);
             return;
         }
         if (TaskCenterSubSupport.STATUS_PENDING.equals(sub.getStatus())) {
@@ -227,17 +227,14 @@ public class TaskCenterVerifyFixProgressService {
     }
 
     /**
-     * 子任务 FINISHED 后：先归档 SFTP 原始报告，再落库复扫结果并触发比对。
+     * 复扫子任务 FINISHED 后：立即 Feign 拉取 VTC 结果（与报告 SFTP 归档并行）。
      */
     @Transactional(rollbackFor = Exception.class)
-    public void tryCompleteAfterReportArchived(OpenTaskSubDO sub) {
+    public void tryCaptureSurveyOnSubFinished(OpenTaskSubDO sub) {
         if (sub == null || !StringUtils.hasText(sub.getSurveyId()) || !StringUtils.hasText(sub.getVerifyFixJobId())) {
             return;
         }
         if (!TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
-            return;
-        }
-        if (!reportArchiveService.ensureArchived(sub)) {
             return;
         }
         OpenTaskSubDO latest = openTaskSubRepository.findBySubId(sub.getSubId());
