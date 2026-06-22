@@ -6,6 +6,11 @@ open-api:
     poll-enabled: true
     report-archive:
       enabled: true
+    survey-capture:
+      retry-enabled: true
+      max-attempts: 6
+      retry-interval-ms: 5000
+      max-wait-ms: 180000
     kafka:
       enabled: true
       queue-consume-enabled: true

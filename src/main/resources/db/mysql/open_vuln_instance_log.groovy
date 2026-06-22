@@ -36,4 +36,10 @@ databaseChangeLog(logicalFilePath: 'open_vuln_instance_log.groovy') {
             column(name: 'task_id')
         }
     }
+    
+    changeSet(id: '2026-06-18--open_vuln_instance_log-reserve-case-id-related-tables', author: 'open-api') {
+        addColumn(tableName: 'open_vuln_instance_log') {
+            column(name: 'case_id', type: 'VARCHAR(32)', remarks: '跃迁与案件绑定')
+        }
+    }
 }

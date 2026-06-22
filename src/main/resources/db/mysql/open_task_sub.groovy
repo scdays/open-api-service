@@ -46,15 +46,6 @@ databaseChangeLog(logicalFilePath: 'open_task_sub.groovy') {
         }
     }
 
-    changeSet(id: '2026-06-18-extend-open_task-task-center', author: 'open-api') {
-        addColumn(tableName: 'open_task') {
-            column(name: 'task_phase', type: 'INT', defaultValueNumeric: 1, remarks: '编排阶段 1=排查 2=验证')
-            column(name: 'auto_verify', type: 'BOOLEAN', defaultValueBoolean: true, remarks: '是否 autoVerify')
-            column(name: 'verify_merge_strategy', type: 'VARCHAR(16)', defaultValue: 'UNION', remarks: '交叉扫描合并策略')
-            column(name: 'cross_scan', type: 'BOOLEAN', defaultValueBoolean: false, remarks: '是否双扫描器交叉')
-        }
-    }
-
     changeSet(id: '2026-06-18-open_task_sub-report-download-path', author: 'open-api') {
         addColumn(tableName: 'open_task_sub') {
             column(name: 'report_download_path', type: 'VARCHAR(512)', remarks: 'VTC 报告 FTP 下载路径')

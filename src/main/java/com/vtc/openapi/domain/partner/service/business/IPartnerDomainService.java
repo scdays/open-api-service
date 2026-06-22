@@ -12,7 +12,7 @@ import java.util.List;
  */
 public interface IPartnerDomainService extends IDomainService<PartnerDO> {
 
-    PartnerDO createPartner(PartnerDO partner, List<String> capabilities, String defaultCallbackUrl);
+    PartnerDO createPartner(PartnerDO partner, List<String> capabilities, String defaultCallbackUrl, String downloadableStages);
 
     PartnerDO requireByPartnerId(String partnerId);
 
@@ -20,11 +20,13 @@ public interface IPartnerDomainService extends IDomainService<PartnerDO> {
 
     PageInfo<PartnerDO> pagePartners(PageInfo<PartnerDO> pageInfo, String partnerId, String partnerName, String status);
 
-    PartnerDO updatePartner(String partnerId, PartnerDO patch, List<String> capabilities, String defaultCallbackUrl);
+    PartnerDO updatePartner(String partnerId, PartnerDO patch, List<String> capabilities, String defaultCallbackUrl, String downloadableStages);
 
     List<String> listCapabilities(String partnerId);
 
     String findCallbackUrl(String partnerId);
+
+    String findDownloadableStages(String partnerId);
 
     PartnerCredentialDO createCredential(String partnerId, String clientId, String clientSecretHash);
 

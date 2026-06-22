@@ -28,6 +28,9 @@ public class CreatePartnerParams {
     @ApiModelProperty("默认 Webhook 回调地址")
     private String defaultCallbackUrl;
 
+    @ApiModelProperty("允许下载的外发阶段（逗号分隔 exportStage）；空则继承全局默认")
+    private String downloadableStages;
+
     @ApiModelProperty("网关限流 QPS")
     private Integer rateLimitQps;
 }

@@ -128,6 +128,21 @@ public final class WebhookDeliverySupport {
         if (!WebhookEventType.EXPORT_READY.equals(eventType) || !StringUtils.hasText(payloadJson)) {
             return null;
         }
+        return extractExportDeliveryInfo(eventType, payloadJson);
+    }
+
+    /**
+     * 解析 EXPORT_READY 与 ARTIFACT_READY 的外发产物元数据（exportId/format/exportStage/downloadUrl/taskId）。
+     * ARTIFACT_READY 的 format 取 payload.fileFormat。
+     */
+    public static ExportReadyInfo extractExportDeliveryInfo(String eventType, String payloadJson) {
+        if (!WebhookEventType.EXPORT_READY.equals(eventType)
+                && !WebhookEventType.ARTIFACT_READY.equals(eventType)) {
+            return null;
+        }
+        if (!StringUtils.hasText(payloadJson)) {
+            return null;
+        }
         try {
             JSONObject envelope = JSON.parseObject(payloadJson);
             if (envelope == null) {
@@ -140,9 +155,13 @@ public final class WebhookDeliverySupport {
             ExportReadyInfo info = new ExportReadyInfo();
             info.setExportId(firstNonBlank(payload.getString("exportId")));
             info.setTaskId(firstNonBlank(payload.getString("taskId")));
-            info.setFormat(payload.getString("format"));
             info.setExportStage(payload.getString("exportStage"));
             info.setDownloadUrl(payload.getString("downloadUrl"));
+            if (WebhookEventType.ARTIFACT_READY.equals(eventType)) {
+                info.setFormat(firstNonBlank(payload.getString("fileFormat"), payload.getString("format")));
+            } else {
+                info.setFormat(payload.getString("format"));
+            }
             return StringUtils.hasText(info.getExportId()) ? info : null;
         } catch (Exception ignored) {
             return null;

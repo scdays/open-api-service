@@ -7,6 +7,7 @@ import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.partner.model.PartnerConstants;
 import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
+import com.vtc.openapi.domain.partner.model.entity.PartnerWebhookConfigDO;
 import com.vtc.openapi.domain.partner.model.support.WebhookSecretGenerator;
 import com.vtc.openapi.domain.partner.repository.IPartnerRepository;
 import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
@@ -26,7 +27,7 @@ public class PartnerDomainServiceImpl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public PartnerDO createPartner(PartnerDO partner, List<String> capabilities, String defaultCallbackUrl) {
+    public PartnerDO createPartner(PartnerDO partner, List<String> capabilities, String defaultCallbackUrl, String downloadableStages) {
         if (databaseRepository.findByPartnerId(partner.getPartnerId()) != null) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId 已存在");
         }
@@ -45,7 +46,7 @@ public class PartnerDomainServiceImpl
         if (!CollectionUtils.isEmpty(capabilities)) {
             databaseRepository.replaceCapabilities(partner.getPartnerId(), capabilities);
         }
-        databaseRepository.upsertCallbackUrl(partner.getPartnerId(), defaultCallbackUrl);
+        databaseRepository.upsertWebhookConfig(partner.getPartnerId(), defaultCallbackUrl, downloadableStages);
         return databaseRepository.findByPartnerId(partner.getPartnerId());
     }
 
@@ -73,7 +74,7 @@ public class PartnerDomainServiceImpl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public PartnerDO updatePartner(String partnerId, PartnerDO patch, List<String> capabilities, String defaultCallbackUrl) {
+    public PartnerDO updatePartner(String partnerId, PartnerDO patch, List<String> capabilities, String defaultCallbackUrl, String downloadableStages) {
         PartnerDO partner = requireByPartnerId(partnerId);
         if (StringUtils.hasText(patch.getPartnerName())) {
             partner.setPartnerName(patch.getPartnerName());
@@ -89,8 +90,8 @@ public class PartnerDomainServiceImpl
         if (capabilities != null) {
             databaseRepository.replaceCapabilities(partnerId, capabilities);
         }
-        if (defaultCallbackUrl != null) {
-            databaseRepository.upsertCallbackUrl(partnerId, defaultCallbackUrl);
+        if (defaultCallbackUrl != null || downloadableStages != null) {
+            databaseRepository.upsertWebhookConfig(partnerId, defaultCallbackUrl, downloadableStages);
         }
         return requireByPartnerId(partnerId);
     }
@@ -103,6 +104,12 @@ public class PartnerDomainServiceImpl
     @Override
     public String findCallbackUrl(String partnerId) {
         return databaseRepository.findCallbackUrl(partnerId);
+    }
+
+    @Override
+    public String findDownloadableStages(String partnerId) {
+        PartnerWebhookConfigDO config = databaseRepository.findWebhookConfig(partnerId);
+        return config != null ? config.getDownloadableStages() : null;
     }
 
     @Override

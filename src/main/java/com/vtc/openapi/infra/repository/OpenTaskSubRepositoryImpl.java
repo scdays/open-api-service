@@ -94,6 +94,20 @@ public class OpenTaskSubRepositoryImpl
     }
 
     @Override
+    public List<OpenTaskSubDO> listFinishedAwaitingSurveyCapture(int limit) {
+        int cap = limit > 0 ? Math.min(limit, 200) : 50;
+        List<OpenTaskSubPO> rows = baseMapper.selectList(new LambdaQueryWrapper<OpenTaskSubPO>()
+                .eq(OpenTaskSubPO::getStatus, TaskCenterSubSupport.STATUS_FINISHED)
+                .isNotNull(OpenTaskSubPO::getSurveyId)
+                .in(OpenTaskSubPO::getScanPhase,
+                        TaskCenterSubSupport.PHASE_SURVEY,
+                        TaskCenterSubSupport.PHASE_VERIFY_FIX)
+                .orderByAsc(OpenTaskSubPO::getUpdatedAt)
+                .last("LIMIT " + cap));
+        return ConvertHelper.convertList(rows, OpenTaskSubDO.class);
+    }
+
+    @Override
     public void saveSub(OpenTaskSubDO row) {
         OpenTaskSubPO po = ConvertHelper.convert(row, OpenTaskSubPO.class);
         baseMapper.insert(po);

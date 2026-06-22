@@ -54,7 +54,9 @@ public class PartnerAdminAppServiceImpl
     public ApiResponse<PartnerDTO> createPartner(CreatePartnerParams params) {
         PartnerDO toCreate = ConvertHelper.convert(fromCreateParams(params), PartnerDO.class);
         PartnerDO saved = domainService.createPartner(
-                toCreate, params.getCapabilities(), callbackUrlResolver.resolveForCreate(params.getDefaultCallbackUrl()));
+                toCreate, params.getCapabilities(),
+                callbackUrlResolver.resolveForCreate(params.getDefaultCallbackUrl()),
+                params.getDownloadableStages());
         String webhookSecret = domainService.assignWebhookSecretIfAbsent(saved.getPartnerId());
         PartnerDTO dto = enrichDetail(saved);
         if (webhookSecret != null) {
@@ -90,7 +92,8 @@ public class PartnerAdminAppServiceImpl
     public ApiResponse<PartnerDTO> updatePartner(String partnerId, UpdatePartnerParams params) {
         PartnerDO patch = ConvertHelper.convert(fromUpdateParams(params), PartnerDO.class);
         PartnerDO updated = domainService.updatePartner(
-                partnerId, patch, params.getCapabilities(), params.getDefaultCallbackUrl());
+                partnerId, patch, params.getCapabilities(),
+                params.getDefaultCallbackUrl(), params.getDownloadableStages());
         return ApiResponse.ok(enrichDetail(updated));
     }
 
@@ -145,6 +148,7 @@ public class PartnerAdminAppServiceImpl
         PartnerDTO dto = ConvertHelper.convert(partner, PartnerDTO.class);
         dto.setCapabilities(new ArrayList<>(domainService.listCapabilities(partner.getPartnerId())));
         dto.setDefaultCallbackUrl(domainService.findCallbackUrl(partner.getPartnerId()));
+        dto.setDownloadableStages(domainService.findDownloadableStages(partner.getPartnerId()));
         dto.setWebhookSecretConfigured(domainService.hasWebhookSecret(partner.getPartnerId()));
         return dto;
     }

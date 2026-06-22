@@ -18,6 +18,7 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.model.query.OpenTaskAdminQuery;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
+import com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterReportArchiveService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
@@ -73,6 +74,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskCenterSurveyRefetchService surveyRefetchService;
     private final TaskCenterReportArchiveService reportArchiveService;
+    private final IExportDownloadPolicy exportDownloadPolicy;
 
     public OpenTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
@@ -83,7 +85,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
                                        @Autowired(required = false) TaskCenterTaskOrchestrator taskCenterOrchestrator,
                                        @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
                                        @Autowired(required = false) TaskCenterSurveyRefetchService surveyRefetchService,
-                                       @Autowired(required = false) TaskCenterReportArchiveService reportArchiveService) {
+                                       @Autowired(required = false) TaskCenterReportArchiveService reportArchiveService,
+                                       IExportDownloadPolicy exportDownloadPolicy) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
@@ -94,6 +97,7 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         this.scanResultQueryService = scanResultQueryService;
         this.surveyRefetchService = surveyRefetchService;
         this.reportArchiveService = reportArchiveService;
+        this.exportDownloadPolicy = exportDownloadPolicy;
     }
 
     @Override
@@ -490,6 +494,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         }
         return rows.stream()
                 .map(adminGovernanceAppConvertor::toWebhookDeliveryLogDto)
+                .peek(dto -> dto.setExportDownloadable(
+                        exportDownloadPolicy.isDownloadable(task.getPartnerId(), dto.getExportId())))
                 .collect(Collectors.toList());
     }
 

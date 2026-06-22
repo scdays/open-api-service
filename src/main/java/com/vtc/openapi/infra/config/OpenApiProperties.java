@@ -1,7 +1,14 @@
 package com.vtc.openapi.infra.config;
 
+import com.vtc.openapi.domain.export.model.ExportStage;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 @ConfigurationProperties(prefix = "open-api")
 public class OpenApiProperties {
@@ -316,6 +323,11 @@ public class OpenApiProperties {
          * file-sharing: 平台 Nginx 直链 file-sharing-center。
          */
         private String downloadUrlMode = "open-api";
+        /**
+         * 允许下载的 exportStage 列表；空或未配置时默认全部允许（向后兼容）。
+         * Partner 级 partner_webhook_config.downloadable_stages 非空时覆盖此全局配置。
+         */
+        private List<String> downloadableStages = new ArrayList<>();
 
         public boolean isEnabled() {
             return enabled;
@@ -339,6 +351,28 @@ public class OpenApiProperties {
 
         public void setDownloadUrlMode(String downloadUrlMode) {
             this.downloadUrlMode = downloadUrlMode;
+        }
+
+        public List<String> getDownloadableStages() {
+            return downloadableStages;
+        }
+
+        public void setDownloadableStages(List<String> downloadableStages) {
+            this.downloadableStages = downloadableStages;
+        }
+
+        /**
+         * 解析为有效白名单 Set：配置为空时返回全部 4 个 exportStage（向后兼容）。
+         */
+        public Set<String> effectiveDownloadableStages() {
+            if (downloadableStages == null || downloadableStages.isEmpty()) {
+                return new LinkedHashSet<>(Arrays.asList(
+                        ExportStage.TASK_COMPLETED,
+                        ExportStage.VERIFY_SCAN,
+                        ExportStage.VERIFY_FIX_SCAN,
+                        ExportStage.RAW_SCAN_ARCHIVE));
+            }
+            return new LinkedHashSet<>(downloadableStages);
         }
     }
 
@@ -426,6 +460,7 @@ public class OpenApiProperties {
         private boolean pollEnabled = true;
         private final Kafka kafka = new Kafka();
         private final ReportArchive reportArchive = new ReportArchive();
+        private final SurveyCapture surveyCapture = new SurveyCapture();
 
         public String getBaseUrl() {
             return baseUrl;
@@ -457,6 +492,55 @@ public class OpenApiProperties {
 
         public ReportArchive getReportArchive() {
             return reportArchive;
+        }
+
+        public SurveyCapture getSurveyCapture() {
+            return surveyCapture;
+        }
+
+        public static class SurveyCapture {
+            /**
+             * task_finish 后 VTC Feign 返回空结果时是否延迟重试（应对 VTC 入库滞后）。
+             */
+            private boolean retryEnabled = true;
+            /** 单次回收流程内连续拉取次数 */
+            private int maxAttempts = 6;
+            /** 两次拉取间隔（毫秒） */
+            private long retryIntervalMs = 5000L;
+            /** 自子任务 FINISHED 起最长等待 VTC 入库（毫秒），超时后接受空结果并推进 */
+            private long maxWaitMs = 180_000L;
+
+            public boolean isRetryEnabled() {
+                return retryEnabled;
+            }
+
+            public void setRetryEnabled(boolean retryEnabled) {
+                this.retryEnabled = retryEnabled;
+            }
+
+            public int getMaxAttempts() {
+                return maxAttempts;
+            }
+
+            public void setMaxAttempts(int maxAttempts) {
+                this.maxAttempts = maxAttempts;
+            }
+
+            public long getRetryIntervalMs() {
+                return retryIntervalMs;
+            }
+
+            public void setRetryIntervalMs(long retryIntervalMs) {
+                this.retryIntervalMs = retryIntervalMs;
+            }
+
+            public long getMaxWaitMs() {
+                return maxWaitMs;
+            }
+
+            public void setMaxWaitMs(long maxWaitMs) {
+                this.maxWaitMs = maxWaitMs;
+            }
         }
 
         public static class ReportArchive {

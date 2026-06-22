@@ -23,4 +23,12 @@ databaseChangeLog(logicalFilePath: 'partner_webhook_config.groovy') {
                     afterColumn: 'webhook_secret_hash')
         }
     }
+
+    changeSet(id: '2026-06-22-add-downloadable-stages', author: 'open-api') {
+        addColumn(tableName: 'partner_webhook_config') {
+            column(name: 'downloadable_stages', type: 'VARCHAR(255)',
+                    remarks: '允许下载的 exportStage 逗号分隔；NULL 继承全局默认',
+                    afterColumn: 'webhook_secret')
+        }
+    }
 }

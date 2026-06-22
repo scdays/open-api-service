@@ -6,6 +6,7 @@ import com.vtc.openapi.app.support.OpenTaskSubAdminMapper;
 import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
+import com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
@@ -56,6 +57,7 @@ public class VerifyFixWorkspaceAssembler {
     private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final OpenTaskSubAdminMapper openTaskSubAdminMapper;
     private final OpenApiProperties openApiProperties;
+    private final IExportDownloadPolicy exportDownloadPolicy;
 
     public VerifyFixWorkspaceAssembler(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
@@ -65,7 +67,8 @@ public class VerifyFixWorkspaceAssembler {
                                        VerifyFixJobAdminConvertor verifyFixJobAdminConvertor,
                                        AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                        OpenTaskSubAdminMapper openTaskSubAdminMapper,
-                                       OpenApiProperties openApiProperties) {
+                                       OpenApiProperties openApiProperties,
+                                       IExportDownloadPolicy exportDownloadPolicy) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
@@ -75,6 +78,7 @@ public class VerifyFixWorkspaceAssembler {
         this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.openTaskSubAdminMapper = openTaskSubAdminMapper;
         this.openApiProperties = openApiProperties;
+        this.exportDownloadPolicy = exportDownloadPolicy;
     }
 
     public VerifyFixWorkspaceDto build(String jobId) {
@@ -220,7 +224,10 @@ public class VerifyFixWorkspaceAssembler {
         }
         List<WebhookDeliveryLogDTO> result = new ArrayList<>();
         for (WebhookDeliveryLogDO row : rows) {
-            result.add(adminGovernanceAppConvertor.toWebhookDeliveryLogDto(row));
+            WebhookDeliveryLogDTO dto = adminGovernanceAppConvertor.toWebhookDeliveryLogDto(row);
+            dto.setExportDownloadable(
+                    exportDownloadPolicy.isDownloadable(job.getPartnerId(), dto.getExportId()));
+            result.add(dto);
         }
         return result;
     }

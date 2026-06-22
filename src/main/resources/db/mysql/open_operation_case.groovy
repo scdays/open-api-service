@@ -66,27 +66,6 @@ databaseChangeLog(logicalFilePath: 'open_operation_case.groovy') {
         }
     }
 
-    changeSet(id: '2026-06-18-api-invocation-case-id', author: 'open-api') {
-        addColumn(tableName: 'api_invocation') {
-            column(name: 'case_id', type: 'VARCHAR(32)', remarks: '关联运营案件')
-        }
-        createIndex(tableName: 'api_invocation', indexName: 'idx_api_inv_case_id', unique: false) {
-            column(name: 'case_id')
-        }
-    }
-
-    changeSet(id: '2026-06-18-reserve-case-id-related-tables', author: 'open-api') {
-        addColumn(tableName: 'open_task') {
-            column(name: 'case_id', type: 'VARCHAR(32)', remarks: 'TASK_SCAN 案件互指')
-        }
-        addColumn(tableName: 'open_verify_fix_job') {
-            column(name: 'case_id', type: 'VARCHAR(32)', remarks: 'VERIFY_FIX 案件互指')
-        }
-        addColumn(tableName: 'open_vuln_instance_log') {
-            column(name: 'case_id', type: 'VARCHAR(32)', remarks: '跃迁与案件绑定')
-        }
-    }
-
     changeSet(id: '2026-06-18-create-open_operation_case_target', author: 'open-api') {
         createTable(tableName: 'open_operation_case_target', remarks: '运营案件多目标（批量操作）') {
             column(name: 'id', type: 'BIGINT', autoIncrement: true) {

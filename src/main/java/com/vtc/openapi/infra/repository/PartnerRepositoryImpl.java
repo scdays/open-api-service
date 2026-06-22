@@ -165,6 +165,33 @@ public class PartnerRepositoryImpl
     }
 
     @Override
+    public void upsertWebhookConfig(String partnerId, String callbackUrl, String downloadableStages) {
+        PartnerWebhookConfigPO existing = webhookConfigMapper.selectOne(
+                new LambdaQueryWrapper<PartnerWebhookConfigPO>()
+                        .eq(PartnerWebhookConfigPO::getPartnerId, partnerId));
+        Date now = new Date();
+        // 空字符串视为"清空"，null 视为"不修改"
+        String normalizedStages = downloadableStages == null ? null : downloadableStages.trim();
+        if (existing == null) {
+            PartnerWebhookConfigDO row = new PartnerWebhookConfigDO();
+            row.setPartnerId(partnerId);
+            if (StringUtils.hasText(callbackUrl)) {
+                row.setCallbackUrl(callbackUrl);
+            }
+            row.setDownloadableStages(normalizedStages);
+            row.setUpdatedAt(now);
+            webhookConfigMapper.insert(ConvertHelper.convert(row, PartnerWebhookConfigPO.class));
+        } else {
+            if (StringUtils.hasText(callbackUrl)) {
+                existing.setCallbackUrl(callbackUrl);
+            }
+            existing.setDownloadableStages(normalizedStages);
+            existing.setUpdatedAt(now);
+            webhookConfigMapper.updateById(existing);
+        }
+    }
+
+    @Override
     public PartnerWebhookConfigDO findWebhookConfig(String partnerId) {
         PartnerWebhookConfigPO config = webhookConfigMapper.selectOne(
                 new LambdaQueryWrapper<PartnerWebhookConfigPO>()

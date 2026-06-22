@@ -34,6 +34,12 @@ public interface IPartnerRepository extends IDatabaseRepository<PartnerDO> {
     void upsertCallbackUrl(String partnerId, String callbackUrl);
 
     /**
+     * 新增/更新 Partner Webhook 配置（callbackUrl + downloadableStages）。
+     * 任一参数为 null 时保持原值不变；均非 null 时整体覆盖。
+     */
+    void upsertWebhookConfig(String partnerId, String callbackUrl, String downloadableStages);
+
+    /**
      * 查询 Partner Webhook 配置（callbackUrl + webhookSecret）。
      * 用于 Webhook 投递时 HMAC-SHA256 验签（文档 §6）。
      *

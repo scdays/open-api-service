@@ -47,6 +47,7 @@ public class TaskCenterRecycleService {
     private final TaskCenterTaskCompletionCoordinator completionCoordinator;
     private final OpenVulnInstanceLogWriter instanceLogWriter;
     private final IOperationCaseDomainService operationCaseDomainService;
+    private final TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy;
 
     public TaskCenterRecycleService(IOpenTaskRepository openTaskRepository,
                                     IOpenTaskSubRepository openTaskSubRepository,
@@ -58,7 +59,8 @@ public class TaskCenterRecycleService {
                                     TaskCenterTaskOrchestrator orchestrator,
                                     TaskCenterTaskCompletionCoordinator completionCoordinator,
                                     OpenVulnInstanceLogWriter instanceLogWriter,
-                                    IOperationCaseDomainService operationCaseDomainService) {
+                                    IOperationCaseDomainService operationCaseDomainService,
+                                    TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
@@ -70,6 +72,7 @@ public class TaskCenterRecycleService {
         this.completionCoordinator = completionCoordinator;
         this.instanceLogWriter = instanceLogWriter;
         this.operationCaseDomainService = operationCaseDomainService;
+        this.captureRetryPolicy = captureRetryPolicy;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -97,6 +100,10 @@ public class TaskCenterRecycleService {
             return;
         }
         if (phase == TaskCenterSubSupport.PHASE_SURVEY) {
+            if (!allSurveySubsCaptureReady(subs)) {
+                log.info("task-center survey phase deferred: awaiting VTC capture taskId={}", task.getTaskId());
+                return;
+            }
             onSurveyPhaseComplete(task, subs);
         } else if (phase == TaskCenterSubSupport.PHASE_VERIFY) {
             onVerifyPhaseComplete(task, subs);
@@ -402,6 +409,25 @@ public class TaskCenterRecycleService {
     private static JSONObject snapshotOf(OpenVulnInstanceDO inst) {
         return StringUtils.hasText(inst.getSnapshotJson())
                 ? JSONObject.parseObject(inst.getSnapshotJson()) : new JSONObject();
+    }
+
+    private boolean allSurveySubsCaptureReady(List<OpenTaskSubDO> subs) {
+        if (CollectionUtils.isEmpty(subs)) {
+            return true;
+        }
+        for (OpenTaskSubDO sub : subs) {
+            if (sub == null || !TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())) {
+                continue;
+            }
+            if (scanResultQueryService.hasPersistedResults(sub.getSubId())) {
+                continue;
+            }
+            if (captureRetryPolicy.exceededMaxWait(sub) || !captureRetryPolicy.isEnabled()) {
+                continue;
+            }
+            return false;
+        }
+        return true;
     }
 
     private void markTaskFinished(OpenTaskDO task) {

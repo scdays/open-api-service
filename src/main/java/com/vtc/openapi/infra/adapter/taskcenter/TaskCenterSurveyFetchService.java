@@ -21,9 +21,12 @@ public class TaskCenterSurveyFetchService {
     private static final Logger log = LoggerFactory.getLogger(TaskCenterSurveyFetchService.class);
 
     private final IVulnTaskCenterScanClient scanClient;
+    private final TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy;
 
-    public TaskCenterSurveyFetchService(IVulnTaskCenterScanClient scanClient) {
+    public TaskCenterSurveyFetchService(IVulnTaskCenterScanClient scanClient,
+                                        TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy) {
         this.scanClient = scanClient;
+        this.captureRetryPolicy = captureRetryPolicy;
     }
 
     public TaskCenterSurveyBundle fetchAll(String surveyId) {
@@ -37,6 +40,31 @@ public class TaskCenterSurveyFetchService {
         fetchAliveIpsResilient(surveyId, bundle);
         fetchPortScanResilient(surveyId, bundle);
         return bundle;
+    }
+
+    /**
+     * task_finish 后拉取：若 VTC 入库滞后导致全空，在单次回收内间隔重试。
+     */
+    public TaskCenterSurveyBundle fetchAllWithRetry(String surveyId) {
+        if (!captureRetryPolicy.isEnabled()) {
+            return fetchAll(surveyId);
+        }
+        int maxAttempts = captureRetryPolicy.getMaxAttempts();
+        TaskCenterSurveyBundle last = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            last = fetchAll(surveyId);
+            if (!TaskCenterSurveyBundleSupport.isLikelyVtcLag(last) || attempt >= maxAttempts) {
+                if (attempt > 1) {
+                    log.info("task-center survey fetch finished surveyId={} attempts={} empty={}",
+                            surveyId, attempt, TaskCenterSurveyBundleSupport.isEmptyBundle(last));
+                }
+                return last;
+            }
+            log.info("task-center survey fetch empty (VTC lag?) surveyId={} retry {}/{} in {}ms",
+                    surveyId, attempt, maxAttempts, captureRetryPolicy.getRetryIntervalMs());
+            captureRetryPolicy.sleepBeforeRetry(attempt);
+        }
+        return last != null ? last : fetchAll(surveyId);
     }
 
     /**

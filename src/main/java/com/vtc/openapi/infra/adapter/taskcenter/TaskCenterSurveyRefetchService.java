@@ -114,8 +114,18 @@ public class TaskCenterSurveyRefetchService {
             openTaskSubRepository.updateSub(sub);
         }
 
-        surveyPersistService.persistSubSurveyResults(sub);
+        SurveyPersistOutcome outcome = surveyPersistService.persistSubSurveyResults(sub);
         int persistedScanRows = scanResultRepository.listBySubId(sub.getSubId(), null).size();
+
+        if (outcome == SurveyPersistOutcome.DEFERRED_VTC_LAG) {
+            dto.setSuccess(false);
+            dto.setPersistedScanRows(0);
+            dto.setTaskStatus(task.getStatus());
+            dto.setMessage("VTC 扫描结果尚未入库，已安排自动重试（task_finish 早于 VTC 落库）");
+            log.warn("survey capture deferred VTC lag taskId={} subId={} surveyId={}",
+                    task.getTaskId(), sub.getSubId(), sub.getSurveyId());
+            return dto;
+        }
 
         OpenTaskDO latest = openTaskRepository.findByTaskId(task.getTaskId());
         if (latest != null) {

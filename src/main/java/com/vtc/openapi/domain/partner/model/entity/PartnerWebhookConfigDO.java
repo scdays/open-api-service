@@ -23,6 +23,8 @@ public class PartnerWebhookConfigDO extends BaseDO {
 
     /** HMAC-SHA256 验签明文密钥（运营分配） */
     private String webhookSecret;
+    /** 允许下载的 exportStage 逗号分隔；NULL 继承全局默认 */
+    private String downloadableStages;
 
     private Date updatedAt;
 }

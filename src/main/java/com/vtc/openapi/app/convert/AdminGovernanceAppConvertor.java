@@ -1,7 +1,5 @@
 package com.vtc.openapi.app.convert;
 
-import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
-import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
 import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
 import com.vtc.openapi.domain.open.model.support.InvocationDomainSupport;
@@ -22,16 +20,13 @@ import java.util.stream.Collectors;
 
 /**
  * Admin governance DTO mapping. Do not use ConvertHelper for *DetailDTO subclasses.
+ * <p>仅解析 payload 元数据（exportId/format/exportStage/downloadUrl），不查 DB、不做下载判定。
+ * 下载可行性（exportDownloadable）由工作台 assembler 调用 IExportDownloadPolicy 设置。</p>
  */
 @Component
 public class AdminGovernanceAppConvertor {
 
-    private static final String EXPORT_STATUS_READY = "READY";
-
-    private final IOpenExportRepository exportRepository;
-
-    public AdminGovernanceAppConvertor(IOpenExportRepository exportRepository) {
-        this.exportRepository = exportRepository;
+    public AdminGovernanceAppConvertor() {
     }
 
     public InvocationDTO toInvocationDto(ApiInvocationDO row) {
@@ -114,7 +109,7 @@ public class AdminGovernanceAppConvertor {
         dto.setResourceType(row.getResourceType());
         dto.setResourceId(row.getResourceId());
         enrichWebhookLinkFields(row, dto);
-        enrichExportReadyFields(row, dto);
+        enrichExportMetadata(row, dto);
         dto.setCallbackUrl(row.getCallbackUrl());
         dto.setHttpStatus(row.getHttpStatus());
         dto.setRetryCount(row.getRetryCount());
@@ -144,30 +139,28 @@ public class AdminGovernanceAppConvertor {
         }
     }
 
-    private void enrichExportReadyFields(WebhookDeliveryLogDO row, WebhookDeliveryLogDTO dto) {
-        if (row == null || dto == null || !WebhookEventType.EXPORT_READY.equals(row.getEventType())) {
+    /**
+     * 解析 EXPORT_READY / ARTIFACT_READY 的外发产物元数据（exportId/format/exportStage/downloadUrl）。
+     * 不查 DB、不设置 exportDownloadable——下载可行性由工作台 assembler 调用 IExportDownloadPolicy 设置。
+     */
+    private void enrichExportMetadata(WebhookDeliveryLogDO row, WebhookDeliveryLogDTO dto) {
+        if (row == null || dto == null) {
             return;
         }
-        ExportReadyInfo exportReady = WebhookDeliverySupport.extractExportReady(row.getEventType(), row.getPayloadJson());
-        if (exportReady == null) {
-            dto.setExportDownloadable(false);
+        if (!WebhookEventType.EXPORT_READY.equals(row.getEventType())
+                && !WebhookEventType.ARTIFACT_READY.equals(row.getEventType())) {
             return;
         }
-        dto.setExportId(exportReady.getExportId());
-        dto.setExportFormat(exportReady.getFormat());
-        dto.setExportStage(exportReady.getExportStage());
-        dto.setPartnerDownloadUrl(exportReady.getDownloadUrl());
+        ExportReadyInfo info = WebhookDeliverySupport.extractExportDeliveryInfo(row.getEventType(), row.getPayloadJson());
+        if (info == null) {
+            return;
+        }
+        dto.setExportId(info.getExportId());
+        dto.setExportFormat(info.getFormat());
+        dto.setExportStage(info.getExportStage());
+        dto.setPartnerDownloadUrl(info.getDownloadUrl());
         if (!org.springframework.util.StringUtils.hasText(dto.getRelatedTaskId())) {
-            dto.setRelatedTaskId(exportReady.getTaskId());
+            dto.setRelatedTaskId(info.getTaskId());
         }
-        dto.setExportDownloadable(isExportReadyForDownload(exportReady.getExportId()));
-    }
-
-    private boolean isExportReadyForDownload(String exportId) {
-        if (!org.springframework.util.StringUtils.hasText(exportId)) {
-            return false;
-        }
-        OpenExportDO export = exportRepository.findByExportId(exportId.trim());
-        return export != null && EXPORT_STATUS_READY.equals(export.getStatus());
     }
 }

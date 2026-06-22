@@ -96,4 +96,10 @@ databaseChangeLog(logicalFilePath: 'open_verify_fix_job.groovy') {
             }
         }
     }
+
+    changeSet(id: '2026-06-18-open_verify_fix_job-reserve-case-id-related-tables', author: 'open-api') {
+        addColumn(tableName: 'open_verify_fix_job') {
+            column(name: 'case_id', type: 'VARCHAR(32)', remarks: 'VERIFY_FIX 案件互指')
+        }
+    }
 }

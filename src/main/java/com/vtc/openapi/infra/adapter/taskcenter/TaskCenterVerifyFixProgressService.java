@@ -43,6 +43,7 @@ public class TaskCenterVerifyFixProgressService {
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
     private final TaskCenterVerifyFixOrchestrator verifyFixOrchestrator;
     private final TaskCenterReportArchiveService reportArchiveService;
+    private final TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy;
 
     @Autowired
     @Lazy
@@ -57,7 +58,8 @@ public class TaskCenterVerifyFixProgressService {
                                               TaskCenterVulnFingerprintMapper fingerprintMapper,
                                               IVerifyFixJobDomainService verifyFixJobDomainService,
                                               TaskCenterVerifyFixOrchestrator verifyFixOrchestrator,
-                                              TaskCenterReportArchiveService reportArchiveService) {
+                                              TaskCenterReportArchiveService reportArchiveService,
+                                              TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.scanResultRepository = scanResultRepository;
@@ -68,6 +70,7 @@ public class TaskCenterVerifyFixProgressService {
         this.verifyFixJobDomainService = verifyFixJobDomainService;
         this.verifyFixOrchestrator = verifyFixOrchestrator;
         this.reportArchiveService = reportArchiveService;
+        this.captureRetryPolicy = captureRetryPolicy;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -248,19 +251,25 @@ public class TaskCenterVerifyFixProgressService {
         if (!StringUtils.hasText(sub.getSurveyId()) || !StringUtils.hasText(sub.getVerifyFixJobId())) {
             return;
         }
-        persistVerifyFixSubResults(sub);
+        SurveyPersistOutcome outcome = persistVerifyFixSubResults(sub);
+        if (outcome == SurveyPersistOutcome.DEFERRED_VTC_LAG) {
+            log.info("verify-fix compare deferred VTC lag jobId={} subId={}",
+                    sub.getVerifyFixJobId(), sub.getSubId());
+            return;
+        }
         tryCompareWhenAllSubsReady(sub.getVerifyFixJobId());
     }
 
-    private void persistVerifyFixSubResults(OpenTaskSubDO sub) {
+    private SurveyPersistOutcome persistVerifyFixSubResults(OpenTaskSubDO sub) {
         if (sub == null || !StringUtils.hasText(sub.getSurveyId()) || !StringUtils.hasText(sub.getSubId())) {
-            return;
+            return SurveyPersistOutcome.EMPTY_ACCEPTED;
         }
         try {
             scanResultRepository.deleteBySubId(sub.getSubId());
-            surveyPersistService.persistSubSurveyResults(sub);
+            return surveyPersistService.persistSubSurveyResults(sub);
         } catch (Exception ex) {
             log.warn("verify-fix survey persist failed subId={}: {}", sub.getSubId(), ex.getMessage());
+            return SurveyPersistOutcome.EMPTY_ACCEPTED;
         }
     }
 
@@ -285,6 +294,12 @@ public class TaskCenterVerifyFixProgressService {
         for (OpenTaskSubDO sub : subs) {
             if (!TaskCenterSubSupport.STATUS_FINISHED.equals(sub.getStatus())
                     || !StringUtils.hasText(sub.getSurveyId())) {
+                allFinished = false;
+                break;
+            }
+            if (scanResultRepository.listBySubId(sub.getSubId(), null).isEmpty()
+                    && captureRetryPolicy.isEnabled()
+                    && !captureRetryPolicy.exceededMaxWait(sub)) {
                 allFinished = false;
                 break;
             }

@@ -29,37 +29,46 @@ public class TaskCenterSurveyPersistService {
     private final IOpenTaskScanResultRepository scanResultRepository;
     private final TaskCenterSurveyFetchService surveyFetchService;
     private final TaskCenterExportRowBuilder exportRowBuilder;
+    private final TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy;
 
     public TaskCenterSurveyPersistService(IOpenTaskRepository openTaskRepository,
                                           IOpenTaskScanResultRepository scanResultRepository,
                                           TaskCenterSurveyFetchService surveyFetchService,
-                                          TaskCenterExportRowBuilder exportRowBuilder) {
+                                          TaskCenterExportRowBuilder exportRowBuilder,
+                                          TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy) {
         this.openTaskRepository = openTaskRepository;
         this.scanResultRepository = scanResultRepository;
         this.surveyFetchService = surveyFetchService;
         this.exportRowBuilder = exportRowBuilder;
+        this.captureRetryPolicy = captureRetryPolicy;
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void persistSubSurveyResults(OpenTaskSubDO sub) {
+    public SurveyPersistOutcome persistSubSurveyResults(OpenTaskSubDO sub) {
         if (sub == null || !StringUtils.hasText(sub.getSurveyId())) {
-            return;
+            return SurveyPersistOutcome.EMPTY_ACCEPTED;
         }
         OpenTaskDO task = openTaskRepository.findByTaskId(sub.getTaskId());
         if (task == null) {
-            return;
+            return SurveyPersistOutcome.EMPTY_ACCEPTED;
         }
-        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(sub.getSurveyId());
+        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAllWithRetry(sub.getSurveyId());
         List<String> taskHosts = TaskCenterExportRowBuilder.parseTaskHosts(task.getTargetsJson());
         List<OpenTaskScanResultDO> rows = exportRowBuilder.buildPersistRows(
                 task, sub, bundle, taskHosts, new Date());
         if (rows.isEmpty()) {
+            if (captureRetryPolicy.shouldDeferEmpty(sub, bundle)) {
+                log.warn("task-center survey persist deferred (VTC lag) taskId={} subId={} surveyId={}",
+                        sub.getTaskId(), sub.getSubId(), sub.getSurveyId());
+                return SurveyPersistOutcome.DEFERRED_VTC_LAG;
+            }
             log.info("task-center survey persist skipped empty bundle taskId={} subId={} surveyId={}",
                     sub.getTaskId(), sub.getSubId(), sub.getSurveyId());
-            return;
+            return SurveyPersistOutcome.EMPTY_ACCEPTED;
         }
         scanResultRepository.upsertBatch(rows);
         log.info("task-center survey persist ok taskId={} subId={} rows={}",
                 sub.getTaskId(), sub.getSubId(), rows.size());
+        return SurveyPersistOutcome.PERSISTED;
     }
 }

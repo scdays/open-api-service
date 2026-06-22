@@ -7,6 +7,7 @@ import com.vtc.openapi.domain.export.model.result.ExportDownloadResult;
 import com.vtc.openapi.domain.export.model.result.ExportListResult;
 import com.vtc.openapi.domain.export.model.result.ExportMetadataResult;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
+import com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy;
 import com.vtc.openapi.domain.export.service.business.IOpenExportDomainService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
@@ -32,13 +33,16 @@ public class OpenExportDomainServiceImpl implements IOpenExportDomainService {
     private final IOpenExportRepository exportRepository;
     private final IOpenTaskRepository openTaskRepository;
     private final ExportFileStorageAdapter fileStorage;
+    private final IExportDownloadPolicy downloadPolicy;
 
     public OpenExportDomainServiceImpl(IOpenExportRepository exportRepository,
                                        IOpenTaskRepository openTaskRepository,
-                                       ExportFileStorageAdapter fileStorage) {
+                                       ExportFileStorageAdapter fileStorage,
+                                       IExportDownloadPolicy downloadPolicy) {
         this.exportRepository = exportRepository;
         this.openTaskRepository = openTaskRepository;
         this.fileStorage = fileStorage;
+        this.downloadPolicy = downloadPolicy;
     }
 
     @Override
@@ -57,6 +61,9 @@ public class OpenExportDomainServiceImpl implements IOpenExportDomainService {
         }
         if (row.getExpiresAt() != null && row.getExpiresAt().before(new Date())) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "外发文件已过期");
+        }
+        if (!downloadPolicy.isStageDownloadable(partnerId, row.getExportStage())) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "该外发类型不支持下载");
         }
         OpenExportFileDO file = exportRepository.findFileByExportId(exportId);
         if (file == null || !StringUtils.hasText(file.getFileField())) {

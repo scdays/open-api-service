@@ -94,8 +94,19 @@ public class TaskCenterSubRecycleCoordinator {
     }
 
     public void retryPendingRecycle() {
-        List<OpenTaskSubDO> pending = openTaskSubRepository.listFinishedAwaitingReportArchive(50);
-        for (OpenTaskSubDO sub : pending) {
+        List<OpenTaskSubDO> pendingArchive = openTaskSubRepository.listFinishedAwaitingReportArchive(50);
+        for (OpenTaskSubDO sub : pendingArchive) {
+            tryRecycleSub(sub.getSubId());
+        }
+        List<OpenTaskSubDO> pendingCapture = openTaskSubRepository.listFinishedAwaitingSurveyCapture(50);
+        for (OpenTaskSubDO sub : pendingCapture) {
+            if (scanResultQueryService.hasPersistedResults(sub.getSubId())) {
+                continue;
+            }
+            OpenTaskDO task = openTaskRepository.findByTaskId(sub.getTaskId());
+            if (task == null || "FINISHED".equals(task.getStatus()) || "FAILED".equals(task.getStatus())) {
+                continue;
+            }
             tryRecycleSub(sub.getSubId());
         }
     }

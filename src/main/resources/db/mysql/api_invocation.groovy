@@ -54,4 +54,12 @@ databaseChangeLog(logicalFilePath: 'api_invocation.groovy') {
             column(name: 'request_body_json', type: 'MEDIUMTEXT', remarks: 'Partner 实际提交的请求体 JSON')
         }
     }
+
+    changeSet(id: '2026-06-18-api-invocation-case-id', author: 'open-api') {
+        addColumn(tableName: 'api_invocation') {
+            column(name: 'case_id', type: 'VARCHAR(32)', remarks: '关联运营案件')
+        }
+        createIndex(tableName: 'api_invocation', indexName: 'idx_api_inv_case_id', unique: false) {
+        }
+    }
 }
