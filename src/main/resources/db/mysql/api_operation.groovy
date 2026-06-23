@@ -350,4 +350,61 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             where "operation_id = 'archiveInstance'"
         }
     }
+
+    // 产物 API 后补登记：init-api_operation-seed 在部分环境已执行，无法重跑种子数据。
+    changeSet(id: '2026-06-23-seed-artifact-api-operations', author: 'open-api') {
+        preConditions(onFail: 'MARK_RAN') {
+            sqlCheck(expectedResult: '0') {
+                "SELECT COUNT(*) FROM api_operation WHERE operation_id = 'downloadArtifact'"
+            }
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'getArtifact')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/artifacts/{artifactId}')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '查询扫描报告产物元数据')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'downloadArtifact')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/artifacts/{artifactId}/download')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '下载扫描报告产物文件')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'listTaskArtifacts')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/tasks/{taskId}/artifacts')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '查询任务下的扫描报告产物')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'listExportArtifacts')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/exports/{exportId}/artifacts')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '查询外发关联扫描报告产物')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+    }
 }

@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.adapter.taskcenter;
 
 import com.alibaba.fastjson.JSONObject;
+import com.vtc.openapi.domain.instance.model.support.VulnInstanceFingerprint;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -76,13 +77,9 @@ public class TaskCenterVerifyMergeService {
         return hitCount;
     }
 
+    /** 系统漏洞去重指纹：IP + 端口 + 协议 + 服务 + CVE/orgVulId/漏洞名称，不含厂商 vulId。 */
     public String dedupKey(JSONObject row) {
-        return concat(
-                row.getString("vulNetAddr"),
-                row.get("vulPort"),
-                row.getString("vulTransProto"),
-                row.getString("vulSvc"),
-                row.getString("vulId"));
+        return VulnInstanceFingerprint.keyFromJson(row);
     }
 
     private JSONObject mergeConflict(List<JSONObject> hits) {
@@ -103,15 +100,6 @@ public class TaskCenterVerifyMergeService {
         int levelB = b.getInteger("vulLevel") != null ? b.getInteger("vulLevel") : 0;
         merged.put("vulLevel", Math.max(levelA, levelB));
         return merged;
-    }
-
-    private static String concat(Object... parts) {
-        StringBuilder sb = new StringBuilder();
-        for (Object part : parts) {
-            sb.append(part != null ? part.toString() : "");
-            sb.append('|');
-        }
-        return sb.toString();
     }
 
     private static String firstNonBlank(String a, String b) {

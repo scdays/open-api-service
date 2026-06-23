@@ -40,14 +40,30 @@ public class TaskCenterExportRowBuilder {
                                                        TaskCenterSurveyBundle bundle,
                                                        List<String> taskHosts,
                                                        Date detectedAt) {
+        return buildPersistRows(task, sub, bundle, taskHosts, detectedAt, ScanTemplateSurveyScope.full());
+    }
+
+    public List<OpenTaskScanResultDO> buildPersistRows(OpenTaskDO task,
+                                                       OpenTaskSubDO sub,
+                                                       TaskCenterSurveyBundle bundle,
+                                                       List<String> taskHosts,
+                                                       Date detectedAt,
+                                                       ScanTemplateSurveyScope scope) {
         List<OpenTaskScanResultDO> rows = new ArrayList<>();
         if (task == null || sub == null) {
             return rows;
         }
-        rows.addAll(buildLiveRows(task, sub, bundle, taskHosts, detectedAt));
-        rows.addAll(buildPortRows(task, sub, bundle, detectedAt));
-        rows.addAll(buildVulnRows(task, sub, bundle));
-        rows.addAll(buildVulnDatabaseRows(task, sub, bundle));
+        ScanTemplateSurveyScope effective = scope != null ? scope : ScanTemplateSurveyScope.full();
+        if (effective.needsAliveProbe()) {
+            rows.addAll(buildLiveRows(task, sub, bundle, taskHosts, detectedAt));
+        }
+        if (effective.needsPortScan()) {
+            rows.addAll(buildPortRows(task, sub, bundle, detectedAt));
+        }
+        if (effective.needsVulnScan()) {
+            rows.addAll(buildVulnRows(task, sub, bundle));
+            rows.addAll(buildVulnDatabaseRows(task, sub, bundle));
+        }
         return rows;
     }
 

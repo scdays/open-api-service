@@ -52,10 +52,11 @@ public class TaskCenterSurveyPersistService {
         if (task == null) {
             return SurveyPersistOutcome.EMPTY_ACCEPTED;
         }
-        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAllWithRetry(sub.getSurveyId());
+        ScanTemplateSurveyScope scope = resolveSurveyScope(task, sub);
+        TaskCenterSurveyBundle bundle = surveyFetchService.fetchAllWithRetry(sub.getSurveyId(), scope);
         List<String> taskHosts = TaskCenterExportRowBuilder.parseTaskHosts(task.getTargetsJson());
         List<OpenTaskScanResultDO> rows = exportRowBuilder.buildPersistRows(
-                task, sub, bundle, taskHosts, new Date());
+                task, sub, bundle, taskHosts, new Date(), scope);
         if (rows.isEmpty()) {
             if (captureRetryPolicy.shouldDeferEmpty(sub, bundle)) {
                 log.warn("task-center survey persist deferred (VTC lag) taskId={} subId={} surveyId={}",
@@ -70,5 +71,16 @@ public class TaskCenterSurveyPersistService {
         log.info("task-center survey persist ok taskId={} subId={} rows={}",
                 sub.getTaskId(), sub.getSubId(), rows.size());
         return SurveyPersistOutcome.PERSISTED;
+    }
+
+    private static ScanTemplateSurveyScope resolveSurveyScope(OpenTaskDO task, OpenTaskSubDO sub) {
+        if (sub != null && sub.getScanPhase() != null
+                && sub.getScanPhase() == TaskCenterSubSupport.PHASE_VERIFY_FIX) {
+            return ScanTemplateSurveyScope.vulnScanOnly();
+        }
+        if (sub != null && org.springframework.util.StringUtils.hasText(sub.getCenterTaskType())) {
+            return ScanTemplateSurveyScope.fromCenterTaskType(sub.getCenterTaskType());
+        }
+        return ScanTemplateSurveyScope.fromScanTemplateId(task != null ? task.getScanTemplateId() : null);
     }
 }

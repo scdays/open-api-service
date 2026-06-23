@@ -22,6 +22,7 @@ import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterReportArchiveService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
+import com.vtc.openapi.infra.adapter.taskcenter.ScanTemplateSurveyScope;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterDispatchRetryResult;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSurveyRefetchService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterTaskOrchestrator;
@@ -221,15 +222,26 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
             dto.setHint("扫描结果尚未落库，请等待任务完成通知（Kafka）后刷新");
             return ApiResponse.ok(dto);
         }
-        List<Map<String, Object>> liveRows = scanResultQueryService.listLiveExportRowsBySub(sub.getSubId());
-        List<Map<String, Object>> portRows = scanResultQueryService.listPortExportRowsBySub(sub.getSubId());
+        ScanTemplateSurveyScope scope = ScanTemplateSurveyScope.fromScanTemplateId(task.getScanTemplateId());
+        List<Map<String, Object>> liveRows = scope.needsAliveProbe()
+                ? scanResultQueryService.listLiveExportRowsBySub(sub.getSubId())
+                : Collections.emptyList();
+        List<Map<String, Object>> portRows = scope.needsPortScan()
+                ? scanResultQueryService.listPortExportRowsBySub(sub.getSubId())
+                : Collections.emptyList();
         dto.setSource("persisted");
-        dto.setSuccessIps(scanResultQueryService.listSuccessIpsFromLiveRows(liveRows));
-        dto.setFailIps(scanResultQueryService.listFailIpsFromLiveRows(liveRows));
-        dto.setLiveProbeResults(liveRows);
-        dto.setPortScanResults(scanResultQueryService.toVtcPortScanRows(portRows));
-        dto.setVulnerabilities(scanResultQueryService.listVulnScanRowsBySub(sub.getSubId()));
-        dto.setVulnDatabaseList(scanResultQueryService.listVulnDatabaseListBySub(sub.getSubId()));
+        if (scope.needsAliveProbe()) {
+            dto.setSuccessIps(scanResultQueryService.listSuccessIpsFromLiveRows(liveRows));
+            dto.setFailIps(scanResultQueryService.listFailIpsFromLiveRows(liveRows));
+            dto.setLiveProbeResults(liveRows);
+        }
+        if (scope.needsPortScan()) {
+            dto.setPortScanResults(scanResultQueryService.toVtcPortScanRows(portRows));
+        }
+        if (scope.needsVulnScan()) {
+            dto.setVulnerabilities(scanResultQueryService.listVulnScanRowsBySub(sub.getSubId()));
+            dto.setVulnDatabaseList(scanResultQueryService.listVulnDatabaseListBySub(sub.getSubId()));
+        }
         return ApiResponse.ok(dto);
     }
 

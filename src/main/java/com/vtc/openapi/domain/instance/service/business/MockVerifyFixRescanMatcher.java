@@ -3,7 +3,7 @@ package com.vtc.openapi.domain.instance.service.business;
 import com.alibaba.fastjson.JSONObject;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.model.support.VerifyFixRescanFingerprint;
-import com.vtc.openapi.infra.converter.InstanceItemConverter;
+import com.vtc.openapi.domain.instance.model.support.VulnInstanceFingerprint;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -24,16 +24,10 @@ public class MockVerifyFixRescanMatcher {
             return keys;
         }
         for (JSONObject row : rescanInstances) {
-            if (row == null) {
+            if (row == null || !VulnInstanceFingerprint.hasLocation(row)) {
                 continue;
             }
-            String vulId = firstOf(row.getString("vulID"), row.getString("vulId"));
-            String addr = row.getString("vulNetAddr");
-            Integer port = row.getInteger("vulPort");
-            if (!StringUtils.hasText(vulId) && !StringUtils.hasText(addr)) {
-                continue;
-            }
-            keys.add(VerifyFixRescanFingerprint.of(vulId, addr, port).key());
+            keys.add(VulnInstanceFingerprint.keyFromJson(row));
         }
         return keys;
     }
@@ -48,26 +42,14 @@ public class MockVerifyFixRescanMatcher {
 
     public VerifyFixRescanFingerprint fingerprintFromInstance(OpenVulnInstanceDO instance) {
         if (instance == null || !StringUtils.hasText(instance.getSnapshotJson())) {
-            return VerifyFixRescanFingerprint.of(null, null, null);
+            return VerifyFixRescanFingerprint.of(null, null, null, null, null);
         }
         JSONObject snap = JSONObject.parseObject(instance.getSnapshotJson());
-        if (snap == null) {
-            return VerifyFixRescanFingerprint.of(null, null, null);
-        }
-        return VerifyFixRescanFingerprint.of(
-                firstOf(snap.getString("vulID"), snap.getString("vulId")),
-                snap.getString("vulNetAddr"),
-                snap.getInteger("vulPort"));
+        return fingerprintFromJson(snap);
     }
 
     public VerifyFixRescanFingerprint fingerprintFromJson(JSONObject snap) {
-        if (snap == null) {
-            return VerifyFixRescanFingerprint.of(null, null, null);
-        }
-        return VerifyFixRescanFingerprint.of(
-                firstOf(snap.getString("vulID"), snap.getString("vulId")),
-                snap.getString("vulNetAddr"),
-                snap.getInteger("vulPort"));
+        return VerifyFixRescanFingerprint.fromJson(snap);
     }
 
     public boolean isVulnerabilityRow(JSONObject snap) {

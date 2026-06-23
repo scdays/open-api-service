@@ -20,6 +20,7 @@ import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
+import com.vtc.openapi.infra.adapter.taskcenter.ScanTemplateSurveyScope;
 import com.vtc.openapi.infra.config.OpenApiProperties;
 import com.vtc.openapi.infra.export.ExportDownloadUrlBuilder;
 import com.vtc.openapi.infra.export.ExportFileStorageAdapter;
@@ -198,8 +199,13 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
             List<Map<String, Object>> portScanResults = null;
             if (isTaskCenterMode() && scanResultQueryService != null) {
                 int scanPhase = resolveScanPhase(exportStage);
-                liveProbeResults = emptyToNull(scanResultQueryService.listLiveExportRows(task.getTaskId(), scanPhase));
-                portScanResults = emptyToNull(scanResultQueryService.listPortExportRows(task.getTaskId(), scanPhase));
+                ScanTemplateSurveyScope scope = ScanTemplateSurveyScope.fromScanTemplateId(task.getScanTemplateId());
+                if (scope.needsAliveProbe()) {
+                    liveProbeResults = emptyToNull(scanResultQueryService.listLiveExportRows(task.getTaskId(), scanPhase));
+                }
+                if (scope.needsPortScan()) {
+                    portScanResults = emptyToNull(scanResultQueryService.listPortExportRows(task.getTaskId(), scanPhase));
+                }
             }
             Map<String, Object> document = assembler.assemble(
                     task, exportStage, format, instances, liveProbeResults, portScanResults,

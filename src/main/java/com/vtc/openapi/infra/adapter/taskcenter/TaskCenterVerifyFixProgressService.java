@@ -307,7 +307,8 @@ public class TaskCenterVerifyFixProgressService {
         }
         Set<String> keys = new HashSet<>();
         for (OpenTaskSubDO sub : subs) {
-            TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(sub.getSurveyId());
+            TaskCenterSurveyBundle bundle = surveyFetchService.fetchAll(
+                    sub.getSurveyId(), ScanTemplateSurveyScope.vulnScanOnly());
             if (bundle != null && bundle.getVulnScanResultList() != null) {
                 keys.addAll(fingerprintMapper.buildFingerprintKeys(bundle.getVulnScanResultList()));
             }

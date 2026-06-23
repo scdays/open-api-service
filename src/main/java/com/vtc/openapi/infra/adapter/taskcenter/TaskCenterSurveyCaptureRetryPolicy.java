@@ -43,7 +43,9 @@ public class TaskCenterSurveyCaptureRetryPolicy {
         if (!isEnabled()) {
             return false;
         }
-        if (!TaskCenterSurveyBundleSupport.isLikelyVtcLag(bundle)) {
+        ScanTemplateSurveyScope scope = ScanTemplateSurveyScope.fromCenterTaskType(
+                sub != null ? sub.getCenterTaskType() : null);
+        if (!TaskCenterSurveyBundleSupport.isLikelyVtcLag(bundle, scope)) {
             return false;
         }
         return !exceededMaxWait(sub);

@@ -1,6 +1,7 @@
 package com.vtc.openapi.infra.adapter.taskcenter;
 
 import com.vtc.openapi.domain.instance.model.support.VerifyFixRescanFingerprint;
+import com.vtc.openapi.domain.instance.model.support.VulnInstanceFingerprint;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -32,12 +33,22 @@ public class TaskCenterVulnFingerprintMapper {
 
     public VerifyFixRescanFingerprint fromVtcRow(Map<String, Object> row) {
         if (row == null) {
-            return VerifyFixRescanFingerprint.of(null, null, null);
+            return VerifyFixRescanFingerprint.of(null, null, null, null, null);
         }
-        String vulId = firstOf(stringVal(row.get("vulId")), stringVal(row.get("cve")));
         String ip = stringVal(row.get("ip"));
         Integer port = parsePort(row.get("port"));
-        return VerifyFixRescanFingerprint.of(vulId, ip, port);
+        String protocol = stringVal(row.get("protocol"));
+        String service = stringVal(row.get("service"));
+        String cve = stringVal(row.get("cve"));
+        String orgVulId = stringVal(row.get("orgVulId"));
+        String vulName = firstNonBlank(stringVal(row.get("vulnName")), stringVal(row.get("vulName")));
+        return VerifyFixRescanFingerprint.of(
+                ip, port, protocol, service,
+                VulnInstanceFingerprint.resolveVulIdentity(cve, orgVulId, vulName));
+    }
+
+    public String keyFromVtcRow(Map<String, Object> row) {
+        return VulnInstanceFingerprint.keyFromVtcRow(row);
     }
 
     private static Integer parsePort(Object port) {
@@ -58,7 +69,7 @@ public class TaskCenterVulnFingerprintMapper {
         return value != null ? value.toString().trim() : null;
     }
 
-    private static String firstOf(String a, String b) {
+    private static String firstNonBlank(String a, String b) {
         return StringUtils.hasText(a) ? a : b;
     }
 }

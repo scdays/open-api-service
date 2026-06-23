@@ -30,33 +30,53 @@ public class TaskCenterSurveyFetchService {
     }
 
     public TaskCenterSurveyBundle fetchAll(String surveyId) {
+        return fetchAll(surveyId, ScanTemplateSurveyScope.full());
+    }
+
+    public TaskCenterSurveyBundle fetchAll(String surveyId, ScanTemplateSurveyScope scope) {
         TaskCenterSurveyBundle bundle = new TaskCenterSurveyBundle();
         bundle.setSurveyId(surveyId);
         if (!StringUtils.hasText(surveyId)) {
             return bundle;
         }
-        bundle.setVulnScanResultList(fetchAllVulnRows(surveyId));
-        bundle.setVulnDatabaseList(fetchVulnDatabaseList(surveyId));
-        fetchAliveIpsResilient(surveyId, bundle);
-        fetchPortScanResilient(surveyId, bundle);
+        ScanTemplateSurveyScope effective = scope != null ? scope : ScanTemplateSurveyScope.full();
+        if (effective.needsVulnScan()) {
+            bundle.setVulnScanResultList(fetchAllVulnRows(surveyId));
+            bundle.setVulnDatabaseList(fetchVulnDatabaseList(surveyId));
+        } else {
+            bundle.setVulnScanResultList(Collections.emptyList());
+            bundle.setVulnDatabaseList(Collections.emptyList());
+        }
+        if (effective.needsAliveProbe()) {
+            fetchAliveIpsResilient(surveyId, bundle);
+        } else {
+            bundle.setSuccessIps(Collections.emptySet());
+            bundle.setFailIps(Collections.emptySet());
+        }
+        if (effective.needsPortScan()) {
+            fetchPortScanResilient(surveyId, bundle);
+        } else {
+            bundle.setPortScanRows(Collections.emptyList());
+        }
         return bundle;
     }
 
     /**
      * task_finish 后拉取：若 VTC 入库滞后导致全空，在单次回收内间隔重试。
      */
-    public TaskCenterSurveyBundle fetchAllWithRetry(String surveyId) {
+    public TaskCenterSurveyBundle fetchAllWithRetry(String surveyId, ScanTemplateSurveyScope scope) {
         if (!captureRetryPolicy.isEnabled()) {
-            return fetchAll(surveyId);
+            return fetchAll(surveyId, scope);
         }
         int maxAttempts = captureRetryPolicy.getMaxAttempts();
         TaskCenterSurveyBundle last = null;
+        ScanTemplateSurveyScope effective = scope != null ? scope : ScanTemplateSurveyScope.full();
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            last = fetchAll(surveyId);
-            if (!TaskCenterSurveyBundleSupport.isLikelyVtcLag(last) || attempt >= maxAttempts) {
+            last = fetchAll(surveyId, effective);
+            if (!TaskCenterSurveyBundleSupport.isLikelyVtcLag(last, effective) || attempt >= maxAttempts) {
                 if (attempt > 1) {
                     log.info("task-center survey fetch finished surveyId={} attempts={} empty={}",
-                            surveyId, attempt, TaskCenterSurveyBundleSupport.isEmptyBundle(last));
+                            surveyId, attempt, TaskCenterSurveyBundleSupport.isEmptyBundle(last, effective));
                 }
                 return last;
             }
@@ -64,7 +84,7 @@ public class TaskCenterSurveyFetchService {
                     surveyId, attempt, maxAttempts, captureRetryPolicy.getRetryIntervalMs());
             captureRetryPolicy.sleepBeforeRetry(attempt);
         }
-        return last != null ? last : fetchAll(surveyId);
+        return last != null ? last : fetchAll(surveyId, effective);
     }
 
     /**
