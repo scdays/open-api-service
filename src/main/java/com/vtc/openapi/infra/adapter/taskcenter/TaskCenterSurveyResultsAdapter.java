@@ -39,7 +39,9 @@ public class TaskCenterSurveyResultsAdapter {
 
         JSONObject result = new JSONObject();
         result.put("vulId", vulId);
-        result.put("orgVulId", vulId);
+        String cve = firstNonBlank(stringVal(row.get("cve")),
+                db != null ? stringVal(db.get("cve")) : null);
+        result.put("orgVulId", firstNonBlank(cve, vulId));
         result.put("vulName", firstNonBlank(stringVal(row.get("vulnName")),
                 stringVal(db != null ? db.get("vulnName") : null)));
         result.put("vulDesc", firstNonBlank(stringVal(row.get("messString")),

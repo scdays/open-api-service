@@ -4,6 +4,7 @@ import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
 import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.service.IInvocationAdminAppService;
+import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
@@ -64,17 +65,20 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
     private final IWebhookDomainService webhookDomainService;
     private final IApiInvocationRepository apiInvocationRepository;
     private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
+    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
 
     public InvocationAdminAppServiceImpl(IInvocationDomainService invocationDomainService,
                                          IPartnerDomainService partnerDomainService,
                                          IWebhookDomainService webhookDomainService,
                                          IApiInvocationRepository apiInvocationRepository,
-                                         AdminGovernanceAppConvertor adminGovernanceAppConvertor) {
+                                         AdminGovernanceAppConvertor adminGovernanceAppConvertor,
+                                         WebhookDeliveryEnricher webhookDeliveryEnricher) {
         this.invocationDomainService = invocationDomainService;
         this.partnerDomainService = partnerDomainService;
         this.webhookDomainService = webhookDomainService;
         this.apiInvocationRepository = apiInvocationRepository;
         this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
+        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
     }
 
     @Override
@@ -233,6 +237,7 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         PageInfo<WebhookDeliveryLogDO> resultPage = invocationDomainService.pageWebhookDeliveries(query);
         List<WebhookDeliveryLogDTO> collapsedItems =
                 adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(resultPage.getRecords());
+        collapsedItems.forEach(webhookDeliveryEnricher::enrich);
         WebhookDeliveryLogPageDto dto = new WebhookDeliveryLogPageDto();
         dto.setItems(collapsedItems);
         dto.setPage((int) resultPage.getCurrent());
@@ -246,6 +251,7 @@ public class InvocationAdminAppServiceImpl implements IInvocationAdminAppService
         WebhookDeliveryLogDO source = enrichDeliveryMetadata(webhookDomainService.requireDeliveryLog(deliveryId));
         List<WebhookDeliveryLogDO> history = webhookDomainService.listRelatedAttempts(source);
         WebhookDeliveryLogDetailDTO dto = adminGovernanceAppConvertor.toWebhookDeliveryLogDetailDto(source);
+        webhookDeliveryEnricher.enrich(dto);
         dto.setAttemptCount(history == null ? 1 : history.size());
         dto.setPayloadJsonFormatted(formatJson(source.getPayloadJson()));
         dto.setRetryHistory(toRetryHistory(history));

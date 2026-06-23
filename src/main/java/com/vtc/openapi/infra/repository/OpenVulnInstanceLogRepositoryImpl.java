@@ -61,6 +61,36 @@ public class OpenVulnInstanceLogRepositoryImpl implements IOpenVulnInstanceLogRe
     }
 
     @Override
+    public List<OpenVulnInstanceLogDO> listByPartnerAndTaskId(String partnerId, String taskId, int limit) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(taskId)) {
+            return Collections.emptyList();
+        }
+        int capped = limit > 0 ? Math.min(limit, 10000) : 5000;
+        List<OpenVulnInstanceLogPO> rows = mapper.selectList(new LambdaQueryWrapper<OpenVulnInstanceLogPO>()
+                .eq(OpenVulnInstanceLogPO::getPartnerId, partnerId.trim())
+                .eq(OpenVulnInstanceLogPO::getTaskId, taskId.trim())
+                .orderByAsc(OpenVulnInstanceLogPO::getId)
+                .last("LIMIT " + capped));
+        return ConvertHelper.convertList(rows, OpenVulnInstanceLogDO.class);
+    }
+
+    @Override
+    public List<OpenVulnInstanceLogDO> listByPartnerTaskAndSubId(String partnerId, String taskId, String subId,
+                                                                 int limit) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(taskId) || !StringUtils.hasText(subId)) {
+            return Collections.emptyList();
+        }
+        int capped = limit > 0 ? Math.min(limit, 10000) : 5000;
+        List<OpenVulnInstanceLogPO> rows = mapper.selectList(new LambdaQueryWrapper<OpenVulnInstanceLogPO>()
+                .eq(OpenVulnInstanceLogPO::getPartnerId, partnerId.trim())
+                .eq(OpenVulnInstanceLogPO::getTaskId, taskId.trim())
+                .eq(OpenVulnInstanceLogPO::getSubId, subId.trim())
+                .orderByAsc(OpenVulnInstanceLogPO::getId)
+                .last("LIMIT " + capped));
+        return ConvertHelper.convertList(rows, OpenVulnInstanceLogDO.class);
+    }
+
+    @Override
     public int deleteByTaskIdAndScanPhase(String taskId, int scanPhase) {
         if (!StringUtils.hasText(taskId) || scanPhase <= 0) {
             return 0;

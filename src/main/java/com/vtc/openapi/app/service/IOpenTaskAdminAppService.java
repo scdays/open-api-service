@@ -5,6 +5,7 @@ import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskReportRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceScopeDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
 
@@ -15,6 +16,8 @@ public interface IOpenTaskAdminAppService {
                                                 int page, int size);
 
     ApiResponse<OpenTaskWorkspaceDto> getWorkspace(String taskId);
+
+    ApiResponse<OpenTaskInstanceScopeDto> getTaskInstances(String taskId, Integer scanPhase, String subId);
 
     ApiResponse<OpenTaskSurveyResultsDto> getSurveyResults(String taskId, Integer scanPhase, String subId);
 

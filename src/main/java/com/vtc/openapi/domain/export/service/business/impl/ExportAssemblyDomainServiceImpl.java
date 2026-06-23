@@ -1,5 +1,6 @@
 package com.vtc.openapi.domain.export.service.business.impl;
 
+import com.vtc.openapi.app.support.TaskScopedInstanceLoader;
 import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.OpenExportFileType;
 import com.vtc.openapi.domain.export.model.ReportTemplateCatalog;
@@ -9,7 +10,10 @@ import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.export.service.MockTaskExportAssembler;
 import com.vtc.openapi.domain.export.service.business.IExportAssemblyDomainService;
 import com.vtc.openapi.domain.export.service.business.VerifyFixItem;
+import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
+import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
+import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
@@ -45,6 +49,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
 
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
+    private final IOpenVerifyFixJobRepository verifyFixJobRepository;
     private final IOpenExportRepository exportRepository;
     private final MockTaskExportAssembler assembler;
     private final TaskExportJsonSerializer jsonSerializer;
@@ -54,9 +59,11 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
     private final IWebhookPublishService webhookPublishService;
     private final OpenApiProperties properties;
     private final TaskCenterScanResultQueryService scanResultQueryService;
+    private final TaskScopedInstanceLoader taskScopedInstanceLoader;
 
     public ExportAssemblyDomainServiceImpl(IOpenTaskRepository openTaskRepository,
                                            IOpenVulnInstanceRepository vulnInstanceRepository,
+                                           IOpenVerifyFixJobRepository verifyFixJobRepository,
                                            IOpenExportRepository exportRepository,
                                            MockTaskExportAssembler assembler,
                                            TaskExportJsonSerializer jsonSerializer,
@@ -65,9 +72,11 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
                                            ExportDownloadUrlBuilder downloadUrlBuilder,
                                            IWebhookPublishService webhookPublishService,
                                            OpenApiProperties properties,
-                                           @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService) {
+                                           @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
+                                           TaskScopedInstanceLoader taskScopedInstanceLoader) {
         this.openTaskRepository = openTaskRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
+        this.verifyFixJobRepository = verifyFixJobRepository;
         this.exportRepository = exportRepository;
         this.assembler = assembler;
         this.jsonSerializer = jsonSerializer;
@@ -77,6 +86,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
         this.webhookPublishService = webhookPublishService;
         this.properties = properties;
         this.scanResultQueryService = scanResultQueryService;
+        this.taskScopedInstanceLoader = taskScopedInstanceLoader;
     }
 
     @Override
@@ -126,8 +136,8 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
 
     private void assembleInternal(OpenTaskDO task, String exportStage, String verifyFixJobId) {
         try {
-            List<OpenVulnInstanceDO> instances = vulnInstanceRepository.listByPartnerAndTask(
-                    task.getPartnerId(), task.getTaskId(), task.getExtTaskId());
+            int scanPhase = resolveScanPhase(exportStage);
+            List<OpenVulnInstanceDO> instances = resolveExportInstances(task, exportStage, verifyFixJobId, scanPhase);
             Date generatedAt = new Date();
             Date expiresAt = addDays(generatedAt, properties.getExport().getTtlDays());
 
@@ -137,6 +147,18 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
         } catch (Exception ex) {
             log.error("export assembly failed: taskId={} stage={}", task.getTaskId(), exportStage, ex);
         }
+    }
+
+    private List<OpenVulnInstanceDO> resolveExportInstances(OpenTaskDO task, String exportStage,
+                                                            String verifyFixJobId, int scanPhase) {
+        if (ExportStage.VERIFY_FIX_SCAN.equals(exportStage) && StringUtils.hasText(verifyFixJobId)) {
+            OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(verifyFixJobId.trim());
+            List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(verifyFixJobId.trim());
+            if (job != null) {
+                return taskScopedInstanceLoader.loadMergedForVerifyFixExport(task, job, items);
+            }
+        }
+        return taskScopedInstanceLoader.loadMergedInstancesForExport(task, scanPhase);
     }
 
     @Transactional(rollbackFor = Exception.class)

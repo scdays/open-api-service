@@ -12,6 +12,16 @@ public interface IOpenVulnInstanceLogRepository {
 
     List<OpenVulnInstanceLogDO> listByCaseId(String caseId, int limit);
 
+    /**
+     * 按任务查询跃迁日志（按 id 升序，便于取同一 vulInfoId 在任务内的最终状态）。
+     */
+    List<OpenVulnInstanceLogDO> listByPartnerAndTaskId(String partnerId, String taskId, int limit);
+
+    /**
+     * 按任务与子任务查询跃迁日志（按 id 升序）。
+     */
+    List<OpenVulnInstanceLogDO> listByPartnerTaskAndSubId(String partnerId, String taskId, String subId, int limit);
+
     int deleteByTaskIdAndScanPhase(String taskId, int scanPhase);
 
     List<String> listVulInfoIdsByTaskSubAndPhase(String taskId, String subId, int scanPhase);

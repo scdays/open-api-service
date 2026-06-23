@@ -20,6 +20,8 @@ import com.vtc.openapi.ui.dto.admin.VerifyFixPendingInstanceDto;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterVerifyFixProgressService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterVerifyFixOrchestrator;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
+import com.vtc.openapi.app.support.TaskScopedInstanceLoader;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceScopeDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,7 @@ public class VerifyFixAdminAppServiceImpl implements IVerifyFixAdminAppService {
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
     private final VerifyFixWorkspaceAssembler workspaceAssembler;
+    private final TaskScopedInstanceLoader taskScopedInstanceLoader;
     private final TaskCenterVerifyFixProgressService verifyFixProgressService;
     private final TaskCenterVerifyFixOrchestrator verifyFixOrchestrator;
 
@@ -48,6 +51,7 @@ public class VerifyFixAdminAppServiceImpl implements IVerifyFixAdminAppService {
                                         IOpenTaskSubRepository openTaskSubRepository,
                                         IVerifyFixJobDomainService verifyFixJobDomainService,
                                         VerifyFixWorkspaceAssembler workspaceAssembler,
+                                        TaskScopedInstanceLoader taskScopedInstanceLoader,
                                         @Autowired(required = false) TaskCenterVerifyFixProgressService verifyFixProgressService,
                                         @Autowired(required = false) TaskCenterVerifyFixOrchestrator verifyFixOrchestrator) {
         this.verifyFixJobRepository = verifyFixJobRepository;
@@ -55,6 +59,7 @@ public class VerifyFixAdminAppServiceImpl implements IVerifyFixAdminAppService {
         this.openTaskSubRepository = openTaskSubRepository;
         this.verifyFixJobDomainService = verifyFixJobDomainService;
         this.workspaceAssembler = workspaceAssembler;
+        this.taskScopedInstanceLoader = taskScopedInstanceLoader;
         this.verifyFixProgressService = verifyFixProgressService;
         this.verifyFixOrchestrator = verifyFixOrchestrator;
     }
@@ -88,6 +93,23 @@ public class VerifyFixAdminAppServiceImpl implements IVerifyFixAdminAppService {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "修复核验任务不存在");
         }
         return ApiResponse.ok(workspace);
+    }
+
+    @Override
+    public ApiResponse<OpenTaskInstanceScopeDto> getJobInstances(String jobId, String taskId, String subId) {
+        if (!StringUtils.hasText(jobId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "jobId 不能为空");
+        }
+        if (!StringUtils.hasText(taskId) || !StringUtils.hasText(subId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId/subId 不能为空");
+        }
+        OpenVerifyFixJobDO job = verifyFixJobRepository.findByJobId(jobId.trim());
+        if (job == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "修复核验任务不存在");
+        }
+        List<OpenVerifyFixJobItemDO> items = verifyFixJobRepository.listItemsByJobId(jobId.trim());
+        return ApiResponse.ok(taskScopedInstanceLoader.loadVerifyFixScope(
+                job, taskId.trim(), subId.trim(), items, 500));
     }
 
     @Override

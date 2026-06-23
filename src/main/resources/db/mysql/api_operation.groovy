@@ -283,6 +283,54 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'published_at', valueDate: '2026-05-23')
         }
         insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'getArtifact')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/artifacts/{artifactId}')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '查询扫描报告产物元数据')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'downloadArtifact')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/artifacts/{artifactId}/download')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '下载扫描报告产物文件')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'listTaskArtifacts')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/tasks/{taskId}/artifacts')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '查询任务下的扫描报告产物')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
+            column(name: 'operation_id', value: 'listExportArtifacts')
+            column(name: 'api_version', value: '1.0.5')
+            column(name: 'http_method', value: 'GET')
+            column(name: 'path_pattern', value: '/api/open/v1/exports/{exportId}/artifacts')
+            column(name: 'required_capability', value: 'ARTIFACT_READ')
+            column(name: 'domain', value: 'ARTIFACT')
+            column(name: 'openapi_tag', value: 'artifacts')
+            column(name: 'summary', value: '查询外发关联扫描报告产物')
+            column(name: 'status', value: 'PUBLISHED')
+            column(name: 'published_at', valueDate: '2026-06-23')
+        }
+        insert(tableName: 'api_operation') {
             column(name: 'operation_id', value: 'receivePlatformWebhook')
             column(name: 'api_version', value: '1.0.0')
             column(name: 'http_method', value: 'POST')
@@ -293,6 +341,13 @@ databaseChangeLog(logicalFilePath: 'api_operation.groovy') {
             column(name: 'summary', value: '平台事件回调（Partner 实现）')
             column(name: 'status', value: 'PUBLISHED')
             column(name: 'published_at', valueDate: '2026-05-23')
+        }
+    }
+
+    changeSet(id: '2026-06-23-deprecate-unimplemented-archive-operation', author: 'open-api') {
+        update(tableName: 'api_operation') {
+            column(name: 'status', value: 'DEPRECATED')
+            where "operation_id = 'archiveInstance'"
         }
     }
 }

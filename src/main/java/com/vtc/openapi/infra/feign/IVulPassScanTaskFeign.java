@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
  * {@link com.vtc.openapi.infra.adapter.SvmpEngineAdapterImpl} 翻译为本接口。</p>
  */
 @FeignClient(name = "${open-api.svmp.engine-service-name:vul-pass}",
+        contextId = "openApiVulPassScanTaskFeign",
         path = "${open-api.svmp.engine-path-prefix:}")
 public interface IVulPassScanTaskFeign {
 

@@ -7,6 +7,7 @@ import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceLogDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.open.OpenApiConstants;
+import com.vtc.openapi.domain.export.service.business.IExportAssemblyDomainService;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
@@ -48,6 +49,7 @@ public class TaskCenterRecycleService {
     private final OpenVulnInstanceLogWriter instanceLogWriter;
     private final IOperationCaseDomainService operationCaseDomainService;
     private final TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy;
+    private final IExportAssemblyDomainService exportAssemblyDomainService;
 
     public TaskCenterRecycleService(IOpenTaskRepository openTaskRepository,
                                     IOpenTaskSubRepository openTaskSubRepository,
@@ -60,7 +62,8 @@ public class TaskCenterRecycleService {
                                     TaskCenterTaskCompletionCoordinator completionCoordinator,
                                     OpenVulnInstanceLogWriter instanceLogWriter,
                                     IOperationCaseDomainService operationCaseDomainService,
-                                    TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy) {
+                                    TaskCenterSurveyCaptureRetryPolicy captureRetryPolicy,
+                                    IExportAssemblyDomainService exportAssemblyDomainService) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
@@ -73,6 +76,7 @@ public class TaskCenterRecycleService {
         this.instanceLogWriter = instanceLogWriter;
         this.operationCaseDomainService = operationCaseDomainService;
         this.captureRetryPolicy = captureRetryPolicy;
+        this.exportAssemblyDomainService = exportAssemblyDomainService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -218,6 +222,7 @@ public class TaskCenterRecycleService {
     private void onVerifyPhaseComplete(OpenTaskDO task, List<OpenTaskSubDO> subs) {
         applyCrossScannerMerge(task, subs, TaskCenterSubSupport.PHASE_VERIFY);
         markTaskFinished(task);
+        exportAssemblyDomainService.assembleForVerifyScan(task.getPartnerId(), task.getTaskId());
         completionCoordinator.scheduleNotify(task.getTaskId());
     }
 

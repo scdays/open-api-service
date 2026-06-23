@@ -108,6 +108,7 @@ open-api:
   export:
     enabled: true
     ttl-days: 7
+    # open-api | open-api-path | file-sharing
     download-url-mode: open-api
   partner-gateway:
     public-base-url: http://172.16.3.32:35770

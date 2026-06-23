@@ -7,6 +7,7 @@ import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskReportRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceScopeDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
 import io.swagger.annotations.Api;
@@ -50,6 +51,15 @@ public class OpenTaskAdminUI extends BaseUI {
     @GetMapping("/{taskId}/workspace")
     public ApiResponse<OpenTaskWorkspaceDto> getWorkspace(@PathVariable("taskId") String taskId) {
         return openTaskAdminAppService.getWorkspace(taskId);
+    }
+
+    @ApiOperation("按 taskId+subId 查询漏洞实例（快照 + 任务内跃迁 log）")
+    @GetMapping("/{taskId}/instances")
+    public ApiResponse<OpenTaskInstanceScopeDto> getTaskInstances(
+            @PathVariable("taskId") String taskId,
+            @RequestParam(value = "scanPhase", defaultValue = "1") Integer scanPhase,
+            @RequestParam(value = "subId", required = false) String subId) {
+        return openTaskAdminAppService.getTaskInstances(taskId, scanPhase, subId);
     }
 
     @ApiOperation("排查/验证阶段 VTC 扫描结果（存活/端口/漏洞）")

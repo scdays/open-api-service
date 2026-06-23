@@ -5,10 +5,11 @@ import com.alibaba.fastjson.JSON;
 import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
+import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterVerifyMergeService;
+import com.vtc.openapi.infra.export.ExportInstanceDeduper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,7 @@ class MockTaskExportAssemblerTest {
 
     @BeforeEach
     void setUp() {
-        assembler = new MockTaskExportAssembler();
+        assembler = new MockTaskExportAssembler(new ExportInstanceDeduper(new TaskCenterVerifyMergeService()));
     }
 
     @Test
@@ -52,7 +53,7 @@ class MockTaskExportAssemblerTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> summary = (Map<String, Object>) taskExport.get("summary");
-        assertEquals(1, summary.get("totalTargets"));
+        assertEquals(2, summary.get("totalTargets"));
         assertEquals(1, summary.get("aliveTargets"));
         assertEquals(0, summary.get("openPorts"));
         assertEquals(0, summary.get("totalInstances"));
@@ -84,7 +85,7 @@ class MockTaskExportAssemblerTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> summary = (Map<String, Object>) taskExport.get("summary");
-        assertEquals(1, summary.get("totalTargets"));
+        assertEquals(2, summary.get("totalTargets"));
         assertEquals(1, summary.get("aliveTargets"));
         assertEquals(2, summary.get("openPorts"));
     }
@@ -115,6 +116,7 @@ class MockTaskExportAssemblerTest {
         assertEquals(1, live.size());
         assertEquals(1, ports.size());
         assertEquals(2, vuls.size());
+        assertEquals("CVE-2016-10160", vuls.get(0).get("orgVulId"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> instList = (List<Map<String, Object>>) vuls.get(0).get("instances");
@@ -217,7 +219,12 @@ class MockTaskExportAssemblerTest {
         Map<String, Object> snap = new java.util.LinkedHashMap<>();
         snap.put("vulID", vulId);
         snap.put("vulId", vulId);
-        snap.put("orgVulId", orgVulId);
+        if ("LIVE-PROBE".equals(orgVulId) || "PORT-SCAN".equals(orgVulId)) {
+            snap.put("orgVulId", orgVulId);
+        } else {
+            snap.put("orgVulId", "PRODUCT-" + vulId);
+        }
+        snap.put("cve", orgVulId);
         snap.put("vulName", "name-" + vulId);
         snap.put("vulLevel", 3);
         snap.put("vulNetAddr", addr);

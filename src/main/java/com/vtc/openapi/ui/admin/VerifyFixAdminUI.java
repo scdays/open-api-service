@@ -3,6 +3,7 @@ package com.vtc.openapi.ui.admin;
 import com.vtc.openapi.app.service.IVerifyFixAdminAppService;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceScopeDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixPendingInstanceDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
@@ -45,6 +46,15 @@ public class VerifyFixAdminUI {
     @GetMapping("/jobs/{jobId}/workspace")
     public ApiResponse<VerifyFixWorkspaceDto> getWorkspace(@PathVariable("jobId") String jobId) {
         return appService.getWorkspace(jobId);
+    }
+
+    @ApiOperation("按 taskId+复扫 subId 查询漏洞实例（核验前实例快照 / 核验后跃迁 log）")
+    @GetMapping("/jobs/{jobId}/instances")
+    public ApiResponse<OpenTaskInstanceScopeDto> getJobInstances(
+            @PathVariable("jobId") String jobId,
+            @RequestParam("taskId") String taskId,
+            @RequestParam("subId") String subId) {
+        return appService.getJobInstances(jobId, taskId, subId);
     }
 
     @ApiOperation("重新获取复扫子任务扫描结果（phase=3）")

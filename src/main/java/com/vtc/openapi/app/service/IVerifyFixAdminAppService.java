@@ -2,6 +2,7 @@ package com.vtc.openapi.app.service;
 
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceScopeDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixPendingInstanceDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
@@ -14,6 +15,8 @@ public interface IVerifyFixAdminAppService {
                                                      String jobId, int limit);
 
     ApiResponse<VerifyFixWorkspaceDto> getWorkspace(String jobId);
+
+    ApiResponse<OpenTaskInstanceScopeDto> getJobInstances(String jobId, String taskId, String subId);
 
     ApiResponse<List<VerifyFixPendingInstanceDto>> listPendingInstances(String partnerId, String taskId,
                                                                         String jobId, int limit);

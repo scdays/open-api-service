@@ -7,6 +7,7 @@ import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.infra.converter.InstanceItemConverter;
+import com.vtc.openapi.infra.export.ExportInstanceDeduper;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -30,6 +31,12 @@ public class MockTaskExportAssembler {
     private static final String LIVE_PROBE_ORG = "LIVE-PROBE";
     private static final String PORT_SCAN_ORG = "PORT-SCAN";
 
+    private final ExportInstanceDeduper instanceDeduper;
+
+    public MockTaskExportAssembler(ExportInstanceDeduper instanceDeduper) {
+        this.instanceDeduper = instanceDeduper;
+    }
+
     public Map<String, Object> assemble(OpenTaskDO task, String exportStage, String format,
                                         List<OpenVulnInstanceDO> instances, String exportId,
                                         Date generatedAt, Date expiresAt) {
@@ -48,8 +55,6 @@ public class MockTaskExportAssembler {
         List<ParsedInstance> parsed = parseInstances(instances);
         TargetRegistry targets = buildTargetRegistry(task, parsed);
 
-        int vulInstanceCount = countVulnerabilityInstances(parsed);
-
         Map<String, Object> exportMeta = new LinkedHashMap<>();
         exportMeta.put("exportId", exportId);
         exportMeta.put("format", format);
@@ -58,7 +63,6 @@ public class MockTaskExportAssembler {
         exportMeta.put("dataType", dataType);
         exportMeta.put("generatedAt", formatUtc(generatedAt));
         exportMeta.put("expiresAt", formatUtc(expiresAt));
-        exportMeta.put("recordCount", vulInstanceCount);
         taskExport.put("export", exportMeta);
         taskExport.put("task", buildTaskNode(task));
         taskExport.put("targets", targets.asList());
@@ -70,6 +74,8 @@ public class MockTaskExportAssembler {
                 ? portScanResults
                 : buildPortScanResults(parsed, targets, dataType);
         List<Map<String, Object>> vulnerabilities = buildVulnerabilities(parsed, targets);
+        int vulInstanceCount = countVulnerabilityInstancesInExport(vulnerabilities);
+        exportMeta.put("recordCount", vulInstanceCount);
 
         if (shouldIncludeLiveProbe(dataType, exportStage)) {
             taskExport.put("liveProbeResults", liveResults);
@@ -259,11 +265,16 @@ public class MockTaskExportAssembler {
 
     private List<Map<String, Object>> buildVulnerabilities(List<ParsedInstance> parsed, TargetRegistry targets) {
         Map<String, Map<String, Object>> byVulId = new LinkedHashMap<>();
+        Set<String> seenFingerprints = new LinkedHashSet<>();
         for (ParsedInstance row : parsed) {
             if (!row.kind.equals(InstanceKind.VULNERABILITY)) {
                 continue;
             }
             JSONObject snap = row.snap;
+            String fingerprint = resolveVulnerabilityFingerprint(row);
+            if (!seenFingerprints.add(fingerprint)) {
+                continue;
+            }
             String vulId = firstOf(snap.getString("vulID"), snap.getString("vulId"));
             if (!StringUtils.hasText(vulId)) {
                 vulId = "UNKNOWN";
@@ -272,7 +283,7 @@ public class MockTaskExportAssembler {
             Map<String, Object> vul = byVulId.computeIfAbsent(vulId, id -> {
                 Map<String, Object> node = new LinkedHashMap<>();
                 node.put("vulID", id);
-                node.put("orgVulId", snap.getString("orgVulId"));
+                node.put("orgVulId", firstOf(snap.getString("cve"), snap.getString("orgVulId")));
                 node.put("vulLevel", snap.getInteger("vulLevel"));
                 node.put("vulName", snap.getString("vulName"));
                 node.put("instances", new ArrayList<Map<String, Object>>());
@@ -344,6 +355,30 @@ public class MockTaskExportAssembler {
             parsed.add(new ParsedInstance(row, snap, classify(snap)));
         }
         return parsed;
+    }
+
+    private static int countVulnerabilityInstancesInExport(List<Map<String, Object>> vulnerabilities) {
+        if (CollectionUtils.isEmpty(vulnerabilities)) {
+            return 0;
+        }
+        int count = 0;
+        for (Map<String, Object> vul : vulnerabilities) {
+            if (vul == null) {
+                continue;
+            }
+            Object instances = vul.get("instances");
+            if (instances instanceof List) {
+                count += ((List<?>) instances).size();
+            }
+        }
+        return count;
+    }
+
+    private String resolveVulnerabilityFingerprint(ParsedInstance row) {
+        if (instanceDeduper != null && row != null && row.snap != null) {
+            return instanceDeduper.fingerprint(row.snap);
+        }
+        return row != null ? row.vulInfoId() : "";
     }
 
     private static int countVulnerabilityInstances(List<ParsedInstance> parsed) {

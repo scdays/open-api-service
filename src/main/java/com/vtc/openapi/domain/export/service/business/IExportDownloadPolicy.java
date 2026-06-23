@@ -1,5 +1,7 @@
 package com.vtc.openapi.domain.export.service.business;
 
+import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
+
 import java.util.Set;
 
 /**
@@ -24,4 +26,9 @@ public interface IExportDownloadPolicy {
      * 供工作台 assembler 设置 DTO.exportDownloadable 时调用。
      */
     boolean isDownloadable(String partnerId, String exportId);
+
+    /**
+     * 工作台 Webhook 行：以 open_export.export_stage 为准同步 exportStage，并设置 exportDownloadable。
+     */
+    void enrichWebhookDelivery(WebhookDeliveryLogDTO dto);
 }

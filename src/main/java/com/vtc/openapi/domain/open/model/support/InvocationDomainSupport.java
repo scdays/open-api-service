@@ -13,12 +13,15 @@ import java.util.Set;
 /**
  * 调用记录业务域（domain）解析，与 api_operation.domain / OpenAPI tags 对齐。
  */
+@SuppressWarnings("deprecation")
 public final class InvocationDomainSupport {
 
     public static final String DOMAIN_TASK = "TASK";
     public static final String DOMAIN_INSTANCE = "INSTANCE";
     public static final String DOMAIN_EXPORT = "EXPORT";
+    public static final String DOMAIN_ARTIFACT = "ARTIFACT";
     public static final String DOMAIN_AUTH = "AUTH";
+    public static final String DOMAIN_WEBHOOK = "WEBHOOK";
 
     private static final Set<String> TASK_OPERATIONS = new HashSet<>(Arrays.asList(
             OpenApiOperations.CREATE_TASK,
@@ -37,7 +40,9 @@ public final class InvocationDomainSupport {
             OpenApiOperations.VERIFY_FIX_INSTANCE,
             OpenApiOperations.VERIFY_INSTANCE_BATCH,
             OpenApiOperations.REMEDIATE_INSTANCE_BATCH,
-            OpenApiOperations.VERIFY_FIX_INSTANCE_BATCH
+            OpenApiOperations.VERIFY_FIX_INSTANCE_BATCH,
+            OpenApiOperations.ARCHIVE_INSTANCE,
+            OpenApiOperations.ARCHIVE_INSTANCE_LEGACY
     ));
 
     private static final Set<String> EXPORT_OPERATIONS = new HashSet<>(Arrays.asList(
@@ -46,7 +51,16 @@ public final class InvocationDomainSupport {
             OpenApiOperations.LIST_TASK_EXPORTS
     ));
 
-    private static final Set<String> AUTH_OPERATIONS = Collections.singleton("issuePartnerToken");
+    private static final Set<String> ARTIFACT_OPERATIONS = new HashSet<>(Arrays.asList(
+            OpenApiOperations.GET_ARTIFACT,
+            OpenApiOperations.DOWNLOAD_ARTIFACT,
+            OpenApiOperations.LIST_TASK_ARTIFACTS,
+            OpenApiOperations.LIST_EXPORT_ARTIFACTS
+    ));
+
+    private static final Set<String> AUTH_OPERATIONS = Collections.singleton(OpenApiOperations.ISSUE_PARTNER_TOKEN);
+
+    private static final Set<String> WEBHOOK_OPERATIONS = Collections.singleton(OpenApiOperations.RECEIVE_PLATFORM_WEBHOOK);
 
     private InvocationDomainSupport() {
     }
@@ -62,6 +76,12 @@ public final class InvocationDomainSupport {
             if (OpenApiOperations.RESOURCE_TYPE_EXPORT.equals(resourceType)) {
                 return DOMAIN_EXPORT;
             }
+            if (OpenApiOperations.RESOURCE_TYPE_ARTIFACT.equals(resourceType)) {
+                return DOMAIN_ARTIFACT;
+            }
+            if (OpenApiOperations.RESOURCE_TYPE_AUTH.equals(resourceType)) {
+                return DOMAIN_AUTH;
+            }
         }
         if (!StringUtils.hasText(operationId)) {
             return null;
@@ -75,8 +95,14 @@ public final class InvocationDomainSupport {
         if (EXPORT_OPERATIONS.contains(operationId)) {
             return DOMAIN_EXPORT;
         }
+        if (ARTIFACT_OPERATIONS.contains(operationId)) {
+            return DOMAIN_ARTIFACT;
+        }
         if (AUTH_OPERATIONS.contains(operationId)) {
             return DOMAIN_AUTH;
+        }
+        if (WEBHOOK_OPERATIONS.contains(operationId)) {
+            return DOMAIN_WEBHOOK;
         }
         return null;
     }
@@ -92,8 +118,12 @@ public final class InvocationDomainSupport {
                 return Arrays.asList(INSTANCE_OPERATIONS.toArray(new String[0]));
             case DOMAIN_EXPORT:
                 return Arrays.asList(EXPORT_OPERATIONS.toArray(new String[0]));
+            case DOMAIN_ARTIFACT:
+                return Arrays.asList(ARTIFACT_OPERATIONS.toArray(new String[0]));
             case DOMAIN_AUTH:
                 return Arrays.asList(AUTH_OPERATIONS.toArray(new String[0]));
+            case DOMAIN_WEBHOOK:
+                return Arrays.asList(WEBHOOK_OPERATIONS.toArray(new String[0]));
             default:
                 return Collections.emptyList();
         }

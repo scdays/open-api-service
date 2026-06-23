@@ -49,6 +49,15 @@ public class WebhookDeliveryLogDTO extends BaseDTO {
     @ApiModelProperty("是否可通过平台管理 API 下载外发文件")
     private Boolean exportDownloadable;
 
+    @ApiModelProperty("产物 artifactId（ARTIFACT_READY）")
+    private String artifactId;
+
+    @ApiModelProperty("产物格式 xml/pdf 等（ARTIFACT_READY）")
+    private String artifactFormat;
+
+    @ApiModelProperty("是否可通过平台管理 API 下载原始报告产物")
+    private Boolean artifactDownloadable;
+
     @ApiModelProperty("回调地址")
     private String callbackUrl;
 

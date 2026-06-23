@@ -319,8 +319,9 @@ public class OpenApiProperties {
         private boolean enabled = true;
         private int ttlDays = 7;
         /**
-         * open-api: Partner 网关 /api/open/v1/exports/{exportId}/download；
-         * file-sharing: 平台 Nginx 直链 file-sharing-center。
+         * open-api: 完整 URL（partner-gateway.public-base-url + OpenAPI 下载路径）；
+         * open-api-path: 仅 OpenAPI 相对路径（如 /api/open/v1/exports/{exportId}/download）；
+         * file-sharing: 平台 Nginx 直链 file-sharing-center（完整 URL）。
          */
         private String downloadUrlMode = "open-api";
         /**
@@ -362,15 +363,14 @@ public class OpenApiProperties {
         }
 
         /**
-         * 解析为有效白名单 Set：配置为空时返回全部 4 个 exportStage（向后兼容）。
+         * 解析为有效白名单 Set：配置为空时返回规范化外发 3 个 exportStage。
          */
         public Set<String> effectiveDownloadableStages() {
             if (downloadableStages == null || downloadableStages.isEmpty()) {
                 return new LinkedHashSet<>(Arrays.asList(
                         ExportStage.TASK_COMPLETED,
                         ExportStage.VERIFY_SCAN,
-                        ExportStage.VERIFY_FIX_SCAN,
-                        ExportStage.RAW_SCAN_ARCHIVE));
+                        ExportStage.VERIFY_FIX_SCAN));
             }
             return new LinkedHashSet<>(downloadableStages);
         }

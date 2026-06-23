@@ -12,6 +12,7 @@ import java.util.Map;
  * vul-pass 实例 Feign（Read 自 {@code VulScanTaskSubSystemUi}）。
  */
 @FeignClient(name = "${open-api.svmp.engine-service-name:vul-pass}",
+        contextId = "openApiVulPassInstanceFeign",
         path = "${open-api.svmp.engine-path-prefix:}")
 public interface IVulPassInstanceFeign {
 

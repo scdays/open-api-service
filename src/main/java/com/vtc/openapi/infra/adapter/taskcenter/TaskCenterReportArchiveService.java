@@ -1,10 +1,9 @@
 package com.vtc.openapi.infra.adapter.taskcenter;
 
-import com.vtc.openapi.domain.export.model.ExportDataType;
-import com.vtc.openapi.domain.export.model.ExportStage;
-import com.vtc.openapi.domain.export.model.OpenExportFileType;
+import com.vtc.openapi.domain.artifact.model.ArtifactSource;
+import com.vtc.openapi.domain.artifact.model.entity.OpenArtifactDO;
+import com.vtc.openapi.domain.artifact.repository.IOpenArtifactRepository;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
-import com.vtc.openapi.domain.export.model.entity.OpenExportFileDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
@@ -21,13 +20,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
-import java.util.UUID;
 
 /**
  * 子任务扫描完成后：从 SFTP 下载原始报告并上传至开放平台文件服务，归档成功后下发 ARTIFACT_READY webhook。
- * <p>原始报告复用 open_export/open_export_file 存储，downloadUrl 走现有 /exports/{exportId}/download 接口。</p>
+ * <p>原始报告按 Artifact 资源登记，downloadUrl 指向 /artifacts/{artifactId}/download。</p>
  */
 @Service
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "task-center")
@@ -35,7 +34,6 @@ public class TaskCenterReportArchiveService {
 
     private static final Logger log = LoggerFactory.getLogger(TaskCenterReportArchiveService.class);
 
-    private static final String ARTIFACT_SOURCE_SCANNER_RAW = "SCANNER_RAW";
     private static final String EXPORT_STAGE_TASK_COMPLETED = "TASK_COMPLETED";
     private static final String EXPORT_STAGE_VERIFY_SCAN = "VERIFY_SCAN";
     private static final String EXPORT_STAGE_VERIFY_FIX_SCAN = "VERIFY_FIX_SCAN";
@@ -49,6 +47,7 @@ public class TaskCenterReportArchiveService {
     private final ExportDownloadUrlBuilder downloadUrlBuilder;
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenExportRepository exportRepository;
+    private final IOpenArtifactRepository artifactRepository;
 
     public TaskCenterReportArchiveService(IOpenTaskSubRepository openTaskSubRepository,
                                           TaskCenterSftpReportDownloader sftpDownloader,
@@ -57,7 +56,8 @@ public class TaskCenterReportArchiveService {
                                           IWebhookPublishService webhookPublishService,
                                           ExportDownloadUrlBuilder downloadUrlBuilder,
                                           IOpenTaskRepository openTaskRepository,
-                                          IOpenExportRepository exportRepository) {
+                                          IOpenExportRepository exportRepository,
+                                          IOpenArtifactRepository artifactRepository) {
         this.openTaskSubRepository = openTaskSubRepository;
         this.sftpDownloader = sftpDownloader;
         this.fileStorage = fileStorage;
@@ -66,6 +66,7 @@ public class TaskCenterReportArchiveService {
         this.downloadUrlBuilder = downloadUrlBuilder;
         this.openTaskRepository = openTaskRepository;
         this.exportRepository = exportRepository;
+        this.artifactRepository = artifactRepository;
     }
 
     /**
@@ -130,81 +131,20 @@ public class TaskCenterReportArchiveService {
             String bucket = fileStorage.getBucket();
             Date now = new Date();
 
-            // 复用 open_export/open_export_file 存储原始报告：同 sub 的 RAW_SCAN_ARCHIVE 记录存在则 update-in-place
-            OpenExportDO exportRow = exportRepository.findBySubAndStage(
-                    sub.getPartnerId(), sub.getSubId(), ExportStage.RAW_SCAN_ARCHIVE);
-            if (exportRow == null) {
-                String exportId = "EXP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-                String downloadUrl = downloadUrlBuilder.build(exportId, bucket, fileKey);
-                exportRow = new OpenExportDO();
-                exportRow.setExportId(exportId);
-                exportRow.setPartnerId(sub.getPartnerId());
-                exportRow.setTaskId(sub.getTaskId());
-                exportRow.setExtTaskId(resolveExtTaskId(sub));
-                exportRow.setFormat(fileFormat);
-                exportRow.setExportStage(ExportStage.RAW_SCAN_ARCHIVE);
-                exportRow.setDataType(ExportDataType.fromCenterTaskType(sub.getCenterTaskType()));
-                exportRow.setStatus(STATUS_READY);
-                exportRow.setDownloadUrl(downloadUrl);
-                exportRow.setSubId(sub.getSubId());
-                exportRow.setGeneratedAt(now);
-                exportRow.setCreatedAt(now);
-                exportRow.setUpdatedAt(now);
-                exportRepository.saveExport(exportRow);
-
-                OpenExportFileDO fileRow = new OpenExportFileDO();
-                fileRow.setExportId(exportId);
-                fileRow.setRealTaskId(sub.getTaskId());
-                fileRow.setPartnerId(sub.getPartnerId());
-                fileRow.setFilePosition(bucket);
-                fileRow.setFileField(fileKey);
-                fileRow.setFileMetadata(fileName);
-                fileRow.setFileType(OpenExportFileType.fromFormat(fileFormat));
-                fileRow.setCreateTime(now);
-                exportRepository.saveExportFile(fileRow);
-            } else {
-                // update-in-place：复用原 exportId，downloadUrl 稳定不变，partner 旧链接仍有效
-                String downloadUrl = downloadUrlBuilder.build(exportRow.getExportId(), bucket, fileKey);
-                exportRow.setFormat(fileFormat);
-                exportRow.setDataType(ExportDataType.fromCenterTaskType(sub.getCenterTaskType()));
-                exportRow.setStatus(STATUS_READY);
-                exportRow.setDownloadUrl(downloadUrl);
-                exportRow.setUpdatedAt(now);
-                exportRepository.updateExport(exportRow);
-
-                OpenExportFileDO fileRow = exportRepository.findFileByExportId(exportRow.getExportId());
-                if (fileRow == null) {
-                    fileRow = new OpenExportFileDO();
-                    fileRow.setExportId(exportRow.getExportId());
-                    fileRow.setRealTaskId(sub.getTaskId());
-                    fileRow.setPartnerId(sub.getPartnerId());
-                    fileRow.setFilePosition(bucket);
-                    fileRow.setFileField(fileKey);
-                    fileRow.setFileMetadata(fileName);
-                    fileRow.setFileType(OpenExportFileType.fromFormat(fileFormat));
-                    fileRow.setCreateTime(now);
-                    exportRepository.saveExportFile(fileRow);
-                } else {
-                    fileRow.setFilePosition(bucket);
-                    fileRow.setFileField(fileKey);
-                    fileRow.setFileMetadata(fileName);
-                    fileRow.setFileType(OpenExportFileType.fromFormat(fileFormat));
-                    fileRow.setUpdateTime(now);
-                    exportRepository.updateExportFile(fileRow);
-                }
-            }
+            OpenArtifactDO artifact = upsertRawArtifact(sub, fileName, fileFormat, contentType,
+                    bucket, fileKey, bytes, now);
 
             // 子任务归档状态
             sub.setReportArchiveStatus(TaskCenterSubSupport.REPORT_ARCHIVED);
             sub.setReportArchiveError(null);
             sub.setUpdatedAt(now);
             openTaskSubRepository.updateSub(sub);
-            log.info("task-center report archived subId={} exportId={} fileKey={} bytes={}",
-                    sub.getSubId(), exportRow.getExportId(), fileKey, bytes.length);
+            log.info("task-center report archived subId={} artifactId={} fileKey={} bytes={}",
+                    sub.getSubId(), artifact.getArtifactId(), fileKey, bytes.length);
 
             // best-effort 发布 ARTIFACT_READY：独立 try/catch，异常不影响已落库的 ARCHIVED 状态
             try {
-                publishArtifactReadyForSub(sub, exportRow, fileName, fileFormat, contentType, bytes.length);
+                publishArtifactReadyForSub(sub, artifact);
             } catch (Exception wh) {
                 log.warn("task-center ARTIFACT_READY publish failed subId={}: {}",
                         sub.getSubId(), wh.getMessage());
@@ -218,27 +158,73 @@ public class TaskCenterReportArchiveService {
         }
     }
 
-    private void publishArtifactReadyForSub(OpenTaskSubDO sub, OpenExportDO exportRow,
-                                             String fileName, String fileFormat, String contentType, int byteSize) {
+    private OpenArtifactDO upsertRawArtifact(OpenTaskSubDO sub, String fileName, String fileFormat,
+                                             String contentType, String bucket, String fileKey,
+                                             byte[] bytes, Date now) {
+        String artifactId = buildArtifactId(sub.getSubId());
+        String exportStage = resolveExportStage(sub.getScanPhase());
+        String downloadUrl = downloadUrlBuilder.buildArtifact(artifactId, bucket, fileKey);
+        String extTaskId = resolveExtTaskId(sub);
+        OpenArtifactDO artifact = artifactRepository.findBySubTaskAndSource(
+                sub.getPartnerId(), sub.getSubId(), ArtifactSource.SCANNER_RAW);
+        boolean insert = artifact == null;
+        if (insert) {
+            artifact = new OpenArtifactDO();
+            artifact.setArtifactId(artifactId);
+            artifact.setPartnerId(sub.getPartnerId());
+            artifact.setTaskId(sub.getTaskId());
+            artifact.setSubTaskId(sub.getSubId());
+            artifact.setArtifactSource(ArtifactSource.SCANNER_RAW);
+            artifact.setCreatedAt(now);
+        }
+        if (artifact == null) {
+            throw new IllegalStateException("产物记录初始化失败: " + sub.getSubId());
+        }
+        artifact.setExtTaskId(extTaskId);
+        artifact.setExportId(resolveRelatedExportId(sub.getPartnerId(), sub.getTaskId(), exportStage));
+        artifact.setExportStage(exportStage);
+        artifact.setScannerVendor(sub.getScannerType());
+        artifact.setScannerProduct(sub.getScannerType());
+        artifact.setFileName(fileName);
+        artifact.setFileFormat(fileFormat);
+        artifact.setContentType(contentType);
+        artifact.setByteSize((long) bytes.length);
+        artifact.setChecksum(sha256Hex(bytes));
+        artifact.setStatus(STATUS_READY);
+        artifact.setGeneratedAt(now);
+        artifact.setDownloadUrl(downloadUrl);
+        artifact.setErrorMessage(null);
+        artifact.setFilePosition(bucket);
+        artifact.setFileField(fileKey);
+        artifact.setUpdatedAt(now);
+        if (insert) {
+            artifactRepository.saveArtifact(artifact);
+            OpenArtifactDO saved = artifactRepository.findByArtifactId(artifactId);
+            return saved != null ? saved : artifact;
+        }
+        artifactRepository.updateArtifact(artifact);
+        return artifact;
+    }
+
+    private void publishArtifactReadyForSub(OpenTaskSubDO sub, OpenArtifactDO artifact) {
         if (!properties.getWebhook().isEnabled()) {
             return;
         }
-        String extTaskId = resolveExtTaskId(sub);
 
         ArtifactReadyEvent event = new ArtifactReadyEvent();
         event.setPartnerId(sub.getPartnerId());
-        event.setArtifactId(buildArtifactId(sub.getSubId()));
-        event.setTaskId(sub.getTaskId());
-        event.setExtTaskId(extTaskId);
+        event.setArtifactId(artifact.getArtifactId());
+        event.setTaskId(artifact.getTaskId());
+        event.setExtTaskId(artifact.getExtTaskId());
         event.setVerifyFixJobId(sub.getVerifyFixJobId());
-        event.setExportId(exportRow.getExportId());
-        event.setExportStage(resolveExportStage(sub.getScanPhase()));
-        event.setArtifactSource(ARTIFACT_SOURCE_SCANNER_RAW);
-        event.setFileName(fileName);
-        event.setFileFormat(fileFormat);
-        event.setContentType(contentType);
-        event.setByteSize((long) byteSize);
-        event.setDownloadUrl(exportRow.getDownloadUrl());
+        event.setExportId(artifact.getExportId());
+        event.setExportStage(artifact.getExportStage());
+        event.setArtifactSource(artifact.getArtifactSource());
+        event.setFileName(artifact.getFileName());
+        event.setFileFormat(artifact.getFileFormat());
+        event.setContentType(artifact.getContentType());
+        event.setByteSize(artifact.getByteSize());
+        event.setDownloadUrl(artifact.getDownloadUrl());
         webhookPublishService.publishArtifactReady(event);
     }
 
@@ -249,8 +235,15 @@ public class TaskCenterReportArchiveService {
 
     private String buildArtifactId(String subId) {
         String safeSub = subId != null ? subId.replaceAll("[^A-Za-z0-9_-]", "_") : "sub";
-        String stamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-        return "ART-" + stamp + "-" + safeSub;
+        return "ART-" + safeSub;
+    }
+
+    private String resolveRelatedExportId(String partnerId, String taskId, String exportStage) {
+        OpenExportDO export = exportRepository.findByStageAndFormat(partnerId, taskId, exportStage, "json");
+        if (export == null) {
+            export = exportRepository.findByStageAndFormat(partnerId, taskId, exportStage, "xml");
+        }
+        return export != null ? export.getExportId() : null;
     }
 
     private String resolveExportStage(Integer scanPhase) {
@@ -282,11 +275,27 @@ public class TaskCenterReportArchiveService {
         openTaskSubRepository.updateSub(sub);
     }
 
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(bytes != null ? bytes : new byte[0]);
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            return null;
+        }
+    }
+
     static boolean requiresRawReport(OpenTaskSubDO sub) {
         if (sub == null) {
             return false;
         }
         String type = sub.getCenterTaskType();
-        return !StringUtils.hasText(type) || "vuln".equalsIgnoreCase(type.trim());
+        return !StringUtils.hasText(type)
+                || "vuln".equalsIgnoreCase(type.trim())
+                || "port".equalsIgnoreCase(type.trim());
     }
 }

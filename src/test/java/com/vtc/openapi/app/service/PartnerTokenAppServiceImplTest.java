@@ -2,6 +2,7 @@ package com.vtc.openapi.app.service;
 
 import com.vtc.openapi.app.service.impl.PartnerTokenAppServiceImpl;
 import com.vtc.openapi.domain.open.OpenApiConstants;
+import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
 import com.vtc.openapi.domain.partner.model.PartnerConstants;
 import com.vtc.openapi.domain.partner.model.entity.PartnerCredentialDO;
 import com.vtc.openapi.domain.partner.model.entity.PartnerDO;
@@ -31,6 +32,7 @@ public class PartnerTokenAppServiceImplTest {
 
     private IPartnerDomainService partnerDomainService;
     private PartnerTokenRedisStore tokenRedisStore;
+    private IInvocationDomainService invocationDomainService;
 
     private PartnerTokenAppServiceImpl service;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
@@ -39,9 +41,10 @@ public class PartnerTokenAppServiceImplTest {
     public void setUp() {
         partnerDomainService = mock(IPartnerDomainService.class);
         tokenRedisStore = mock(PartnerTokenRedisStore.class);
+        invocationDomainService = mock(IInvocationDomainService.class);
         OpenApiProperties properties = new OpenApiProperties();
         properties.getToken().setExpiresInSeconds(3600L);
-        service = new PartnerTokenAppServiceImpl(partnerDomainService, tokenRedisStore, properties);
+        service = new PartnerTokenAppServiceImpl(partnerDomainService, tokenRedisStore, properties, invocationDomainService);
     }
 
     @Test

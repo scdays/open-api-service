@@ -6,7 +6,6 @@ import com.botany.spore.core.page.PageInfo;
 import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
-import com.vtc.openapi.domain.instance.model.result.InstanceItemResult;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
@@ -18,7 +17,8 @@ import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.model.query.OpenTaskAdminQuery;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
-import com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy;
+import com.vtc.openapi.app.support.TaskScopedInstanceLoader;
+import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterReportArchiveService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
@@ -26,12 +26,12 @@ import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterDispatchRetryResult;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSurveyRefetchService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterTaskOrchestrator;
 import com.vtc.openapi.infra.config.OpenApiProperties;
-import com.vtc.openapi.infra.converter.InstanceItemConverter;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import com.vtc.openapi.ui.dto.admin.OpenTaskDispatchRetryResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminPageDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceBriefDto;
+import com.vtc.openapi.ui.dto.admin.OpenTaskInstanceScopeDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskReportRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
@@ -74,7 +74,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskCenterSurveyRefetchService surveyRefetchService;
     private final TaskCenterReportArchiveService reportArchiveService;
-    private final IExportDownloadPolicy exportDownloadPolicy;
+    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
+    private final TaskScopedInstanceLoader taskScopedInstanceLoader;
 
     public OpenTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
@@ -86,7 +87,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
                                        @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
                                        @Autowired(required = false) TaskCenterSurveyRefetchService surveyRefetchService,
                                        @Autowired(required = false) TaskCenterReportArchiveService reportArchiveService,
-                                       IExportDownloadPolicy exportDownloadPolicy) {
+                                       WebhookDeliveryEnricher webhookDeliveryEnricher,
+                                       TaskScopedInstanceLoader taskScopedInstanceLoader) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
@@ -97,7 +99,8 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         this.scanResultQueryService = scanResultQueryService;
         this.surveyRefetchService = surveyRefetchService;
         this.reportArchiveService = reportArchiveService;
-        this.exportDownloadPolicy = exportDownloadPolicy;
+        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
+        this.taskScopedInstanceLoader = taskScopedInstanceLoader;
     }
 
     @Override
@@ -142,19 +145,43 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "任务不存在");
         }
         List<OpenTaskSubDO> subs = openTaskSubRepository.listByTaskId(taskId);
-        List<OpenVulnInstanceDO> instances = vulnInstanceRepository.listByPartnerAndTask(
-                task.getPartnerId(), taskId, task.getExtTaskId());
+        OpenTaskSubDO defaultSurveySub = resolveSurveySub(taskId, TaskCenterSubSupport.PHASE_SURVEY, null);
+        List<OpenTaskInstanceBriefDto> taskInstances = defaultSurveySub != null
+                ? taskScopedInstanceLoader.loadSurveyScope(
+                        task, defaultSurveySub, TaskCenterSubSupport.PHASE_SURVEY, 50).getInstances()
+                : Collections.emptyList();
 
         OpenTaskWorkspaceDto workspace = new OpenTaskWorkspaceDto();
         workspace.setTask(toAdminDto(task, subs));
         workspace.setTargetHosts(extractHosts(task));
         workspace.setSurveySubs(filterSubs(subs, TaskCenterSubSupport.PHASE_SURVEY));
         workspace.setVerifySubs(filterSubs(subs, TaskCenterSubSupport.PHASE_VERIFY));
-        workspace.setInstanceStatCounts(buildStatCounts(instances));
-        workspace.setInstances(buildInstanceBriefs(instances, 50));
+        workspace.setInstanceStatCounts(buildStatCountsFromBriefs(taskInstances));
+        workspace.setInstances(taskInstances);
         workspace.setWebhookDeliveries(loadWebhookDeliveries(task));
-        workspace.setTimeline(buildTimeline(task, subs, instances));
+        workspace.setTimeline(buildTimeline(task, subs, taskInstances));
         return ApiResponse.ok(workspace);
+    }
+
+    @Override
+    public ApiResponse<OpenTaskInstanceScopeDto> getTaskInstances(String taskId, Integer scanPhase, String subId) {
+        if (!StringUtils.hasText(taskId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "taskId 不能为空");
+        }
+        OpenTaskDO task = openTaskRepository.findByTaskId(taskId);
+        if (task == null) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "任务不存在");
+        }
+        int phase = scanPhase != null ? scanPhase : TaskCenterSubSupport.PHASE_SURVEY;
+        OpenTaskSubDO sub = resolveSurveySub(taskId, phase, subId);
+        OpenTaskInstanceScopeDto scope = new OpenTaskInstanceScopeDto();
+        scope.setTaskId(taskId);
+        scope.setScanPhase(phase);
+        if (sub == null) {
+            scope.setHint("该阶段暂无子任务，请先下发扫描");
+            return ApiResponse.ok(scope);
+        }
+        return ApiResponse.ok(taskScopedInstanceLoader.loadSurveyScope(task, sub, phase, 500));
     }
 
     @Override
@@ -451,39 +478,16 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         return json != null ? json.getString("hosts") : null;
     }
 
-    private static Map<String, Long> buildStatCounts(List<OpenVulnInstanceDO> instances) {
+    private static Map<String, Long> buildStatCountsFromBriefs(List<OpenTaskInstanceBriefDto> instances) {
         if (CollectionUtils.isEmpty(instances)) {
             return Collections.emptyMap();
         }
         Map<String, Long> counts = new LinkedHashMap<>();
-        for (OpenVulnInstanceDO row : instances) {
+        for (OpenTaskInstanceBriefDto row : instances) {
             String key = row.getVulInfoStat() != null ? String.valueOf(row.getVulInfoStat()) : "unknown";
             counts.merge(key, 1L, Long::sum);
         }
         return counts;
-    }
-
-    private static List<OpenTaskInstanceBriefDto> buildInstanceBriefs(List<OpenVulnInstanceDO> instances, int limit) {
-        if (CollectionUtils.isEmpty(instances)) {
-            return Collections.emptyList();
-        }
-        List<OpenTaskInstanceBriefDto> result = new ArrayList<>();
-        int max = Math.min(limit, instances.size());
-        for (int i = 0; i < max; i++) {
-            OpenVulnInstanceDO row = instances.get(i);
-            InstanceItemResult item = InstanceItemConverter.fromSnapshot(row);
-            OpenTaskInstanceBriefDto brief = new OpenTaskInstanceBriefDto();
-            brief.setVulInfoId(row.getVulInfoId());
-            brief.setVulInfoStat(row.getVulInfoStat());
-            if (item != null) {
-                brief.setAddress(item.getVulNetAddr());
-                brief.setPort(item.getVulPort() != null ? String.valueOf(item.getVulPort()) : null);
-                brief.setVulnName(item.getVulName());
-                brief.setLevel(item.getVulLevel() != null ? String.valueOf(item.getVulLevel()) : null);
-            }
-            result.add(brief);
-        }
-        return result;
     }
 
     private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenTaskDO task) {
@@ -494,14 +498,13 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         }
         return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(rows).stream()
                 .limit(20)
-                .peek(dto -> dto.setExportDownloadable(
-                        exportDownloadPolicy.isDownloadable(task.getPartnerId(), dto.getExportId())))
+                .peek(webhookDeliveryEnricher::enrich)
                 .collect(Collectors.toList());
     }
 
     private List<OpenTaskTimelineEventDto> buildTimeline(OpenTaskDO task,
                                                          List<OpenTaskSubDO> subs,
-                                                         List<OpenVulnInstanceDO> instances) {
+                                                         List<OpenTaskInstanceBriefDto> instances) {
         List<OpenTaskTimelineEventDto> events = new ArrayList<>();
         events.add(timeline("Partner 创建任务", task.getCreatedAt(), "done"));
         if (task.getStartedAt() != null || "RUNNING".equals(task.getStatus())

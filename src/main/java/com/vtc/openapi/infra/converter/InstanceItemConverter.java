@@ -57,7 +57,7 @@ public final class InstanceItemConverter {
         item.setLvRsn(src.getInteger("lvRsn"));
         item.setVulName(src.getString("vulName"));
         item.setVulLevel(src.getInteger("vulLevel"));
-        item.setOrgVulId(src.getString("orgVulId"));
+        item.setOrgVulId(resolveOrgVulId(src));
         item.setVulNetAddr(src.getString("vulNetAddr"));
         item.setVulPort(src.getInteger("vulPort"));
         item.setVulSvc(src.getString("vulSvc"));
@@ -114,5 +114,15 @@ public final class InstanceItemConverter {
             }
         }
         return null;
+    }
+
+    /**
+     * 组织漏洞编号：task-center 原始结果 CVE 在 cve 字段，orgVulId 可能为厂商漏洞 ID。
+     */
+    public static String resolveOrgVulId(JSONObject src) {
+        if (src == null) {
+            return null;
+        }
+        return firstOf(src.getString("cve"), src.getString("CVE"), src.getString("orgVulId"));
     }
 }

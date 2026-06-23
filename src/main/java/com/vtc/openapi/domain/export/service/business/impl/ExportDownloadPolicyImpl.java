@@ -1,11 +1,13 @@
 package com.vtc.openapi.domain.export.service.business.impl;
 
+import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy;
 import com.vtc.openapi.domain.partner.model.entity.PartnerWebhookConfigDO;
 import com.vtc.openapi.domain.partner.repository.IPartnerRepository;
 import com.vtc.openapi.infra.config.OpenApiProperties;
+import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -48,6 +50,9 @@ public class ExportDownloadPolicyImpl implements IExportDownloadPolicy {
         if (!StringUtils.hasText(exportStage)) {
             return false;
         }
+        if (ExportStage.RAW_SCAN_ARCHIVE.equals(exportStage)) {
+            return false;
+        }
         return resolveDownloadableStages(partnerId).contains(exportStage);
     }
 
@@ -57,6 +62,26 @@ public class ExportDownloadPolicyImpl implements IExportDownloadPolicy {
             return false;
         }
         OpenExportDO row = exportRepository.findByExportId(exportId.trim());
+        return isExportRowDownloadable(partnerId, row);
+    }
+
+    @Override
+    public void enrichWebhookDelivery(WebhookDeliveryLogDTO dto) {
+        if (dto == null) {
+            return;
+        }
+        if (!StringUtils.hasText(dto.getExportId())) {
+            dto.setExportDownloadable(Boolean.FALSE);
+            return;
+        }
+        OpenExportDO row = exportRepository.findByExportId(dto.getExportId().trim());
+        if (row != null && StringUtils.hasText(row.getExportStage())) {
+            dto.setExportStage(row.getExportStage());
+        }
+        dto.setExportDownloadable(isExportRowDownloadable(dto.getPartnerId(), row));
+    }
+
+    private boolean isExportRowDownloadable(String partnerId, OpenExportDO row) {
         if (row == null || !STATUS_READY.equals(row.getStatus())) {
             return false;
         }

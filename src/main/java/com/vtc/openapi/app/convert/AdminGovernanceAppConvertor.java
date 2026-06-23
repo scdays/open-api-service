@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 /**
  * Admin governance DTO mapping. Do not use ConvertHelper for *DetailDTO subclasses.
  * <p>仅解析 payload 元数据（exportId/format/exportStage/downloadUrl），不查 DB、不做下载判定。
- * 下载可行性（exportDownloadable）由工作台 assembler 调用 IExportDownloadPolicy 设置。</p>
+ * 下载可行性（exportDownloadable）由 {@link com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy#enrichWebhookDelivery} 设置。</p>
  */
 @Component
 public class AdminGovernanceAppConvertor {
@@ -174,7 +174,10 @@ public class AdminGovernanceAppConvertor {
             return;
         }
         dto.setExportId(info.getExportId());
+        dto.setArtifactId(info.getArtifactId());
         dto.setExportFormat(info.getFormat());
+        dto.setArtifactFormat(WebhookEventType.ARTIFACT_READY.equals(row.getEventType())
+                ? info.getFormat() : null);
         dto.setExportStage(info.getExportStage());
         dto.setPartnerDownloadUrl(info.getDownloadUrl());
         if (!org.springframework.util.StringUtils.hasText(dto.getRelatedTaskId())) {

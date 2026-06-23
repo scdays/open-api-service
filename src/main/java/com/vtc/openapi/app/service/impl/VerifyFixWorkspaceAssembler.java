@@ -6,7 +6,7 @@ import com.vtc.openapi.app.support.OpenTaskSubAdminMapper;
 import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
-import com.vtc.openapi.domain.export.service.business.IExportDownloadPolicy;
+import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
@@ -57,7 +57,7 @@ public class VerifyFixWorkspaceAssembler {
     private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final OpenTaskSubAdminMapper openTaskSubAdminMapper;
     private final OpenApiProperties openApiProperties;
-    private final IExportDownloadPolicy exportDownloadPolicy;
+    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
 
     public VerifyFixWorkspaceAssembler(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
@@ -68,7 +68,7 @@ public class VerifyFixWorkspaceAssembler {
                                        AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                        OpenTaskSubAdminMapper openTaskSubAdminMapper,
                                        OpenApiProperties openApiProperties,
-                                       IExportDownloadPolicy exportDownloadPolicy) {
+                                       WebhookDeliveryEnricher webhookDeliveryEnricher) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
@@ -78,7 +78,7 @@ public class VerifyFixWorkspaceAssembler {
         this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.openTaskSubAdminMapper = openTaskSubAdminMapper;
         this.openApiProperties = openApiProperties;
-        this.exportDownloadPolicy = exportDownloadPolicy;
+        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
     }
 
     public VerifyFixWorkspaceDto build(String jobId) {
@@ -241,8 +241,7 @@ public class VerifyFixWorkspaceAssembler {
         }
         return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(rows).stream()
                 .limit(20)
-                .peek(dto -> dto.setExportDownloadable(
-                        exportDownloadPolicy.isDownloadable(job.getPartnerId(), dto.getExportId())))
+                .peek(webhookDeliveryEnricher::enrich)
                 .collect(Collectors.toList());
     }
 

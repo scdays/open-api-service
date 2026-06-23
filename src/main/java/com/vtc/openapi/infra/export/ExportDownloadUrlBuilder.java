@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 public class ExportDownloadUrlBuilder {
 
     private static final String MODE_FILE_SHARING = "file-sharing";
+    private static final String MODE_OPEN_API_PATH = "open-api-path";
     private static final String FILE_SHARING_DOWNLOAD_PATH = "/file-sharing-center/file-sharing/download";
 
     private final OpenApiProperties properties;
@@ -27,15 +28,43 @@ public class ExportDownloadUrlBuilder {
      * @param fileKey  file-sharing 模式使用
      */
     public String build(String exportId, String bucket, String fileKey) {
-        if (MODE_FILE_SHARING.equalsIgnoreCase(properties.getExport().getDownloadUrlMode())) {
+        String mode = properties.getExport().getDownloadUrlMode();
+        if (MODE_FILE_SHARING.equalsIgnoreCase(mode)) {
             return buildFileSharingUrl(bucket, fileKey);
+        }
+        if (MODE_OPEN_API_PATH.equalsIgnoreCase(mode)) {
+            return buildOpenApiExportPath(exportId);
         }
         return buildOpenApiExportUrl(exportId);
     }
 
+    public String buildArtifact(String artifactId, String bucket, String fileKey) {
+        String mode = properties.getExport().getDownloadUrlMode();
+        if (MODE_FILE_SHARING.equalsIgnoreCase(mode)) {
+            return buildFileSharingUrl(bucket, fileKey);
+        }
+        if (MODE_OPEN_API_PATH.equalsIgnoreCase(mode)) {
+            return buildOpenApiArtifactPath(artifactId);
+        }
+        return buildOpenApiArtifactUrl(artifactId);
+    }
+
+    private String buildOpenApiExportPath(String exportId) {
+        return OpenApiConstants.API_PREFIX + "/exports/" + exportId + "/download";
+    }
+
+    private String buildOpenApiArtifactPath(String artifactId) {
+        return OpenApiConstants.API_PREFIX + "/artifacts/" + artifactId + "/download";
+    }
+
     private String buildOpenApiExportUrl(String exportId) {
         String baseUrl = normalizeBaseUrl(properties.getPartnerGateway().getPublicBaseUrl(), "http://127.0.0.1:35770");
-        return baseUrl + OpenApiConstants.API_PREFIX + "/exports/" + exportId + "/download";
+        return baseUrl + buildOpenApiExportPath(exportId);
+    }
+
+    private String buildOpenApiArtifactUrl(String artifactId) {
+        String baseUrl = normalizeBaseUrl(properties.getPartnerGateway().getPublicBaseUrl(), "http://127.0.0.1:35770");
+        return baseUrl + buildOpenApiArtifactPath(artifactId);
     }
 
     private String buildFileSharingUrl(String bucket, String fileKey) {

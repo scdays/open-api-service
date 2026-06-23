@@ -2,6 +2,7 @@ package com.vtc.openapi.ui.admin;
 
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.ui.BaseUI;
+import com.vtc.openapi.app.service.IArtifactAdminAppService;
 import com.vtc.openapi.app.service.IExportAdminAppService;
 import com.vtc.openapi.app.service.IInvocationAdminAppService;
 import com.vtc.openapi.ui.dto.ApiResponse;
@@ -25,11 +26,14 @@ public class InvocationAdminUI extends BaseUI {
 
     private final IInvocationAdminAppService invocationAdminAppService;
     private final IExportAdminAppService exportAdminAppService;
+    private final IArtifactAdminAppService artifactAdminAppService;
 
     public InvocationAdminUI(IInvocationAdminAppService invocationAdminAppService,
-                             IExportAdminAppService exportAdminAppService) {
+                             IExportAdminAppService exportAdminAppService,
+                             IArtifactAdminAppService artifactAdminAppService) {
         this.invocationAdminAppService = invocationAdminAppService;
         this.exportAdminAppService = exportAdminAppService;
+        this.artifactAdminAppService = artifactAdminAppService;
     }
 
     @ApiOperation("分页查询调用记录")
@@ -77,6 +81,14 @@ public class InvocationAdminUI extends BaseUI {
             @PathVariable("exportId") String exportId,
             @RequestParam("partnerId") String partnerId) {
         return exportAdminAppService.downloadExport(partnerId, exportId);
+    }
+
+    @ApiOperation(value = "平台侧下载扫描报告产物", notes = "GET /internal/admin/artifacts/{artifactId}/download · 原始扫描报告")
+    @GetMapping("/artifacts/{artifactId}/download")
+    public ResponseEntity<byte[]> downloadArtifact(
+            @PathVariable("artifactId") String artifactId,
+            @RequestParam("partnerId") String partnerId) {
+        return artifactAdminAppService.downloadArtifact(partnerId, artifactId);
     }
 
     @ApiOperation("分页查询 Webhook 投递日志")

@@ -7,6 +7,7 @@ import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.convert.VerifyFixJobAdminConvertor;
 import com.vtc.openapi.app.support.OpenTaskSubAdminMapper;
 import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
+import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceLogDO;
@@ -61,6 +62,7 @@ public class OperationCaseWorkspaceAssembler {
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final OpenTaskSubAdminMapper openTaskSubAdminMapper;
     private final VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler;
+    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
 
     public OperationCaseWorkspaceAssembler(IOpenVulnInstanceRepository vulnInstanceRepository,
                                            IOpenVulnInstanceLogRepository vulnInstanceLogRepository,
@@ -72,7 +74,8 @@ public class OperationCaseWorkspaceAssembler {
                                            IOpenOperationCaseRepository operationCaseRepository,
                                            IOpenTaskSubRepository openTaskSubRepository,
                                            OpenTaskSubAdminMapper openTaskSubAdminMapper,
-                                           VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler) {
+                                           VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler,
+                                           WebhookDeliveryEnricher webhookDeliveryEnricher) {
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.vulnInstanceLogRepository = vulnInstanceLogRepository;
         this.verifyFixJobDomainService = verifyFixJobDomainService;
@@ -84,6 +87,7 @@ public class OperationCaseWorkspaceAssembler {
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskSubAdminMapper = openTaskSubAdminMapper;
         this.verifyFixWorkspaceAssembler = verifyFixWorkspaceAssembler;
+        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
     }
 
     public Object buildPayload(OpenOperationCaseDO row, List<ApiInvocationDO> invocations) {
@@ -146,6 +150,7 @@ public class OperationCaseWorkspaceAssembler {
                 row.getPartnerId(), resourceType, resourceId, 100);
         return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(logs).stream()
                 .limit(20)
+                .peek(webhookDeliveryEnricher::enrich)
                 .collect(Collectors.toList());
     }
 

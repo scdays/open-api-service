@@ -176,6 +176,7 @@ public final class WebhookDeliverySupport {
             }
             ExportReadyInfo info = new ExportReadyInfo();
             info.setExportId(firstNonBlank(payload.getString("exportId")));
+            info.setArtifactId(firstNonBlank(payload.getString("artifactId")));
             info.setTaskId(firstNonBlank(payload.getString("taskId")));
             info.setExportStage(payload.getString("exportStage"));
             info.setDownloadUrl(payload.getString("downloadUrl"));
@@ -183,6 +184,10 @@ public final class WebhookDeliverySupport {
                 info.setFormat(firstNonBlank(payload.getString("fileFormat"), payload.getString("format")));
             } else {
                 info.setFormat(payload.getString("format"));
+            }
+            if (WebhookEventType.ARTIFACT_READY.equals(eventType)) {
+                return StringUtils.hasText(info.getArtifactId()) || StringUtils.hasText(info.getExportId())
+                        ? info : null;
             }
             return StringUtils.hasText(info.getExportId()) ? info : null;
         } catch (Exception ignored) {
@@ -218,6 +223,7 @@ public final class WebhookDeliverySupport {
 
     public static class ExportReadyInfo {
         private String exportId;
+        private String artifactId;
         private String taskId;
         private String format;
         private String exportStage;
@@ -229,6 +235,14 @@ public final class WebhookDeliverySupport {
 
         public void setExportId(String exportId) {
             this.exportId = exportId;
+        }
+
+        public String getArtifactId() {
+            return artifactId;
+        }
+
+        public void setArtifactId(String artifactId) {
+            this.artifactId = artifactId;
         }
 
         public String getTaskId() {

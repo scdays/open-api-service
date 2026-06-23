@@ -1,6 +1,7 @@
 package com.vtc.openapi.domain.export.service.business.impl;
 
 import com.botany.spore.core.page.PageInfo;
+import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.model.entity.OpenExportFileDO;
 import com.vtc.openapi.domain.export.model.result.ExportDownloadResult;
@@ -131,7 +132,7 @@ public class OpenExportDomainServiceImpl implements IOpenExportDomainService {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "exportId 不能为空");
         }
         OpenExportDO row = exportRepository.findByPartnerAndExportId(partnerId, exportId);
-        if (row == null) {
+        if (row == null || ExportStage.RAW_SCAN_ARCHIVE.equals(row.getExportStage())) {
             throw new OpenApiException(OpenApiConstants.CODE_CROSS_PARTNER, "外发记录不存在或无权访问");
         }
         return row;

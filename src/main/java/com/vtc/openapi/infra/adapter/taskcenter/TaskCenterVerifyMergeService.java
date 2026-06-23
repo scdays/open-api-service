@@ -92,7 +92,10 @@ public class TaskCenterVerifyMergeService {
         JSONObject a = hits.get(0);
         JSONObject b = hits.get(1);
         JSONObject merged = JSONObject.parseObject(a.toJSONString());
-        merged.put("orgVulId", firstNonBlank(a.getString("orgVulId"), b.getString("orgVulId")));
+        merged.put("cve", firstNonBlank(a.getString("cve"), b.getString("cve")));
+        merged.put("orgVulId", firstNonBlank(
+                firstNonBlank(a.getString("cve"), b.getString("cve")),
+                firstNonBlank(a.getString("orgVulId"), b.getString("orgVulId"))));
         merged.put("vulName", firstNonBlank(a.getString("vulName"), b.getString("vulName")));
         merged.put("vulDesc", firstNonBlank(a.getString("vulDesc"), b.getString("vulDesc")));
         merged.put("engHash", "MULTI");

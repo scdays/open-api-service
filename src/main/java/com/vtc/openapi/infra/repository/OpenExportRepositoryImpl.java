@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
+import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.model.entity.OpenExportFileDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
@@ -119,6 +120,7 @@ public class OpenExportRepositoryImpl implements IOpenExportRepository {
         LambdaQueryWrapper<OpenExportPO> wrapper = new LambdaQueryWrapper<OpenExportPO>()
                 .eq(OpenExportPO::getPartnerId, partnerId)
                 .eq(OpenExportPO::getTaskId, taskId)
+                .ne(OpenExportPO::getExportStage, ExportStage.RAW_SCAN_ARCHIVE)
                 .orderByDesc(OpenExportPO::getCreatedAt);
         Page<OpenExportPO> result = exportMapper.selectPage(mpPage, wrapper);
         PageInfo<OpenExportDO> pageInfo = new PageInfo<>();

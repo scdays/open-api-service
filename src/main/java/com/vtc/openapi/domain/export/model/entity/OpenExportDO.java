@@ -3,8 +3,6 @@ package com.vtc.openapi.domain.export.model.entity;
 import com.botany.spore.ddd.domain.model.entity.BaseDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
@@ -33,4 +31,12 @@ public class OpenExportDO extends BaseDO {
     private Date generatedAt;
     private Date createdAt;
     private Date updatedAt;
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }
