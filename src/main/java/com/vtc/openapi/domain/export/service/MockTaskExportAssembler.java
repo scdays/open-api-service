@@ -286,6 +286,10 @@ public class MockTaskExportAssembler {
                 node.put("orgVulId", firstOf(snap.getString("cve"), snap.getString("orgVulId")));
                 node.put("vulLevel", snap.getInteger("vulLevel"));
                 node.put("vulName", snap.getString("vulName"));
+                String vulDesc = resolveVulDesc(snap);
+                if (StringUtils.hasText(vulDesc)) {
+                    node.put("vulDesc", vulDesc);
+                }
                 node.put("instances", new ArrayList<Map<String, Object>>());
                 return node;
             });
@@ -488,6 +492,21 @@ public class MockTaskExportAssembler {
 
     private static String firstOf(String a, String b) {
         return StringUtils.hasText(a) ? a : b;
+    }
+
+    /**
+     * 漏洞描述：入库快照 vulDesc（Task-Center 来自 messString / vulnDatabase.description），
+     * Mock 无 vulDesc 时回退 extVulnRef（NSFocus mess_string）。
+     */
+    private static String resolveVulDesc(JSONObject snap) {
+        if (snap == null) {
+            return null;
+        }
+        String vulDesc = firstOf(snap.getString("vulDesc"), snap.getString("vul_desc"));
+        if (StringUtils.hasText(vulDesc)) {
+            return vulDesc;
+        }
+        return snap.getString("extVulnRef");
     }
 
     private static String formatUtc(Date date) {

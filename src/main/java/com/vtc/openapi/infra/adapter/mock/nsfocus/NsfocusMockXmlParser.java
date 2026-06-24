@@ -286,6 +286,12 @@ public class NsfocusMockXmlParser {
         if (StringUtils.hasText(scanned.messString)) {
             inst.put("extVulnRef", truncate(scanned.messString, 500));
         }
+        String vulDesc = detail != null && StringUtils.hasText(detail.description)
+                ? detail.description
+                : scanned.messString;
+        if (StringUtils.hasText(vulDesc)) {
+            inst.put("vulDesc", truncate(vulDesc, 2000));
+        }
         if (pwd != null) {
             inst.put("username", pwd.username);
             inst.put("password", pwd.password);
@@ -336,6 +342,7 @@ public class NsfocusMockXmlParser {
             VulnDetail d = new VulnDetail();
             d.vulId = vulId;
             d.name = childText(vuln, "name");
+            d.description = childText(vuln, "description");
             d.cveId = childText(vuln, "cve_id");
             d.cnnvd = childText(vuln, "cnnvd");
             String riskRaw = childText(vuln, "risk_points");
@@ -694,6 +701,7 @@ public class NsfocusMockXmlParser {
     private static class VulnDetail {
         String vulId;
         String name;
+        String description;
         String cveId;
         String cnnvd;
         double riskPoints;

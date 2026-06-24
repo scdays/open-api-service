@@ -21,6 +21,7 @@ public class TaskCenterSurveyResultsAdapterTest {
         row.put("vulId", "111891");
         row.put("cve", "CVE-2016-10160");
         row.put("vulnName", "Test Vuln");
+        row.put("messString", "Remote code execution in service.");
         row.put("level", "high");
         row.put("ip", "172.16.3.28");
         row.put("port", "27017");
@@ -35,5 +36,6 @@ public class TaskCenterSurveyResultsAdapterTest {
         Assert.assertEquals("CVE-2016-10160", instances.get(0).getString("orgVulId"));
         Assert.assertEquals("CVE-2016-10160", instances.get(0).getString("cve"));
         Assert.assertEquals("111891", instances.get(0).getString("vulId"));
+        Assert.assertEquals("Remote code execution in service.", instances.get(0).getString("vulDesc"));
     }
 }
