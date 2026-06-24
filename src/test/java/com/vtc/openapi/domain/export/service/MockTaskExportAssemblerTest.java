@@ -94,8 +94,8 @@ class MockTaskExportAssemblerTest {
     void vulnerabilityTaskIncludesLivePortAndVulnerabilities() {
         OpenTaskDO task = baseTask(1001, 1);
         List<OpenVulnInstanceDO> instances = CollUtil.newArrayList((
-                instance("VI-vul-1", 1, snapshot("VUL-73699", "CVE-2016-10160",
-                        "172.30.3.22", 443, "https", "php/5.3.10"))),
+                instance("VI-vul-1", 1, withVulDesc(snapshot("VUL-73699", "CVE-2016-10160",
+                        "172.30.3.22", 443, "https", "php/5.3.10"), "desc-VUL-73699"))),
                 instance("VI-vul-2", 1, snapshot("VUL-73011", "CVE-2007-1888",
                         "172.30.3.22", 443, "https", "php/5.3.10")));
 
@@ -117,6 +117,7 @@ class MockTaskExportAssemblerTest {
         assertEquals(1, ports.size());
         assertEquals(2, vuls.size());
         assertEquals("CVE-2016-10160", vuls.get(0).get("orgVulId"));
+        assertEquals("desc-VUL-73699", vuls.get(0).get("vulDesc"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> instList = (List<Map<String, Object>>) vuls.get(0).get("instances");
@@ -158,6 +159,19 @@ class MockTaskExportAssemblerTest {
         assertTrue(taskExport.containsKey("liveProbeResults"));
         assertFalse(taskExport.containsKey("portScanResults"));
         assertTrue(taskExport.containsKey("vulnerabilities"));
+    }
+
+    @Test
+    void vulnerabilityExportFallsBackToExtVulnRefWhenVulDescMissing() {
+        OpenTaskDO task = baseTask(1001, 1);
+        Map<String, Object> snap = snapshot("VUL-1", "CVE-1", "10.0.0.1", 80, "http", "banner-only");
+        List<OpenVulnInstanceDO> instances = CollUtil.newArrayList(instance("VI-vul-1", 1, snap));
+
+        Map<String, Object> root = assemble(task, instances);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> vuls = (List<Map<String, Object>>) taskExport(root).get("vulnerabilities");
+
+        assertEquals("banner-only", vuls.get(0).get("vulDesc"));
     }
 
     private Map<String, Object> assemble(OpenTaskDO task, List<OpenVulnInstanceDO> instances) {
@@ -212,6 +226,11 @@ class MockTaskExportAssemblerTest {
         row.setVulInfoStat(stat);
         row.setSnapshotJson(JSON.toJSONString(snap));
         return row;
+    }
+
+    private static Map<String, Object> withVulDesc(Map<String, Object> snap, String vulDesc) {
+        snap.put("vulDesc", vulDesc);
+        return snap;
     }
 
     private static Map<String, Object> snapshot(String vulId, String orgVulId, String addr,
