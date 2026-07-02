@@ -28,6 +28,8 @@ public class OpenExportDO extends BaseDO {
     private String verifyFixJobId;
     /** 原始报告归档关联子任务 ID；外发记录为 null */
     private String subId;
+    /** 关联的 Webhook 事件ID（业务侧生成，用于关联投递记录与业务详情） */
+    private String webhookEventId;
     private Date generatedAt;
     private Date createdAt;
     private Date updatedAt;

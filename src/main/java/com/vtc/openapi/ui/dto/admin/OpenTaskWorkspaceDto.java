@@ -29,9 +29,6 @@ public class OpenTaskWorkspaceDto {
     @ApiModelProperty("实例预览（最多 50 条）")
     private List<OpenTaskInstanceBriefDto> instances;
 
-    @ApiModelProperty("Webhook 投递摘要")
-    private List<WebhookDeliveryLogDTO> webhookDeliveries;
-
     @ApiModelProperty("全链路时序事件")
     private List<OpenTaskTimelineEventDto> timeline;
 }

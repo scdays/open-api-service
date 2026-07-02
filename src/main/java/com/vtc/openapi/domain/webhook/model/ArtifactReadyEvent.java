@@ -35,4 +35,6 @@ public class ArtifactReadyEvent {
     private String downloadUrl;
     /** 修复核验 jobId（exportStage=VERIFY_FIX_SCAN 时用于工作台聚合） */
     private String verifyFixJobId;
+    /** 关联的 Webhook 事件ID（业务侧生成，用于关联投递记录与业务详情） */
+    private String webhookEventId;
 }

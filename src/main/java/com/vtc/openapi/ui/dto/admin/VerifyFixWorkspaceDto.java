@@ -27,12 +27,6 @@ public class VerifyFixWorkspaceDto {
     @ApiModelProperty("关联 open_task 摘要")
     private List<OpenTaskAdminDto> relatedTasks = new ArrayList<>();
 
-    @ApiModelProperty("VERIFY_FIX_SCAN 外发")
-    private List<VerifyFixExportBriefDto> exports = new ArrayList<>();
-
-    @ApiModelProperty("Webhook 投递摘要")
-    private List<WebhookDeliveryLogDTO> webhookDeliveries = new ArrayList<>();
-
     @ApiModelProperty("全链路时序")
     private List<OpenTaskTimelineEventDto> timeline = new ArrayList<>();
 

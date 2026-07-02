@@ -3,14 +3,12 @@ package com.vtc.openapi.app.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.botany.spore.core.page.PageInfo;
-import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.OpenApiOperations;
-import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
 import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
@@ -18,7 +16,6 @@ import com.vtc.openapi.domain.task.model.query.OpenTaskAdminQuery;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
 import com.vtc.openapi.app.support.TaskScopedInstanceLoader;
-import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterReportArchiveService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterScanResultQueryService;
 import com.vtc.openapi.infra.adapter.taskcenter.TaskCenterSubSupport;
@@ -39,7 +36,6 @@ import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyRefetchResultDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSurveyResultsDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskTimelineEventDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskWorkspaceDto;
-import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,38 +65,32 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
     private final IApiInvocationRepository apiInvocationRepository;
-    private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final OpenApiProperties openApiProperties;
     private final TaskCenterTaskOrchestrator taskCenterOrchestrator;
     private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskCenterSurveyRefetchService surveyRefetchService;
     private final TaskCenterReportArchiveService reportArchiveService;
-    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
     private final TaskScopedInstanceLoader taskScopedInstanceLoader;
 
     public OpenTaskAdminAppServiceImpl(IOpenTaskRepository openTaskRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
                                        IOpenVulnInstanceRepository vulnInstanceRepository,
                                        IApiInvocationRepository apiInvocationRepository,
-                                       AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                        OpenApiProperties openApiProperties,
                                        @Autowired(required = false) TaskCenterTaskOrchestrator taskCenterOrchestrator,
                                        @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
                                        @Autowired(required = false) TaskCenterSurveyRefetchService surveyRefetchService,
                                        @Autowired(required = false) TaskCenterReportArchiveService reportArchiveService,
-                                       WebhookDeliveryEnricher webhookDeliveryEnricher,
                                        TaskScopedInstanceLoader taskScopedInstanceLoader) {
         this.openTaskRepository = openTaskRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.apiInvocationRepository = apiInvocationRepository;
-        this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.openApiProperties = openApiProperties;
         this.taskCenterOrchestrator = taskCenterOrchestrator;
         this.scanResultQueryService = scanResultQueryService;
         this.surveyRefetchService = surveyRefetchService;
         this.reportArchiveService = reportArchiveService;
-        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
         this.taskScopedInstanceLoader = taskScopedInstanceLoader;
     }
 
@@ -159,7 +149,6 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
         workspace.setVerifySubs(filterSubs(subs, TaskCenterSubSupport.PHASE_VERIFY));
         workspace.setInstanceStatCounts(buildStatCountsFromBriefs(taskInstances));
         workspace.setInstances(taskInstances);
-        workspace.setWebhookDeliveries(loadWebhookDeliveries(task));
         workspace.setTimeline(buildTimeline(task, subs, taskInstances));
         return ApiResponse.ok(workspace);
     }
@@ -500,18 +489,6 @@ public class OpenTaskAdminAppServiceImpl implements IOpenTaskAdminAppService {
             counts.merge(key, 1L, Long::sum);
         }
         return counts;
-    }
-
-    private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenTaskDO task) {
-        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listWebhookDeliveriesByTaskScope(
-                task.getPartnerId(), task.getTaskId(), 100);
-        if (CollectionUtils.isEmpty(rows)) {
-            return Collections.emptyList();
-        }
-        return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(rows).stream()
-                .limit(20)
-                .peek(webhookDeliveryEnricher::enrich)
-                .collect(Collectors.toList());
     }
 
     private List<OpenTaskTimelineEventDto> buildTimeline(OpenTaskDO task,

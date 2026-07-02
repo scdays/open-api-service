@@ -3,23 +3,19 @@ package com.vtc.openapi.app.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.convert.VerifyFixJobAdminConvertor;
 import com.vtc.openapi.app.support.OpenTaskSubAdminMapper;
 import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
-import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVulnInstanceLogDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceLogRepository;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
 import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
-import com.vtc.openapi.domain.open.OpenApiOperations;
-import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
-import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
-import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
+import com.vtc.openapi.domain.operationcase.model.OperationCaseEventTypes;
 import com.vtc.openapi.domain.operationcase.model.OperationCaseTypes;
 import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseDO;
+import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseEventDO;
 import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseTargetDO;
 import com.vtc.openapi.domain.operationcase.repository.IOpenOperationCaseRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
@@ -34,7 +30,6 @@ import com.vtc.openapi.ui.dto.admin.OperationCaseVerifyFixPayloadDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
 import com.vtc.openapi.ui.dto.admin.OpenVulnInstanceStateLogDto;
-import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -54,43 +49,34 @@ public class OperationCaseWorkspaceAssembler {
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
     private final IOpenVulnInstanceLogRepository vulnInstanceLogRepository;
     private final IVerifyFixJobDomainService verifyFixJobDomainService;
-    private final IApiInvocationRepository apiInvocationRepository;
-    private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final VerifyFixJobAdminConvertor verifyFixJobAdminConvertor;
     private final IOpenTaskAdminAppService openTaskAdminAppService;
     private final IOpenOperationCaseRepository operationCaseRepository;
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final OpenTaskSubAdminMapper openTaskSubAdminMapper;
     private final VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler;
-    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
 
     public OperationCaseWorkspaceAssembler(IOpenVulnInstanceRepository vulnInstanceRepository,
                                            IOpenVulnInstanceLogRepository vulnInstanceLogRepository,
                                            IVerifyFixJobDomainService verifyFixJobDomainService,
-                                           IApiInvocationRepository apiInvocationRepository,
-                                           AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                            VerifyFixJobAdminConvertor verifyFixJobAdminConvertor,
                                            IOpenTaskAdminAppService openTaskAdminAppService,
                                            IOpenOperationCaseRepository operationCaseRepository,
                                            IOpenTaskSubRepository openTaskSubRepository,
                                            OpenTaskSubAdminMapper openTaskSubAdminMapper,
-                                           VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler,
-                                           WebhookDeliveryEnricher webhookDeliveryEnricher) {
+                                           VerifyFixWorkspaceAssembler verifyFixWorkspaceAssembler) {
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.vulnInstanceLogRepository = vulnInstanceLogRepository;
         this.verifyFixJobDomainService = verifyFixJobDomainService;
-        this.apiInvocationRepository = apiInvocationRepository;
-        this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.verifyFixJobAdminConvertor = verifyFixJobAdminConvertor;
         this.openTaskAdminAppService = openTaskAdminAppService;
         this.operationCaseRepository = operationCaseRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskSubAdminMapper = openTaskSubAdminMapper;
         this.verifyFixWorkspaceAssembler = verifyFixWorkspaceAssembler;
-        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
     }
 
-    public Object buildPayload(OpenOperationCaseDO row, List<ApiInvocationDO> invocations) {
+    public Object buildPayload(OpenOperationCaseDO row, List<OpenOperationCaseEventDO> events) {
         if (row == null || !StringUtils.hasText(row.getCaseType())) {
             return null;
         }
@@ -106,7 +92,7 @@ public class OperationCaseWorkspaceAssembler {
         }
         if (OperationCaseTypes.INSTANCE_VERIFY.equals(caseType)
                 || OperationCaseTypes.INSTANCE_REMEDIATE.equals(caseType)) {
-            return buildInstancePayload(row, invocations);
+            return buildInstancePayload(row, events);
         }
         return null;
     }
@@ -121,37 +107,6 @@ public class OperationCaseWorkspaceAssembler {
             list.add(toStateLogDto(row));
         }
         return list;
-    }
-
-    public List<WebhookDeliveryLogDTO> buildWebhooks(OpenOperationCaseDO row) {
-        if (row == null || !StringUtils.hasText(row.getPartnerId())) {
-            return Collections.emptyList();
-        }
-        String resourceType = null;
-        String resourceId = row.getPrimaryResourceId();
-        if (OperationCaseTypes.VERIFY_FIX.equals(row.getCaseType())) {
-            if (!StringUtils.hasText(resourceId)) {
-                resourceId = extractVerifyFixJobId(row.getResultSummaryJson());
-            }
-        } else if (OperationCaseTypes.TASK_SCAN.equals(row.getCaseType())) {
-            resourceType = OpenApiOperations.PRIMARY_RESOURCE_TASK;
-            if (!StringUtils.hasText(resourceId)) {
-                resourceId = extractTaskId(row.getResultSummaryJson());
-            }
-        } else if (StringUtils.hasText(resourceId)
-                && (OperationCaseTypes.INSTANCE_VERIFY.equals(row.getCaseType())
-                || OperationCaseTypes.INSTANCE_REMEDIATE.equals(row.getCaseType()))) {
-            resourceType = OpenApiOperations.RESOURCE_TYPE_INSTANCE;
-        }
-        if (!StringUtils.hasText(resourceId)) {
-            return Collections.emptyList();
-        }
-        List<WebhookDeliveryLogDO> logs = apiInvocationRepository.listByResource(
-                row.getPartnerId(), resourceType, resourceId, 100);
-        return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(logs).stream()
-                .limit(20)
-                .peek(webhookDeliveryEnricher::enrich)
-                .collect(Collectors.toList());
     }
 
     private OperationCaseVerifyFixPayloadDto buildVerifyFixPayload(OpenOperationCaseDO row) {
@@ -209,7 +164,7 @@ public class OperationCaseWorkspaceAssembler {
     }
 
     private OperationCaseInstancePayloadDto buildInstancePayload(OpenOperationCaseDO row,
-                                                                 List<ApiInvocationDO> invocations) {
+                                                                 List<OpenOperationCaseEventDO> events) {
         String vulInfoId = row.getPrimaryResourceId();
         if (!StringUtils.hasText(vulInfoId)) {
             vulInfoId = extractVulInfoId(row.getResultSummaryJson());
@@ -218,8 +173,10 @@ public class OperationCaseWorkspaceAssembler {
         payload.setVulInfoId(vulInfoId);
         payload.setRequestSummaryJson(row.getRequestSummaryJson());
         payload.setResultSummaryJson(row.getResultSummaryJson());
-        if (invocations != null && !invocations.isEmpty()) {
-            payload.setOperationId(invocations.get(0).getOperationId());
+        // operationId 不再查 api_invocation（该表属 platform-admin 控制面），改为从案件 ACCEPTED 事件载荷中解析
+        String operationId = resolveOperationIdFromEvents(events);
+        if (StringUtils.hasText(operationId)) {
+            payload.setOperationId(operationId);
         }
         if (StringUtils.hasText(vulInfoId) && StringUtils.hasText(row.getPartnerId())) {
             OpenVulnInstanceDO instance = vulnInstanceRepository.findByPartnerAndVulInfoId(
@@ -231,6 +188,36 @@ public class OperationCaseWorkspaceAssembler {
             }
         }
         return payload;
+    }
+
+    /**
+     * 从案件时间线 ACCEPTED 事件载荷解析 operationId。
+     * 案件受理时 operationId 写入 ACCEPTED 事件的 eventPayloadJson（与 invocationId 一同），
+     * 替代原先查 api_invocation 的耦合路径。
+     */
+    private String resolveOperationIdFromEvents(List<OpenOperationCaseEventDO> events) {
+        if (events == null || events.isEmpty()) {
+            return null;
+        }
+        for (OpenOperationCaseEventDO event : events) {
+            if (event == null || !OperationCaseEventTypes.ACCEPTED.equals(event.getEventType())) {
+                continue;
+            }
+            String payloadJson = event.getEventPayloadJson();
+            if (!StringUtils.hasText(payloadJson)) {
+                continue;
+            }
+            try {
+                JSONObject payload = JSON.parseObject(payloadJson);
+                String operationId = payload == null ? null : payload.getString("operationId");
+                if (StringUtils.hasText(operationId)) {
+                    return operationId;
+                }
+            } catch (Exception ignored) {
+                // ignore malformed payload
+            }
+        }
+        return null;
     }
 
     private OperationCaseBatchPayloadDto buildBatchPayload(OpenOperationCaseDO row) {

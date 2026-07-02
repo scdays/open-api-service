@@ -1,14 +1,15 @@
 package com.vtc.openapi.app.service.impl;
 
 import com.vtc.openapi.app.service.IExportAdminAppService;
+import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.model.result.ExportDownloadResult;
+import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.export.service.business.IOpenExportDomainService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.OpenApiOperations;
 import com.vtc.openapi.domain.open.model.InvocationContext;
 import com.vtc.openapi.domain.open.service.business.IInvocationDomainService;
-import com.vtc.openapi.domain.partner.service.business.IPartnerDomainService;
 import com.vtc.openapi.ui.dto.ApiResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -16,21 +17,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class ExportAdminAppServiceImpl implements IExportAdminAppService {
 
-    private final IPartnerDomainService partnerDomainService;
     private final IOpenExportDomainService openExportDomainService;
-    private final IInvocationDomainService invocationDomainService;
+    private final IOpenExportRepository exportRepository;
 
-    public ExportAdminAppServiceImpl(IPartnerDomainService partnerDomainService,
-                                     IOpenExportDomainService openExportDomainService,
-                                     IInvocationDomainService invocationDomainService) {
-        this.partnerDomainService = partnerDomainService;
+    public ExportAdminAppServiceImpl(IOpenExportDomainService openExportDomainService,
+                                     IOpenExportRepository exportRepository) {
         this.openExportDomainService = openExportDomainService;
-        this.invocationDomainService = invocationDomainService;
+        this.exportRepository = exportRepository;
     }
 
     @Override
@@ -38,7 +38,6 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
         if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(exportId)) {
             throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId/exportId 不能为空");
         }
-        partnerDomainService.requireByPartnerId(partnerId.trim());
         String trimmedExportId = exportId.trim();
         String requestId = "ADM-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         InvocationContext ctx = new InvocationContext(
@@ -48,7 +47,6 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
                 "GET",
                 "/internal/admin/exports/" + trimmedExportId + "/download",
                 null);
-        invocationDomainService.start(ctx);
         ApiResponse<Void> auditResponse = ApiResponse.of(OpenApiConstants.CODE_ENGINE_FAILED, "服务内部错误", null);
         try {
             ExportDownloadResult result = openExportDomainService.download(ctx, partnerId.trim(), trimmedExportId);
@@ -66,7 +64,6 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
             throw ex;
         } finally {
             auditResponse.setRequestId(requestId);
-            invocationDomainService.finish(ctx, auditResponse);
         }
     }
 
@@ -75,5 +72,18 @@ public class ExportAdminAppServiceImpl implements IExportAdminAppService {
             return "export.bin";
         }
         return fileName.replace("\"", "").replace("\r", "").replace("\n", "");
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadExportByEventId(String partnerId, String eventId) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(eventId)) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "partnerId/eventId 不能为空");
+        }
+        List<OpenExportDO> exports = exportRepository.listByWebhookEventIds(Collections.singleton(eventId.trim()));
+        if (exports == null || exports.isEmpty()) {
+            throw new OpenApiException(OpenApiConstants.CODE_PARAM_ERROR, "未找到 eventId 对应的外发记录");
+        }
+        OpenExportDO export = exports.get(0);
+        return downloadExport(partnerId, export.getExportId());
     }
 }

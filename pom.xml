@@ -61,6 +61,17 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+        <!-- EventBus Runtime Starter：webhook 事件跨服务发布（open-api-service → platform-admin 投递） -->
+        <dependency>
+            <groupId>com.vtc.asset.security</groupId>
+            <artifactId>asset-security-starter-eventbus</artifactId>
+            <version>3.0.2-SNAPSHOT</version>
+        </dependency>
+        <!-- kafka-clients：eventbus starter 标记为 optional 不传递，transport=kafka 需显式引入 -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

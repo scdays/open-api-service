@@ -65,4 +65,10 @@ databaseChangeLog(logicalFilePath: 'open_artifact.groovy') {
             column(name: 'export_id')
         }
     }
+
+    changeSet(id: '2026-06-29-open_artifact-webhook_event_id', author: 'open-api') {
+        addColumn(tableName: 'open_artifact') {
+            column(name: 'webhook_event_id', type: 'VARCHAR(64)', remarks: '关联的 Webhook 事件ID（业务侧生成）')
+        }
+    }
 }

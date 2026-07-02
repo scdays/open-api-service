@@ -53,4 +53,10 @@ databaseChangeLog(logicalFilePath: 'open_export.groovy') {
                 columnNames: 'partner_id, task_id, export_stage, format, sub_id',
                 constraintName: 'uk_open_export_task_stage_format')
     }
+
+    changeSet(id: '2026-06-29-open_export-webhook_event_id', author: 'open-api') {
+        addColumn(tableName: 'open_export') {
+            column(name: 'webhook_event_id', type: 'VARCHAR(64)', remarks: '关联的 Webhook 事件ID（业务侧生成）')
+        }
+    }
 }

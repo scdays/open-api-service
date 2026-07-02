@@ -35,6 +35,8 @@ public class OpenArtifactDO extends BaseDO {
     private String errorMessage;
     private String filePosition;
     private String fileField;
+    /** 关联的 Webhook 事件ID（业务侧生成，用于关联投递记录与业务详情） */
+    private String webhookEventId;
     private Date createdAt;
     private Date updatedAt;
 }

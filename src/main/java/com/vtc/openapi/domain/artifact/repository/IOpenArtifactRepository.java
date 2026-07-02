@@ -20,4 +20,9 @@ public interface IOpenArtifactRepository {
 
     PageInfo<OpenArtifactDO> pageByTaskAndStage(String partnerId, String taskId, String exportStage,
                                                 int page, int size);
+
+    /**
+     * 按 webhook_event_id 批量查询产物记录（推送记录业务详情用）。
+     */
+    java.util.List<OpenArtifactDO> listByWebhookEventIds(java.util.Collection<String> eventIds);
 }

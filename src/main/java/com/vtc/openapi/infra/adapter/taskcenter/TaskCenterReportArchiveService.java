@@ -3,6 +3,7 @@ package com.vtc.openapi.infra.adapter.taskcenter;
 import com.vtc.openapi.domain.artifact.model.ArtifactSource;
 import com.vtc.openapi.domain.artifact.model.entity.OpenArtifactDO;
 import com.vtc.openapi.domain.artifact.repository.IOpenArtifactRepository;
+import com.vtc.openapi.domain.export.model.ExportStage;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;

@@ -16,6 +16,10 @@ import com.vtc.openapi.infra.dao.po.OpenExportPO;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
+import java.util.Collection;
+import java.util.List;
+
 @Repository
 public class OpenExportRepositoryImpl implements IOpenExportRepository {
 
@@ -129,5 +133,15 @@ public class OpenExportRepositoryImpl implements IOpenExportRepository {
         pageInfo.setTotal(result.getTotal());
         pageInfo.setRecords(ConvertHelper.convertList(result.getRecords(), OpenExportDO.class));
         return pageInfo;
+    }
+
+    @Override
+    public List<OpenExportDO> listByWebhookEventIds(Collection<String> eventIds) {
+        if (eventIds == null || eventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<OpenExportPO> pos = exportMapper.selectList(new LambdaQueryWrapper<OpenExportPO>()
+                .in(OpenExportPO::getWebhookEventId, eventIds));
+        return ConvertHelper.convertList(pos, OpenExportDO.class);
     }
 }

@@ -1,13 +1,10 @@
 package com.vtc.openapi.app.service.impl;
 
 import com.botany.spore.core.page.PageInfo;
-import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.service.IOpenTaskAdminAppService;
 import com.vtc.openapi.app.service.IOperationCaseAdminAppService;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
-import com.vtc.openapi.domain.open.model.entity.ApiInvocationDO;
-import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.operationcase.model.OperationCaseTypes;
 import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseDO;
 import com.vtc.openapi.domain.operationcase.model.entity.OpenOperationCaseEventDO;
@@ -45,8 +42,6 @@ public class OperationCaseAdminAppServiceImpl implements IOperationCaseAdminAppS
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final IOperationCaseDomainService operationCaseDomainService;
-    private final IApiInvocationRepository apiInvocationRepository;
-    private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final OperationCaseWorkspaceAssembler workspaceAssembler;
     private final OperationCaseBackfillService operationCaseBackfillService;
     private final IOpenTaskAdminAppService openTaskAdminAppService;
@@ -56,15 +51,11 @@ public class OperationCaseAdminAppServiceImpl implements IOperationCaseAdminAppS
     private TaskCenterVerifyFixOrchestrator taskCenterVerifyFixOrchestrator;
 
     public OperationCaseAdminAppServiceImpl(IOperationCaseDomainService operationCaseDomainService,
-                                            IApiInvocationRepository apiInvocationRepository,
-                                            AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                             OperationCaseWorkspaceAssembler workspaceAssembler,
                                             OperationCaseBackfillService operationCaseBackfillService,
                                             IOpenTaskAdminAppService openTaskAdminAppService,
                                             OpenApiProperties openApiProperties) {
         this.operationCaseDomainService = operationCaseDomainService;
-        this.apiInvocationRepository = apiInvocationRepository;
-        this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.workspaceAssembler = workspaceAssembler;
         this.operationCaseBackfillService = operationCaseBackfillService;
         this.openTaskAdminAppService = openTaskAdminAppService;
@@ -106,15 +97,13 @@ public class OperationCaseAdminAppServiceImpl implements IOperationCaseAdminAppS
     public ApiResponse<OperationCaseWorkspaceDto> getWorkspace(String caseId) {
         OpenOperationCaseDO row = operationCaseDomainService.requireCase(caseId);
         List<OpenOperationCaseEventDO> events = operationCaseDomainService.listEvents(caseId);
-        List<ApiInvocationDO> invocations = apiInvocationRepository.listByCaseId(caseId, 50);
 
         OperationCaseWorkspaceDto workspace = new OperationCaseWorkspaceDto();
         workspace.setCaseSummary(toAdminDto(row));
         workspace.setTimeline(events.stream().map(this::toEventDto).collect(Collectors.toList()));
-        workspace.setInvocations(adminGovernanceAppConvertor.toInvocationDtoList(invocations));
         workspace.setStateLogs(workspaceAssembler.buildStateLogs(caseId));
-        workspace.setWebhooks(workspaceAssembler.buildWebhooks(row));
-        workspace.setPayload(workspaceAssembler.buildPayload(row, invocations));
+        // payload 不再依赖 api_invocation（控制面表）；operationId 从案件 ACCEPTED 事件载荷解析
+        workspace.setPayload(workspaceAssembler.buildPayload(row, events));
         return ApiResponse.ok(workspace);
     }
 

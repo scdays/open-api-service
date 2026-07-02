@@ -1,17 +1,23 @@
 package com.vtc.openapi.domain.webhook.service.business.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.vtc.asset.security.platform.eventbus.api.EventBus;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
+import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
+import com.vtc.openapi.domain.artifact.model.entity.OpenArtifactDO;
+import com.vtc.openapi.domain.artifact.repository.IOpenArtifactRepository;
 import com.vtc.openapi.domain.export.service.business.VerifyFixItem;
 import com.vtc.openapi.domain.instance.repository.IOpenVulnInstanceRepository;
+import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport;
+import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport.ResourceBinding;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.webhook.model.ArtifactReadyEvent;
-import com.vtc.openapi.domain.webhook.model.WebhookEvent;
 import com.vtc.openapi.domain.webhook.model.WebhookEventType;
+import com.vtc.openapi.domain.webhook.model.event.OpenPlatformWebhookEvent;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.config.OpenApiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -20,21 +26,31 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class WebhookPublishServiceImpl implements IWebhookPublishService {
 
+    /** webhook 事件跨服务发布 topic（platform-admin OpenPlatformWebhookEventHandler 订阅） */
+    private static final String WEBHOOK_TOPIC = "open-platform-webhook";
+
     private static final Logger log = LoggerFactory.getLogger(WebhookPublishServiceImpl.class);
 
-    private final ApplicationEventPublisher eventPublisher;
+    private final EventBus eventBus;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
+    private final IOpenExportRepository exportRepository;
+    private final IOpenArtifactRepository artifactRepository;
     private final OpenApiProperties properties;
 
-    public WebhookPublishServiceImpl(ApplicationEventPublisher eventPublisher,
+    public WebhookPublishServiceImpl(EventBus eventBus,
                                      IOpenVulnInstanceRepository vulnInstanceRepository,
+                                     IOpenExportRepository exportRepository,
+                                     IOpenArtifactRepository artifactRepository,
                                      OpenApiProperties properties) {
-        this.eventPublisher = eventPublisher;
+        this.eventBus = eventBus;
         this.vulnInstanceRepository = vulnInstanceRepository;
+        this.exportRepository = exportRepository;
+        this.artifactRepository = artifactRepository;
         this.properties = properties;
     }
 
@@ -88,7 +104,10 @@ public class WebhookPublishServiceImpl implements IWebhookPublishService {
         if (org.springframework.util.StringUtils.hasText(export.getVerifyFixJobId())) {
             payload.put("verifyFixJobId", export.getVerifyFixJobId());
         }
-        publish(WebhookEventType.EXPORT_READY, task.getPartnerId(), payload);
+        String eventId = publish(WebhookEventType.EXPORT_READY, task.getPartnerId(), payload);
+        // 将 event_id 回写到 export，建立业务侧 event_id 关联
+        export.setWebhookEventId(eventId);
+        exportRepository.updateExport(export);
     }
 
     @Override
@@ -126,7 +145,14 @@ public class WebhookPublishServiceImpl implements IWebhookPublishService {
         if (org.springframework.util.StringUtils.hasText(event.getVerifyFixJobId())) {
             payload.put("verifyFixJobId", event.getVerifyFixJobId());
         }
-        publish(WebhookEventType.ARTIFACT_READY, event.getPartnerId(), payload);
+        String eventId = publish(WebhookEventType.ARTIFACT_READY, event.getPartnerId(), payload);
+        // 将 event_id 回写到 artifact，建立业务侧 event_id 关联
+        event.setWebhookEventId(eventId);
+        OpenArtifactDO artifact = artifactRepository.findByArtifactId(event.getArtifactId());
+        if (artifact != null) {
+            artifact.setWebhookEventId(eventId);
+            artifactRepository.updateArtifact(artifact);
+        }
     }
 
     @Override
@@ -163,11 +189,34 @@ public class WebhookPublishServiceImpl implements IWebhookPublishService {
         publish(WebhookEventType.INSTANCE_VERIFY_FIX_COMPLETED, partnerId, payload);
     }
 
-    private void publish(String eventType, String partnerId, Map<String, Object> payload) {
-        WebhookEvent event = new WebhookEvent();
-        event.setEventType(eventType);
+    private String publish(String eventType, String partnerId, Map<String, Object> payload) {
+        // 业务侧生成 event_id，作为控制面与业务面的桥梁（回写 open_export / open_artifact）
+        String eventId = "evt-" + UUID.randomUUID().toString().replace("-", "");
+
+        // 路由元数据：复用 WebhookDeliverySupport.extractResource 计算 resourceType/resourceId，
+        // 与 platform-admin 落库路由一致，确保 push-records 按资源过滤有效。
+        // extractResource 解析 {eventId,eventType,partnerId,payload:{...}} envelope，读 envelope.payload 字段。
+        Map<String, Object> envelopeForRouting = new LinkedHashMap<>();
+        envelopeForRouting.put("eventId", eventId);
+        envelopeForRouting.put("eventType", eventType);
+        envelopeForRouting.put("partnerId", partnerId);
+        envelopeForRouting.put("payload", payload);
+        ResourceBinding binding = WebhookDeliverySupport.extractResource(eventType, JSON.toJSONString(envelopeForRouting));
+
+        OpenPlatformWebhookEvent event = new OpenPlatformWebhookEvent();
+        event.setEventId(eventId);
+        event.setEventName(eventType);
         event.setPartnerId(partnerId);
         event.setPayload(payload);
-        eventPublisher.publishEvent(event);
+        event.setOccurredAt(System.currentTimeMillis());
+        event.setResourceType(binding.getResourceType());
+        event.setResourceId(binding.getResourceId());
+
+        // 事务提交后发布；无事务时降级为异步发布。避免「事务回滚却已通知 Partner」。
+        eventBus.publishAfterCommit(WEBHOOK_TOPIC, event);
+
+        log.info("Webhook event published to EventBus: topic={}, eventId={}, eventType={}, partnerId={}, resourceType={}, resourceId={}",
+                WEBHOOK_TOPIC, eventId, eventType, partnerId, binding.getResourceType(), binding.getResourceId());
+        return eventId;
     }
 }

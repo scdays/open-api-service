@@ -358,7 +358,7 @@ public class TaskCenterTaskOrchestrator {
             return false;
         } catch (Exception ex) {
             markSubFailed(sub, "vuln-task-center 调用异常: " + ex.getMessage());
-            log.warn("task-center soc scan error taskId={} subId={}", task.getTaskId(), sub.getSubId(), ex);
+            log.warn("[任务中心] 内部调用扫描引擎异常! [Task ID: {}], [Sub Task ID: {}] [失败原因: {}]", sub.getSubId(), sub.getSubId(), ex.getMessage());
             return false;
         }
     }

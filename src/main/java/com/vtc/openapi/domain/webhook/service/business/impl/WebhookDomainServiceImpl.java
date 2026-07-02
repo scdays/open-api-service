@@ -1,144 +1,56 @@
 package com.vtc.openapi.domain.webhook.service.business.impl;
 
-import com.alibaba.fastjson.JSON;
 import com.vtc.openapi.domain.open.OpenApiConstants;
 import com.vtc.openapi.domain.open.OpenApiException;
 import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
 import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport;
-import com.vtc.openapi.domain.open.model.support.WebhookDeliverySupport.ResourceBinding;
 import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.partner.model.entity.PartnerWebhookConfigDO;
 import com.vtc.openapi.domain.partner.repository.IPartnerRepository;
-import com.vtc.openapi.domain.webhook.model.WebhookEvent;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookDomainService;
 import com.vtc.openapi.infra.adapter.WebhookDeliveryAdapter;
 import com.vtc.openapi.infra.dao.WebhookDeliveryLogMapper;
 import com.vtc.openapi.infra.dao.po.WebhookDeliveryLogPO;
-import com.vtc.openapi.infra.webhook.WebhookCallbackUrlResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Webhook 出站投递实现。
- * 异步发送 HTTP POST 到 Partner callbackUrl，携带 HMAC-SHA256 验签头（文档 §6），
- * 失败重试最多 3 次（指数退避）。
+ * Webhook 投递历史记录领域服务实现。
+ * <p>
+ * 首次投递已迁移至 eventplus EventBus（WebhookPublishServiceImpl → platform-admin 消费投递）。
+ * 本类仅保留历史投递记录的查询 / 手动重试能力（dormant 兼容，前端已改调 platform-admin）。
  */
 @Service
 public class WebhookDomainServiceImpl implements IWebhookDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(WebhookDomainServiceImpl.class);
-    private static final DateTimeFormatter ISO_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneId.of("UTC"));
-
-    private static final int MAX_RETRIES = 3;
-    private static final long[] BACKOFF_MS = {1000L, 2000L, 4000L};
 
     private final IPartnerRepository partnerRepository;
     private final IApiInvocationRepository apiInvocationRepository;
     private final WebhookDeliveryAdapter deliveryAdapter;
     private final WebhookDeliveryLogMapper deliveryLogMapper;
-    private final WebhookCallbackUrlResolver callbackUrlResolver;
 
     public WebhookDomainServiceImpl(IPartnerRepository partnerRepository,
                                     IApiInvocationRepository apiInvocationRepository,
                                     WebhookDeliveryAdapter deliveryAdapter,
-                                    WebhookDeliveryLogMapper deliveryLogMapper,
-                                    WebhookCallbackUrlResolver callbackUrlResolver) {
+                                    WebhookDeliveryLogMapper deliveryLogMapper) {
         this.partnerRepository = partnerRepository;
         this.apiInvocationRepository = apiInvocationRepository;
         this.deliveryAdapter = deliveryAdapter;
         this.deliveryLogMapper = deliveryLogMapper;
-        this.callbackUrlResolver = callbackUrlResolver;
     }
 
-    @Override
-    public void deliver(WebhookEvent event) {
-        if (event == null || event.getPartnerId() == null) {
-            return;
-        }
-
-        PartnerWebhookConfigDO config = partnerRepository.findWebhookConfig(event.getPartnerId());
-        String callbackUrl = callbackUrlResolver.resolveForPartner(event.getPartnerId());
-        if (!StringUtils.hasText(callbackUrl)) {
-            log.warn("Partner {} 未配置 callbackUrl 且测试接收端未启用，跳过 Webhook 投递 eventType={}",
-                    event.getPartnerId(), event.getEventType());
-            return;
-        }
-
-        String webhookSecret = config != null ? config.getWebhookSecret() : null;
-
-        if (event.getEventId() == null) {
-            event.setEventId("evt-" + java.util.UUID.randomUUID().toString().replace("-", ""));
-        }
-        if (event.getOccurredAt() == null) {
-            event.setOccurredAt(ISO_FMT.format(Instant.now()));
-        }
-
-        Map<String, Object> envelope = new java.util.LinkedHashMap<>();
-        envelope.put("eventId", event.getEventId());
-        envelope.put("eventType", event.getEventType());
-        envelope.put("occurredAt", event.getOccurredAt());
-        envelope.put("partnerId", event.getPartnerId());
-        envelope.put("payload", event.getPayload());
-
-        String payloadJson = JSON.toJSONString(envelope);
-
-        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            WebhookDeliveryLogPO logEntry;
-            try {
-                logEntry = createLogEntry(event, callbackUrl, payloadJson, attempt);
-            } catch (Exception ex) {
-                log.error("Webhook createLogEntry 失败（投递记录无法落库）: partnerId={} eventType={}: {}",
-                        event.getPartnerId(), event.getEventType(), ex.getMessage(), ex);
-                return;
-            }
-
-            try {
-                int httpStatus = deliveryAdapter.post(callbackUrl, payloadJson, webhookSecret);
-                logEntry.setHttpStatus(httpStatus);
-                logEntry.setStatus(httpStatus >= 200 && httpStatus < 300 ? "SUCCESS" : "FAILED");
-            } catch (Exception ex) {
-                log.warn("Webhook 投递失败: partnerId={} eventType={} 第{}次尝试",
-                        event.getPartnerId(), event.getEventType(), attempt, ex);
-                logEntry.setHttpStatus(-1);
-                logEntry.setStatus("FAILED");
-            }
-
-            try {
-                deliveryLogMapper.insert(logEntry);
-            } catch (Exception ex) {
-                log.error("Webhook deliveryLog insert 失败: partnerId={} eventType={}: {}",
-                        event.getPartnerId(), event.getEventType(), ex.getMessage(), ex);
-                return;
-            }
-
-            if ("SUCCESS".equals(logEntry.getStatus())) {
-                return;
-            }
-
-            if (attempt < MAX_RETRIES) {
-                try {
-                    Thread.sleep(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        }
-
-        log.warn("Webhook 投递耗尽重试次数: partnerId={} eventType={}",
-                event.getPartnerId(), event.getEventType());
-    }
+    // 注：webhook 投递已迁移至 eventplus EventBus。
+    // WebhookPublishServiceImpl 现直接经 EventBus 发布 OpenPlatformWebhookEvent 到 topic open-platform-webhook，
+    // 由 platform-admin 的 OpenPlatformWebhookEventHandler 消费并投递（读 platform_admin 库 partner_webhook_config、
+    // 写 platform_admin 库 webhook_delivery_log）。本类不再承担首次投递，仅保留历史投递记录的查询/手动重试能力
+    // （供 open-api-service 本地 webhook-deliveries 管理端点，前端已改调 platform-admin，此处为 dormant 兼容）。
 
     @Override
     public WebhookDeliveryLogDO requireDeliveryLog(Long deliveryLogId) {
@@ -235,32 +147,5 @@ public class WebhookDomainServiceImpl implements IWebhookDomainService {
             return self == null ? Collections.emptyList() : Collections.singletonList(self);
         }
         return Collections.emptyList();
-    }
-
-    private WebhookDeliveryLogPO createLogEntry(WebhookEvent event, String callbackUrl,
-                                                 String payloadJson, int attempt) {
-        WebhookDeliveryLogPO po = new WebhookDeliveryLogPO();
-        po.setPartnerId(event.getPartnerId());
-        po.setEventType(event.getEventType());
-        po.setPayloadJson(payloadJson);
-        po.setCallbackUrl(callbackUrl);
-        po.setRetryCount(attempt);
-        po.setTriggerSource(attempt <= 0
-                ? WebhookDeliverySupport.TRIGGER_FIRST_ATTEMPT
-                : WebhookDeliverySupport.TRIGGER_AUTO_RETRY);
-        po.setStatus("PENDING");
-        po.setCreatedAt(new Date());
-        applyEnvelopeMetadata(po, payloadJson);
-        return po;
-    }
-
-    private void applyEnvelopeMetadata(WebhookDeliveryLogPO po, String payloadJson) {
-        po.setEventId(WebhookDeliverySupport.parseEventId(payloadJson));
-        ResourceBinding binding = WebhookDeliverySupport.extractResource(po.getEventType(), payloadJson);
-        if (binding != null) {
-            po.setResourceType(binding.getResourceType());
-            po.setResourceId(binding.getResourceId());
-            po.setResourceIdsJson(binding.getResourceIdsJson());
-        }
     }
 }

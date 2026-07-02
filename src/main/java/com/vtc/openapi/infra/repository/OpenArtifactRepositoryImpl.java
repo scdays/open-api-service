@@ -12,6 +12,9 @@ import com.vtc.openapi.infra.dao.po.OpenArtifactPO;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Repository
@@ -100,6 +103,16 @@ public class OpenArtifactRepositoryImpl implements IOpenArtifactRepository {
                 .eq(OpenArtifactPO::getExportStage, exportStage)
                 .orderByDesc(OpenArtifactPO::getCreatedAt);
         return toPageInfo(artifactMapper.selectPage(new Page<>(page, size), wrapper), page, size);
+    }
+
+    @Override
+    public List<OpenArtifactDO> listByWebhookEventIds(Collection<String> eventIds) {
+        if (eventIds == null || eventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<OpenArtifactPO> pos = artifactMapper.selectList(new LambdaQueryWrapper<OpenArtifactPO>()
+                .in(OpenArtifactPO::getWebhookEventId, eventIds));
+        return ConvertHelper.convertList(pos, OpenArtifactDO.class);
     }
 
     private static PageInfo<OpenArtifactDO> toPageInfo(Page<OpenArtifactPO> result, int page, int size) {

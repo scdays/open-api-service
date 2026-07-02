@@ -27,4 +27,9 @@ public interface IOpenExportRepository {
     OpenExportFileDO findFileByExportId(String exportId);
 
     PageInfo<OpenExportDO> pageByTask(String partnerId, String taskId, int page, int size);
+
+    /**
+     * 按 webhook_event_id 批量查询外发记录（推送记录业务详情用）。
+     */
+    java.util.List<OpenExportDO> listByWebhookEventIds(java.util.Collection<String> eventIds);
 }

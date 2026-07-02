@@ -1,18 +1,11 @@
 package com.vtc.openapi.app.service.impl;
 
-import com.vtc.openapi.app.convert.AdminGovernanceAppConvertor;
 import com.vtc.openapi.app.convert.VerifyFixJobAdminConvertor;
 import com.vtc.openapi.app.support.OpenTaskSubAdminMapper;
-import com.vtc.openapi.domain.export.model.ExportStage;
-import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
-import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
-import com.vtc.openapi.app.support.WebhookDeliveryEnricher;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobDO;
 import com.vtc.openapi.domain.instance.model.entity.OpenVerifyFixJobItemDO;
 import com.vtc.openapi.domain.instance.repository.IOpenVerifyFixJobRepository;
 import com.vtc.openapi.domain.instance.service.business.IVerifyFixJobDomainService;
-import com.vtc.openapi.domain.open.model.entity.WebhookDeliveryLogDO;
-import com.vtc.openapi.domain.open.repository.IApiInvocationRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
@@ -23,9 +16,7 @@ import com.vtc.openapi.ui.dto.admin.MockVerifyFixJobDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskAdminDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskSubDto;
 import com.vtc.openapi.ui.dto.admin.OpenTaskTimelineEventDto;
-import com.vtc.openapi.ui.dto.admin.VerifyFixExportBriefDto;
 import com.vtc.openapi.ui.dto.admin.VerifyFixWorkspaceDto;
-import com.vtc.openapi.ui.dto.admin.WebhookDeliveryLogDTO;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -51,34 +42,22 @@ public class VerifyFixWorkspaceAssembler {
     private final IOpenVerifyFixJobRepository verifyFixJobRepository;
     private final IOpenTaskSubRepository openTaskSubRepository;
     private final IOpenTaskRepository openTaskRepository;
-    private final IApiInvocationRepository apiInvocationRepository;
-    private final IOpenExportRepository exportRepository;
     private final VerifyFixJobAdminConvertor verifyFixJobAdminConvertor;
-    private final AdminGovernanceAppConvertor adminGovernanceAppConvertor;
     private final OpenTaskSubAdminMapper openTaskSubAdminMapper;
     private final OpenApiProperties openApiProperties;
-    private final WebhookDeliveryEnricher webhookDeliveryEnricher;
 
     public VerifyFixWorkspaceAssembler(IOpenVerifyFixJobRepository verifyFixJobRepository,
                                        IOpenTaskSubRepository openTaskSubRepository,
                                        IOpenTaskRepository openTaskRepository,
-                                       IApiInvocationRepository apiInvocationRepository,
-                                       IOpenExportRepository exportRepository,
                                        VerifyFixJobAdminConvertor verifyFixJobAdminConvertor,
-                                       AdminGovernanceAppConvertor adminGovernanceAppConvertor,
                                        OpenTaskSubAdminMapper openTaskSubAdminMapper,
-                                       OpenApiProperties openApiProperties,
-                                       WebhookDeliveryEnricher webhookDeliveryEnricher) {
+                                       OpenApiProperties openApiProperties) {
         this.verifyFixJobRepository = verifyFixJobRepository;
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
-        this.apiInvocationRepository = apiInvocationRepository;
-        this.exportRepository = exportRepository;
         this.verifyFixJobAdminConvertor = verifyFixJobAdminConvertor;
-        this.adminGovernanceAppConvertor = adminGovernanceAppConvertor;
         this.openTaskSubAdminMapper = openTaskSubAdminMapper;
         this.openApiProperties = openApiProperties;
-        this.webhookDeliveryEnricher = webhookDeliveryEnricher;
     }
 
     public VerifyFixWorkspaceDto build(String jobId) {
@@ -104,8 +83,6 @@ public class VerifyFixWorkspaceAssembler {
         workspace.setItemStatCounts(buildItemStatCounts(items));
         workspace.setItemResultCounts(buildItemResultCounts(items));
         workspace.setRelatedTasks(buildRelatedTasks(items));
-        workspace.setExports(loadExports(job, items));
-        workspace.setWebhookDeliveries(loadWebhookDeliveries(job, subs, items));
         workspace.setTimeline(buildTimeline(job, subs, items));
         workspace.setConstraints(buildConstraints());
         return workspace;
@@ -175,74 +152,6 @@ public class VerifyFixWorkspaceAssembler {
             result.add(dto);
         }
         return result;
-    }
-
-    private List<VerifyFixExportBriefDto> loadExports(OpenVerifyFixJobDO job, List<OpenVerifyFixJobItemDO> items) {
-        if (job == null || CollectionUtils.isEmpty(items)) {
-            return Collections.emptyList();
-        }
-        Set<String> taskIds = new LinkedHashSet<>();
-        for (OpenVerifyFixJobItemDO item : items) {
-            if (item != null && StringUtils.hasText(item.getTaskId())) {
-                taskIds.add(item.getTaskId());
-            }
-        }
-        List<VerifyFixExportBriefDto> result = new ArrayList<>();
-        for (String taskId : taskIds) {
-            com.botany.spore.core.page.PageInfo<OpenExportDO> page = exportRepository.pageByTask(
-                    job.getPartnerId(), taskId, 1, 50);
-            if (page == null || CollectionUtils.isEmpty(page.getRecords())) {
-                continue;
-            }
-            for (OpenExportDO row : page.getRecords()) {
-                if (row == null || !ExportStage.VERIFY_FIX_SCAN.equals(row.getExportStage())) {
-                    continue;
-                }
-                if (StringUtils.hasText(row.getVerifyFixJobId())
-                        && !job.getJobId().equals(row.getVerifyFixJobId())) {
-                    continue;
-                }
-                VerifyFixExportBriefDto brief = new VerifyFixExportBriefDto();
-                brief.setExportId(row.getExportId());
-                brief.setTaskId(row.getTaskId());
-                brief.setExportStage(row.getExportStage());
-                brief.setFormat(row.getFormat());
-                brief.setStatus(row.getStatus());
-                brief.setDownloadUrl(row.getDownloadUrl());
-                brief.setGeneratedAt(formatUtc(row.getGeneratedAt()));
-                result.add(brief);
-            }
-        }
-        return result;
-    }
-
-    private List<WebhookDeliveryLogDTO> loadWebhookDeliveries(OpenVerifyFixJobDO job,
-                                                            List<OpenTaskSubDO> subs,
-                                                            List<OpenVerifyFixJobItemDO> items) {
-        Set<String> relatedTaskIds = new LinkedHashSet<>();
-        if (!CollectionUtils.isEmpty(subs)) {
-            for (OpenTaskSubDO sub : subs) {
-                if (sub != null && StringUtils.hasText(sub.getTaskId())) {
-                    relatedTaskIds.add(sub.getTaskId());
-                }
-            }
-        }
-        if (!CollectionUtils.isEmpty(items)) {
-            for (OpenVerifyFixJobItemDO item : items) {
-                if (item != null && StringUtils.hasText(item.getTaskId())) {
-                    relatedTaskIds.add(item.getTaskId());
-                }
-            }
-        }
-        List<WebhookDeliveryLogDO> rows = apiInvocationRepository.listWebhookDeliveriesByVerifyFixJobScope(
-                job.getPartnerId(), job.getJobId(), relatedTaskIds, 100);
-        if (CollectionUtils.isEmpty(rows)) {
-            return Collections.emptyList();
-        }
-        return adminGovernanceAppConvertor.toCollapsedWebhookDeliveryLogDtoList(rows).stream()
-                .limit(20)
-                .peek(webhookDeliveryEnricher::enrich)
-                .collect(Collectors.toList());
     }
 
     private List<OpenTaskTimelineEventDto> buildTimeline(OpenVerifyFixJobDO job,

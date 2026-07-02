@@ -121,6 +121,23 @@ open-api:
     test-receiver-base-url: http://127.0.0.1:35780
     test-receiver-path: /internal/dev/webhook/receive
 
+# EventBus 配置：webhook 事件跨服务发布（open-api-service 发布 → platform-admin 消费投递），
+# 与 partner-gateway / platform-admin 同 Kafka 集群（172.16.3.32:9092）。
+vtc:
+  asset-security:
+    eventbus:
+      enabled: true
+      transport: kafka
+      app-name: open-api-service
+      domain: open-platform
+      kafka:
+        bootstrap-servers: 172.16.3.32:9092
+      dlq:
+        enabled: true
+        topic-suffix: .DLQ
+      telemetry:
+        enabled: false
+
 info:
   release:
     version: v1.0.0

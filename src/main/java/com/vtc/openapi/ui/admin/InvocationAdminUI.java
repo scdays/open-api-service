@@ -91,6 +91,22 @@ public class InvocationAdminUI extends BaseUI {
         return artifactAdminAppService.downloadArtifact(partnerId, artifactId);
     }
 
+    @ApiOperation(value = "按事件ID下载外发文件", notes = "GET /internal/admin/webhook-events/{eventId}/export/download")
+    @GetMapping("/webhook-events/{eventId}/export/download")
+    public ResponseEntity<byte[]> downloadExportByEventId(
+            @PathVariable("eventId") String eventId,
+            @RequestParam("partnerId") String partnerId) {
+        return exportAdminAppService.downloadExportByEventId(partnerId, eventId);
+    }
+
+    @ApiOperation(value = "按事件ID下载扫描报告产物", notes = "GET /internal/admin/webhook-events/{eventId}/artifact/download")
+    @GetMapping("/webhook-events/{eventId}/artifact/download")
+    public ResponseEntity<byte[]> downloadArtifactByEventId(
+            @PathVariable("eventId") String eventId,
+            @RequestParam("partnerId") String partnerId) {
+        return artifactAdminAppService.downloadArtifactByEventId(partnerId, eventId);
+    }
+
     @ApiOperation("分页查询 Webhook 投递日志")
     @GetMapping("/webhook-deliveries")
     public ApiResponse<WebhookDeliveryLogPageDto> listWebhookDeliveries(

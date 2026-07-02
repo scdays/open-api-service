@@ -5,4 +5,6 @@ import org.springframework.http.ResponseEntity;
 public interface IExportAdminAppService {
 
     ResponseEntity<byte[]> downloadExport(String partnerId, String exportId);
+
+    ResponseEntity<byte[]> downloadExportByEventId(String partnerId, String eventId);
 }
