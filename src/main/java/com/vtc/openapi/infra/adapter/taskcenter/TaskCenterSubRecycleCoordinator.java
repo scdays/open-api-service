@@ -1,5 +1,6 @@
 package com.vtc.openapi.infra.adapter.taskcenter;
 
+import com.vtc.openapi.domain.artifact.service.business.IArtifactWebhookCoordinator;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
@@ -17,7 +18,7 @@ import java.util.List;
  * 子任务回收协调：扫描结果拉取与原始报告归档<strong>并行</strong>，互不阻塞。
  * <ul>
  *   <li>{@code task_finish_topic} → VTC Feign 拉取存活/端口/漏洞 → 落库 → ingest / 任务推进 / 数据外发</li>
- *   <li>{@code download_report_finish_topic} → 报告路径落库 → SFTP 归档 → ARTIFACT_READY</li>
+ *   <li>{@code download_report_finish_topic} → 报告路径落库 → SFTP 归档 → 待发 ARTIFACT_READY</li>
  * </ul>
  * VTC 入库滞后时由 {@link TaskCenterSurveyCaptureRetryPolicy} 延迟重试，轮询补拉。
  */
@@ -34,6 +35,7 @@ public class TaskCenterSubRecycleCoordinator {
     private final TaskCenterRecycleService recycleService;
     private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskCenterVerifyFixProgressService verifyFixProgressService;
+    private final IArtifactWebhookCoordinator artifactWebhookCoordinator;
 
     public TaskCenterSubRecycleCoordinator(IOpenTaskSubRepository openTaskSubRepository,
                                            IOpenTaskRepository openTaskRepository,
@@ -41,7 +43,8 @@ public class TaskCenterSubRecycleCoordinator {
                                            TaskCenterSurveyRefetchService surveyRefetchService,
                                            TaskCenterRecycleService recycleService,
                                            TaskCenterScanResultQueryService scanResultQueryService,
-                                           TaskCenterVerifyFixProgressService verifyFixProgressService) {
+                                           TaskCenterVerifyFixProgressService verifyFixProgressService,
+                                           IArtifactWebhookCoordinator artifactWebhookCoordinator) {
         this.openTaskSubRepository = openTaskSubRepository;
         this.openTaskRepository = openTaskRepository;
         this.reportArchiveService = reportArchiveService;
@@ -49,6 +52,7 @@ public class TaskCenterSubRecycleCoordinator {
         this.recycleService = recycleService;
         this.scanResultQueryService = scanResultQueryService;
         this.verifyFixProgressService = verifyFixProgressService;
+        this.artifactWebhookCoordinator = artifactWebhookCoordinator;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -86,6 +90,7 @@ public class TaskCenterSubRecycleCoordinator {
         for (OpenTaskSubDO sub : pendingArchive) {
             tryArchiveReportBestEffort(sub);
         }
+        artifactWebhookCoordinator.retryPendingDeliveries(50);
         List<OpenTaskSubDO> pendingCapture = openTaskSubRepository.listFinishedAwaitingSurveyCapture(50);
         for (OpenTaskSubDO sub : pendingCapture) {
             if (scanResultQueryService.hasPersistedResults(sub.getSubId())) {

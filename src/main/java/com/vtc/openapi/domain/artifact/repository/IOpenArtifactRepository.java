@@ -20,4 +20,9 @@ public interface IOpenArtifactRepository {
 
     PageInfo<OpenArtifactDO> pageByTaskAndStage(String partnerId, String taskId, String exportStage,
                                                 int page, int size);
+
+    List<OpenArtifactDO> listPendingWebhookDelivery(String partnerId, String taskId, String exportStage,
+                                                    String verifyFixJobId, int limit);
+
+    List<OpenArtifactDO> listAllPendingWebhookDelivery(int limit);
 }
