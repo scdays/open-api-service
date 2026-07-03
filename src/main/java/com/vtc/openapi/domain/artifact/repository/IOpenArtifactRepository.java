@@ -3,6 +3,9 @@ package com.vtc.openapi.domain.artifact.repository;
 import com.botany.spore.core.page.PageInfo;
 import com.vtc.openapi.domain.artifact.model.entity.OpenArtifactDO;
 
+import java.util.Collection;
+import java.util.List;
+
 public interface IOpenArtifactRepository {
 
     OpenArtifactDO findByArtifactId(String artifactId);
@@ -24,5 +27,10 @@ public interface IOpenArtifactRepository {
     /**
      * 按 webhook_event_id 批量查询产物记录（推送记录业务详情用）。
      */
-    java.util.List<OpenArtifactDO> listByWebhookEventIds(java.util.Collection<String> eventIds);
+    List<OpenArtifactDO> listByWebhookEventIds(Collection<String> eventIds);
+
+    List<OpenArtifactDO> listPendingWebhookDelivery(String partnerId, String taskId, String exportStage,
+                                                    String verifyFixJobId, int limit);
+
+    List<OpenArtifactDO> listAllPendingWebhookDelivery(int limit);
 }

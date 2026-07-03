@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.botany.spore.core.page.PageInfo;
 import com.botany.spore.ddd.infra.utils.convertor.ConvertHelper;
+import com.vtc.openapi.domain.artifact.model.ArtifactWebhookDeliveryStatus;
 import com.vtc.openapi.domain.artifact.model.entity.OpenArtifactDO;
 import com.vtc.openapi.domain.artifact.repository.IOpenArtifactRepository;
 import com.vtc.openapi.infra.dao.OpenArtifactMapper;
@@ -113,6 +114,38 @@ public class OpenArtifactRepositoryImpl implements IOpenArtifactRepository {
         List<OpenArtifactPO> pos = artifactMapper.selectList(new LambdaQueryWrapper<OpenArtifactPO>()
                 .in(OpenArtifactPO::getWebhookEventId, eventIds));
         return ConvertHelper.convertList(pos, OpenArtifactDO.class);
+    }
+
+    @Override
+    public List<OpenArtifactDO> listPendingWebhookDelivery(String partnerId, String taskId, String exportStage,
+                                                           String verifyFixJobId, int limit) {
+        if (!StringUtils.hasText(partnerId) || !StringUtils.hasText(taskId) || !StringUtils.hasText(exportStage)) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<OpenArtifactPO> wrapper = new LambdaQueryWrapper<OpenArtifactPO>()
+                .eq(OpenArtifactPO::getPartnerId, partnerId)
+                .eq(OpenArtifactPO::getTaskId, taskId)
+                .eq(OpenArtifactPO::getExportStage, exportStage)
+                .eq(OpenArtifactPO::getWebhookDeliveryStatus, ArtifactWebhookDeliveryStatus.PENDING)
+                .orderByAsc(OpenArtifactPO::getCreatedAt)
+                .last("LIMIT " + Math.max(limit, 1));
+        if (StringUtils.hasText(verifyFixJobId)) {
+            wrapper.eq(OpenArtifactPO::getVerifyFixJobId, verifyFixJobId.trim());
+        }
+        return artifactMapper.selectList(wrapper).stream()
+                .map(po -> ConvertHelper.convert(po, OpenArtifactDO.class))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<OpenArtifactDO> listAllPendingWebhookDelivery(int limit) {
+        LambdaQueryWrapper<OpenArtifactPO> wrapper = new LambdaQueryWrapper<OpenArtifactPO>()
+                .eq(OpenArtifactPO::getWebhookDeliveryStatus, ArtifactWebhookDeliveryStatus.PENDING)
+                .orderByAsc(OpenArtifactPO::getCreatedAt)
+                .last("LIMIT " + Math.max(limit, 1));
+        return artifactMapper.selectList(wrapper).stream()
+                .map(po -> ConvertHelper.convert(po, OpenArtifactDO.class))
+                .collect(Collectors.toList());
     }
 
     private static PageInfo<OpenArtifactDO> toPageInfo(Page<OpenArtifactPO> result, int page, int size) {

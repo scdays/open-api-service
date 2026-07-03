@@ -41,6 +41,8 @@ public class OpenArtifactPO extends BasePO {
     private String filePosition;
     private String fileField;
     private String webhookEventId;
+    private String webhookDeliveryStatus;
+    private String verifyFixJobId;
     private Date createdAt;
     private Date updatedAt;
 }

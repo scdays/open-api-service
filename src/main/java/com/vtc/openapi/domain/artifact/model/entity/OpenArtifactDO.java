@@ -37,6 +37,10 @@ public class OpenArtifactDO extends BaseDO {
     private String fileField;
     /** 关联的 Webhook 事件ID（业务侧生成，用于关联投递记录与业务详情） */
     private String webhookEventId;
+    /** ARTIFACT_READY 投递状态：PENDING / SENT */
+    private String webhookDeliveryStatus;
+    /** 修复核验 jobId（VERIFY_FIX_SCAN 产物关联） */
+    private String verifyFixJobId;
     private Date createdAt;
     private Date updatedAt;
 }

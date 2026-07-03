@@ -3,15 +3,13 @@ package com.vtc.openapi.infra.adapter.taskcenter;
 import com.vtc.openapi.domain.artifact.model.ArtifactSource;
 import com.vtc.openapi.domain.artifact.model.entity.OpenArtifactDO;
 import com.vtc.openapi.domain.artifact.repository.IOpenArtifactRepository;
-import com.vtc.openapi.domain.export.model.ExportStage;
+import com.vtc.openapi.domain.artifact.service.business.IArtifactWebhookCoordinator;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskDO;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
 import com.vtc.openapi.domain.task.repository.IOpenTaskRepository;
 import com.vtc.openapi.domain.task.repository.IOpenTaskSubRepository;
-import com.vtc.openapi.domain.webhook.model.ArtifactReadyEvent;
-import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.config.OpenApiProperties;
 import com.vtc.openapi.infra.export.ExportDownloadUrlBuilder;
 import com.vtc.openapi.infra.export.ExportFileStorageAdapter;
@@ -26,8 +24,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 
 /**
- * 子任务扫描完成后：从 SFTP 下载原始报告并上传至开放平台文件服务，归档成功后下发 ARTIFACT_READY webhook。
- * <p>原始报告按 Artifact 资源登记，downloadUrl 指向 /artifacts/{artifactId}/download。</p>
+ * 子任务扫描完成后：从 SFTP 下载原始报告并上传至开放平台文件服务。
+ * <p>ARTIFACT_READY 由 {@link com.vtc.openapi.domain.artifact.service.business.IArtifactWebhookCoordinator}
+ * 在外发 EXPORT_READY 之后投递，保证 payload 含 exportId。</p>
  */
 @Service
 @ConditionalOnProperty(name = "open-api.engine.adapter-mode", havingValue = "task-center")
@@ -44,30 +43,30 @@ public class TaskCenterReportArchiveService {
     private final TaskCenterSftpReportDownloader sftpDownloader;
     private final ExportFileStorageAdapter fileStorage;
     private final OpenApiProperties properties;
-    private final IWebhookPublishService webhookPublishService;
     private final ExportDownloadUrlBuilder downloadUrlBuilder;
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenExportRepository exportRepository;
     private final IOpenArtifactRepository artifactRepository;
+    private final IArtifactWebhookCoordinator artifactWebhookCoordinator;
 
     public TaskCenterReportArchiveService(IOpenTaskSubRepository openTaskSubRepository,
                                           TaskCenterSftpReportDownloader sftpDownloader,
                                           ExportFileStorageAdapter fileStorage,
                                           OpenApiProperties properties,
-                                          IWebhookPublishService webhookPublishService,
                                           ExportDownloadUrlBuilder downloadUrlBuilder,
                                           IOpenTaskRepository openTaskRepository,
                                           IOpenExportRepository exportRepository,
-                                          IOpenArtifactRepository artifactRepository) {
+                                          IOpenArtifactRepository artifactRepository,
+                                          IArtifactWebhookCoordinator artifactWebhookCoordinator) {
         this.openTaskSubRepository = openTaskSubRepository;
         this.sftpDownloader = sftpDownloader;
         this.fileStorage = fileStorage;
         this.properties = properties;
-        this.webhookPublishService = webhookPublishService;
         this.downloadUrlBuilder = downloadUrlBuilder;
         this.openTaskRepository = openTaskRepository;
         this.exportRepository = exportRepository;
         this.artifactRepository = artifactRepository;
+        this.artifactWebhookCoordinator = artifactWebhookCoordinator;
     }
 
     /**
@@ -143,11 +142,11 @@ public class TaskCenterReportArchiveService {
             log.info("task-center report archived subId={} artifactId={} fileKey={} bytes={}",
                     sub.getSubId(), artifact.getArtifactId(), fileKey, bytes.length);
 
-            // best-effort 发布 ARTIFACT_READY：独立 try/catch，异常不影响已落库的 ARCHIVED 状态
+            // 产物 Webhook：外发 EXPORT_READY 前先标记待发，由 ArtifactWebhookCoordinator 统一投递
             try {
-                publishArtifactReadyForSub(sub, artifact);
+                artifactWebhookCoordinator.onArtifactArchived(sub, artifact);
             } catch (Exception wh) {
-                log.warn("task-center ARTIFACT_READY publish failed subId={}: {}",
+                log.warn("task-center ARTIFACT_READY schedule failed subId={}: {}",
                         sub.getSubId(), wh.getMessage());
             }
             return true;
@@ -184,6 +183,7 @@ public class TaskCenterReportArchiveService {
         artifact.setExtTaskId(extTaskId);
         artifact.setExportId(resolveRelatedExportId(sub.getPartnerId(), sub.getTaskId(), exportStage));
         artifact.setExportStage(exportStage);
+        artifact.setVerifyFixJobId(sub.getVerifyFixJobId());
         artifact.setScannerVendor(sub.getScannerType());
         artifact.setScannerProduct(sub.getScannerType());
         artifact.setFileName(fileName);
@@ -205,28 +205,6 @@ public class TaskCenterReportArchiveService {
         }
         artifactRepository.updateArtifact(artifact);
         return artifact;
-    }
-
-    private void publishArtifactReadyForSub(OpenTaskSubDO sub, OpenArtifactDO artifact) {
-        if (!properties.getWebhook().isEnabled()) {
-            return;
-        }
-
-        ArtifactReadyEvent event = new ArtifactReadyEvent();
-        event.setPartnerId(sub.getPartnerId());
-        event.setArtifactId(artifact.getArtifactId());
-        event.setTaskId(artifact.getTaskId());
-        event.setExtTaskId(artifact.getExtTaskId());
-        event.setVerifyFixJobId(sub.getVerifyFixJobId());
-        event.setExportId(artifact.getExportId());
-        event.setExportStage(artifact.getExportStage());
-        event.setArtifactSource(artifact.getArtifactSource());
-        event.setFileName(artifact.getFileName());
-        event.setFileFormat(artifact.getFileFormat());
-        event.setContentType(artifact.getContentType());
-        event.setByteSize(artifact.getByteSize());
-        event.setDownloadUrl(artifact.getDownloadUrl());
-        webhookPublishService.publishArtifactReady(event);
     }
 
     private String resolveExtTaskId(OpenTaskSubDO sub) {

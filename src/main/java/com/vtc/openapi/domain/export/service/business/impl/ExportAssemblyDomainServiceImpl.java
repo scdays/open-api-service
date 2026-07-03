@@ -1,7 +1,9 @@
 package com.vtc.openapi.domain.export.service.business.impl;
 
 import com.vtc.openapi.app.support.TaskScopedInstanceLoader;
+import com.vtc.openapi.domain.artifact.service.business.IArtifactWebhookCoordinator;
 import com.vtc.openapi.domain.export.model.ExportStage;
+import com.vtc.openapi.domain.export.model.ExportStatus;
 import com.vtc.openapi.domain.export.model.OpenExportFileType;
 import com.vtc.openapi.domain.export.model.ReportTemplateCatalog;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
@@ -45,8 +47,6 @@ import java.util.UUID;
 public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(ExportAssemblyDomainServiceImpl.class);
-    private static final String STATUS_READY = "READY";
-    private static final String STATUS_FAILED = "FAILED";
 
     private final IOpenTaskRepository openTaskRepository;
     private final IOpenVulnInstanceRepository vulnInstanceRepository;
@@ -61,6 +61,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
     private final OpenApiProperties properties;
     private final TaskCenterScanResultQueryService scanResultQueryService;
     private final TaskScopedInstanceLoader taskScopedInstanceLoader;
+    private final IArtifactWebhookCoordinator artifactWebhookCoordinator;
 
     public ExportAssemblyDomainServiceImpl(IOpenTaskRepository openTaskRepository,
                                            IOpenVulnInstanceRepository vulnInstanceRepository,
@@ -74,7 +75,8 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
                                            IWebhookPublishService webhookPublishService,
                                            OpenApiProperties properties,
                                            @Autowired(required = false) TaskCenterScanResultQueryService scanResultQueryService,
-                                           TaskScopedInstanceLoader taskScopedInstanceLoader) {
+                                           TaskScopedInstanceLoader taskScopedInstanceLoader,
+                                           IArtifactWebhookCoordinator artifactWebhookCoordinator) {
         this.openTaskRepository = openTaskRepository;
         this.vulnInstanceRepository = vulnInstanceRepository;
         this.verifyFixJobRepository = verifyFixJobRepository;
@@ -88,6 +90,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
         this.properties = properties;
         this.scanResultQueryService = scanResultQueryService;
         this.taskScopedInstanceLoader = taskScopedInstanceLoader;
+        this.artifactWebhookCoordinator = artifactWebhookCoordinator;
     }
 
     @Override
@@ -138,15 +141,56 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
     private void assembleInternal(OpenTaskDO task, String exportStage, String verifyFixJobId) {
         try {
             int scanPhase = resolveScanPhase(exportStage);
-            List<OpenVulnInstanceDO> instances = resolveExportInstances(task, exportStage, verifyFixJobId, scanPhase);
             Date generatedAt = new Date();
             Date expiresAt = addDays(generatedAt, properties.getExport().getTtlDays());
+            ensureExportPlaceholders(task, exportStage, verifyFixJobId, generatedAt, expiresAt);
+
+            List<OpenVulnInstanceDO> instances = resolveExportInstances(task, exportStage, verifyFixJobId, scanPhase);
 
             for (String format : ReportTemplateCatalog.resolveFormats(task.getReportTemplateId())) {
                 publishFormat(task, exportStage, verifyFixJobId, instances, format, generatedAt, expiresAt);
             }
         } catch (Exception ex) {
             log.error("export assembly failed: taskId={} stage={}", task.getTaskId(), exportStage, ex);
+        }
+    }
+
+    /**
+     * 预占 exportId，便于产物归档时关联；状态 PENDING，文件就绪后转 READY。
+     */
+    private void ensureExportPlaceholders(OpenTaskDO task, String exportStage, String verifyFixJobId,
+                                          Date generatedAt, Date expiresAt) {
+        for (String format : ReportTemplateCatalog.resolveFormats(task.getReportTemplateId())) {
+            OpenExportDO existing = exportRepository.findByStageAndFormat(
+                    task.getPartnerId(), task.getTaskId(), exportStage, format);
+            if (existing != null) {
+                if (ExportStatus.READY.equals(existing.getStatus())) {
+                    continue;
+                }
+                if (StringUtils.hasText(verifyFixJobId) && !verifyFixJobId.equals(existing.getVerifyFixJobId())) {
+                    existing.setVerifyFixJobId(verifyFixJobId);
+                    existing.setUpdatedAt(new Date());
+                    exportRepository.updateExport(existing);
+                }
+                continue;
+            }
+            OpenExportDO row = new OpenExportDO();
+            row.setExportId("EXP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            row.setPartnerId(task.getPartnerId());
+            row.setTaskId(task.getTaskId());
+            row.setExtTaskId(task.getExtTaskId());
+            row.setReportTemplateId(task.getReportTemplateId());
+            row.setFormat(format);
+            row.setExportStage(exportStage);
+            row.setDataType(com.vtc.openapi.domain.export.model.ExportDataType.fromScanTemplateId(task.getScanTemplateId()));
+            row.setStatus(ExportStatus.PENDING);
+            row.setRecordCount(0);
+            row.setGeneratedAt(generatedAt);
+            row.setExpiresAt(expiresAt);
+            row.setVerifyFixJobId(verifyFixJobId);
+            row.setCreatedAt(generatedAt);
+            row.setUpdatedAt(generatedAt);
+            exportRepository.saveExport(row);
         }
     }
 
@@ -168,31 +212,44 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
                                  Date generatedAt, Date expiresAt) {
         OpenExportDO existing = exportRepository.findByStageAndFormat(
                 task.getPartnerId(), task.getTaskId(), exportStage, format);
-        if (existing != null && STATUS_READY.equals(existing.getStatus())) {
+        if (existing != null && ExportStatus.READY.equals(existing.getStatus())) {
             log.debug("export already ready, skip: taskId={} stage={} format={}", task.getTaskId(), exportStage, format);
             return;
         }
 
-        String exportId = "EXP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String exportId;
+        OpenExportDO row;
+        if (existing != null && StringUtils.hasText(existing.getExportId())) {
+            exportId = existing.getExportId();
+            row = existing;
+            row.setRecordCount(CollectionUtils.isEmpty(instances) ? 0 : instances.size());
+            row.setGeneratedAt(generatedAt);
+            row.setExpiresAt(expiresAt);
+            row.setVerifyFixJobId(verifyFixJobId);
+            row.setStatus(ExportStatus.PENDING);
+            row.setUpdatedAt(generatedAt);
+            exportRepository.updateExport(row);
+        } else {
+            exportId = "EXP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            row = new OpenExportDO();
+            row.setExportId(exportId);
+            row.setPartnerId(task.getPartnerId());
+            row.setTaskId(task.getTaskId());
+            row.setExtTaskId(task.getExtTaskId());
+            row.setReportTemplateId(task.getReportTemplateId());
+            row.setFormat(format);
+            row.setExportStage(exportStage);
+            row.setDataType(com.vtc.openapi.domain.export.model.ExportDataType.fromScanTemplateId(task.getScanTemplateId()));
+            row.setStatus(ExportStatus.PENDING);
+            row.setRecordCount(CollectionUtils.isEmpty(instances) ? 0 : instances.size());
+            row.setGeneratedAt(generatedAt);
+            row.setExpiresAt(expiresAt);
+            row.setVerifyFixJobId(verifyFixJobId);
+            row.setCreatedAt(generatedAt);
+            row.setUpdatedAt(generatedAt);
+            exportRepository.saveExport(row);
+        }
         String fileName = "export-" + task.getTaskId() + "-" + exportId + "." + format;
-
-        OpenExportDO row = new OpenExportDO();
-        row.setExportId(exportId);
-        row.setPartnerId(task.getPartnerId());
-        row.setTaskId(task.getTaskId());
-        row.setExtTaskId(task.getExtTaskId());
-        row.setReportTemplateId(task.getReportTemplateId());
-        row.setFormat(format);
-        row.setExportStage(exportStage);
-        row.setDataType(com.vtc.openapi.domain.export.model.ExportDataType.fromScanTemplateId(task.getScanTemplateId()));
-        row.setStatus(STATUS_FAILED);
-        row.setRecordCount(CollectionUtils.isEmpty(instances) ? 0 : instances.size());
-        row.setGeneratedAt(generatedAt);
-        row.setExpiresAt(expiresAt);
-        row.setVerifyFixJobId(verifyFixJobId);
-        row.setCreatedAt(generatedAt);
-        row.setUpdatedAt(generatedAt);
-        exportRepository.saveExport(row);
 
         try {
             List<Map<String, Object>> liveProbeResults = null;
@@ -222,7 +279,7 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
             if (persisted == null) {
                 throw new IllegalStateException("export row not found: " + exportId);
             }
-            persisted.setStatus(STATUS_READY);
+            persisted.setStatus(ExportStatus.READY);
             persisted.setDownloadUrl(downloadUrl);
             persisted.setUpdatedAt(new Date());
             exportRepository.updateExport(persisted);
@@ -239,9 +296,11 @@ public class ExportAssemblyDomainServiceImpl implements IExportAssemblyDomainSer
             exportRepository.saveExportFile(fileRow);
 
             webhookPublishService.publishExportReady(task, persisted);
+            artifactWebhookCoordinator.flushPendingAfterExportReady(persisted);
         } catch (Exception ex) {
             OpenExportDO failed = exportRepository.findByExportId(exportId);
             if (failed != null) {
+                failed.setStatus(ExportStatus.FAILED);
                 failed.setErrorMessage(truncate(ex.getMessage(), 1000));
                 failed.setUpdatedAt(new Date());
                 exportRepository.updateExport(failed);
