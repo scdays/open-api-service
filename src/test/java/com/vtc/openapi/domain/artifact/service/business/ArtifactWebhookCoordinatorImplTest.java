@@ -9,31 +9,34 @@ import com.vtc.openapi.domain.export.model.ExportStatus;
 import com.vtc.openapi.domain.export.model.entity.OpenExportDO;
 import com.vtc.openapi.domain.export.repository.IOpenExportRepository;
 import com.vtc.openapi.domain.task.model.entity.OpenTaskSubDO;
+import com.vtc.openapi.domain.webhook.model.ArtifactReadyEvent;
 import com.vtc.openapi.domain.webhook.service.business.IWebhookPublishService;
 import com.vtc.openapi.infra.config.OpenApiProperties;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.Before;
+import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.nullable;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ArtifactWebhookCoordinatorImplTest {
+public class ArtifactWebhookCoordinatorImplTest {
 
     private IOpenArtifactRepository artifactRepository;
     private IOpenExportRepository exportRepository;
     private IWebhookPublishService webhookPublishService;
     private ArtifactWebhookCoordinatorImpl coordinator;
 
-    @BeforeEach
-    void setUp() {
+    @Before
+    public void setUp() {
         artifactRepository = mock(IOpenArtifactRepository.class);
         exportRepository = mock(IOpenExportRepository.class);
         webhookPublishService = mock(IWebhookPublishService.class);
@@ -44,7 +47,7 @@ class ArtifactWebhookCoordinatorImplTest {
     }
 
     @Test
-    void defersWebhookWhenExportNotReady() {
+    public void defersWebhookWhenExportNotReady() {
         OpenTaskSubDO sub = sub("SUB-1", "TASK-1");
         OpenArtifactDO artifact = artifact("ART-1", "TASK-1");
 
@@ -56,26 +59,26 @@ class ArtifactWebhookCoordinatorImplTest {
         coordinator.onArtifactArchived(sub, artifact);
 
         ArgumentCaptor<OpenArtifactDO> captor = ArgumentCaptor.forClass(OpenArtifactDO.class);
-        verify(artifactRepository, org.mockito.Mockito.atLeastOnce()).updateArtifact(captor.capture());
+        verify(artifactRepository, atLeastOnce()).updateArtifact(captor.capture());
         OpenArtifactDO updated = captor.getAllValues().get(captor.getAllValues().size() - 1);
         assertEquals(ArtifactWebhookDeliveryStatus.PENDING, updated.getWebhookDeliveryStatus());
         assertEquals("EXP-pending", updated.getExportId());
-        verify(webhookPublishService, never()).publishArtifactReady(any());
+        verify(webhookPublishService, never()).publishArtifactReady(any(ArtifactReadyEvent.class));
     }
 
     @Test
-    void flushesPendingAfterExportReady() {
+    public void flushesPendingAfterExportReady() {
         OpenExportDO ready = readyExport("EXP-ready", "TASK-1");
         OpenArtifactDO pending = artifact("ART-2", "TASK-1");
         pending.setWebhookDeliveryStatus(ArtifactWebhookDeliveryStatus.PENDING);
 
         when(artifactRepository.listPendingWebhookDelivery(
-                eq("P1"), eq("TASK-1"), eq(ExportStage.TASK_COMPLETED), eq(null), eq(200)))
+                eq("P1"), eq("TASK-1"), eq(ExportStage.TASK_COMPLETED), nullable(String.class), eq(200)))
                 .thenReturn(Collections.singletonList(pending));
 
         coordinator.flushPendingAfterExportReady(ready);
 
-        verify(webhookPublishService).publishArtifactReady(any());
+        verify(webhookPublishService).publishArtifactReady(any(ArtifactReadyEvent.class));
         ArgumentCaptor<OpenArtifactDO> captor = ArgumentCaptor.forClass(OpenArtifactDO.class);
         verify(artifactRepository).updateArtifact(captor.capture());
         assertEquals(ArtifactWebhookDeliveryStatus.SENT, captor.getValue().getWebhookDeliveryStatus());
