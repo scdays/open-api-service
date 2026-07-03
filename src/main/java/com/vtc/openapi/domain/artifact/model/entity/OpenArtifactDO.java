@@ -35,6 +35,10 @@ public class OpenArtifactDO extends BaseDO {
     private String errorMessage;
     private String filePosition;
     private String fileField;
+    /** ARTIFACT_READY 投递状态：PENDING / SENT */
+    private String webhookDeliveryStatus;
+    /** 修复核验 jobId（VERIFY_FIX_SCAN 产物关联） */
+    private String verifyFixJobId;
     private Date createdAt;
     private Date updatedAt;
 }

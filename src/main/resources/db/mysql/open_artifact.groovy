@@ -65,4 +65,18 @@ databaseChangeLog(logicalFilePath: 'open_artifact.groovy') {
             column(name: 'export_id')
         }
     }
+
+    changeSet(id: '2026-07-03-open_artifact-webhook-delivery', author: 'open-api') {
+        addColumn(tableName: 'open_artifact') {
+            column(name: 'webhook_delivery_status', type: 'VARCHAR(16)',
+                    remarks: 'ARTIFACT_READY 投递：PENDING/SENT')
+            column(name: 'verify_fix_job_id', type: 'VARCHAR(64)',
+                    remarks: 'VERIFY_FIX_SCAN 关联 verifyFixJobId')
+        }
+        createIndex(tableName: 'open_artifact', indexName: 'idx_open_artifact_webhook_pending', unique: false) {
+            column(name: 'webhook_delivery_status')
+            column(name: 'task_id')
+            column(name: 'export_stage')
+        }
+    }
 }
